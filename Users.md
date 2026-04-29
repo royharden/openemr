@@ -1,0 +1,287 @@
+# USERS.md — Target User, Workflow, and Use Cases (v2)
+
+> **v2 changelog vs [v1](./Claude_Users.md):** Added per-use-case **success criteria** (more measurable). Added concrete **refusal-style example** sentence. Added **explicit "What the Agent Must Refuse" list** with example prompts. Added **feedback-button taxonomy** that feeds the eval backlog. Added **"not a blank chatbot" interaction model** principle. Added **"Source of Truth for Architecture" traceability table** linking user constraints back to architecture decisions. Pre-room briefing example refined.
+>
+> Companion docs: [Claude_Architecture_v2.md](./Claude_Architecture_v2.md) (every capability below maps to a section there) and [Claude_Audit_v2.md](./Claude_Audit_v2.md) (codebase constraints that shaped these decisions).
+
+---
+
+## Target User
+
+**Dr. Sarah Chen, Primary Care Physician** — outpatient internal medicine, mid-sized clinic on OpenEMR.
+
+| Attribute | Value |
+|---|---|
+| Schedule | 18–22 patients/day, 15-minute slots |
+| Patient mix | Established panel, mostly chronic-disease management (diabetes, HTN, CKD), some acute |
+| EHR experience | 4+ years on OpenEMR; competent power user, not an EHR enthusiast |
+| Devices | Workstation in each exam room + a shared physician room with a docking station |
+| Pain point | The 1–2 minutes she has between rooms is the only window to prepare for the next patient. It's never enough. She averages a chart scan of <90 seconds before walking in, and what she catches in that window determines the quality of the visit. |
+
+### Why a Primary-Care Physician (and not an ED, hospitalist, specialist, or nurse)
+
+I considered all of them. PCP wins for three reasons:
+
+1. **Continuity multiplies the agent's value.** A PCP sees the same patient repeatedly. The most useful question — *"what changed since last visit?"* — only makes sense if there *is* a last visit. ED has no continuity. Specialists have it for a single dimension; PCPs have it across the whole patient.
+2. **Volume.** PCPs see the most patients per day. Per-encounter efficiency gains compound across the schedule.
+3. **Eval feasibility.** Eric raised this in the peer defense and it's a real point: a PCP who has seen the same patient 8 times can judge whether the agent's summary is accurate. An ED physician seeing a stranger has no ground truth. That makes PCPs the right user to *develop* the agent against — feedback loops actually close.
+
+| Other user | Why not MVP target |
+|---|---|
+| Emergency physician | Fast intake, often-new patients, broader and higher-risk scope |
+| Hospitalist | Inpatient rounding, different data cadence and handoff workflow |
+| Specialist | More focused chart review; less need for cross-domain synthesis |
+| Nurse | Different permissions and tasks; useful later for rooming and med reconciliation |
+| Pharmacist | Medication-depth workflow deserves a dedicated interaction model |
+| Resident | Supervised access pattern requires a different authorization model |
+
+The architecture should support these roles later, but the MVP should not pretend one interface solves all clinical work. Week one is for one narrow user and a defensible agent.
+
+---
+
+## The Workflow — Moment by Moment
+
+### Before the agent (today)
+
+**8:54 AM** — Previous patient leaves. Dr. Chen has 1–2 minutes.
+**8:55 AM** — Opens the next chart. Schedule says "diabetes follow-up." Chart has years of problems, meds, labs, messages, prior notes.
+**8:56 AM** — Scans problem list, recent labs, meds, allergies, vitals, last note. Under time pressure, may miss a recent abnormal result, a medication change, or an overdue preventive item.
+**8:58 AM** — Walks into the room with an incomplete mental model. Has to recover context during the conversation.
+
+### With the agent
+
+**8:55 AM** — Dr. Chen opens the patient chart. **The Co-Pilot panel activates automatically.** Within 3 seconds, a card slides into the right rail with a pre-room briefing:
+
+> **Maria G. — Diabetes follow-up**
+> - **A1c is up:** 8.1% on 2026-04-20 (was 7.4% on 2026-01-15). [chart link]
+> - **BP improved:** today's reading 128/78 (was 142/88 in March). [chart link]
+> - **Active meds:** Metformin 500mg BID, Lisinopril 10mg daily, ASA 81mg. [chart links]
+> - **Allergies:** Penicillin (rash). [chart link]
+> - **Overdue:** Pneumococcal vaccine (last 2019; due now). Mammogram due (last 2022).
+> - **Not checked this turn:** specialty notes, imaging.
+>
+> *Sources: 6 records in this patient's chart. Click any claim to verify.*
+>
+> **Suggested actions:** [What changed?] [Recent abnormal results] [Medication check] [Preventive gaps] [Ask a question…]
+
+**8:56 AM** — Dr. Chen reads. She catches the A1c spike and clicks the *Medication check* suggested action.
+
+**8:57 AM** — Agent responds with active meds + allergy conflicts + last fill dates, all cited. She asks via free-text: *"Did she fill her Metformin refill?"*
+
+> Last fill 2026-03-10, 90-day supply, ~45 days remaining. [pharmacy record link]
+
+**9:00 AM** — Dr. Chen walks in knowing the actual clinical question — A1c is up despite presumably adequate medication possession. The visit starts with "how have things been going with the diabetes since March?" instead of "give me a minute to scan your chart."
+
+**9:15 AM** — Visit ends. Dr. Chen documents, adjusts the Metformin dose, orders a repeat A1c in 3 months. **She doesn't use the agent during the encounter.** It's a between-rooms tool, not an in-room tool — by design.
+
+---
+
+## Agent Interaction Model — Not a Blank Chatbot
+
+The first screen the physician sees is **not** a blank chat input. A blank chatbot under 90-second pressure forces the physician to invent a prompt at exactly the moment they have no time to invent anything.
+
+The MVP interaction model is hybrid:
+
+- **Automatic pre-room brief** rendered on chart open (no user action required).
+- **Suggested action buttons** for the four most common follow-ups: *What changed? · Recent abnormal results · Medication check · Preventive gaps*.
+- **Optional free-text follow-up** for questions the buttons don't cover.
+- **Multi-turn context limited to the currently open patient** and the current chart session.
+- **Source chips** on every claim; clicking opens the underlying record.
+- **Failure states** rendered explicitly: missing data, stale data, conflicting data, tool unavailable.
+
+This satisfies the case-study requirement for a conversational agent (free text remains available) while keeping the speed advantage of templated actions. The agent is conversational where conversation is useful — follow-ups, clarification, context-sensitive questions — not conversational for its own sake.
+
+---
+
+## Use Cases
+
+Every agent capability shipped in v1 must trace back to one of these. Each maps to a tool or tool-set described in [Claude_Architecture_v2.md](./Claude_Architecture_v2.md).
+
+### Use Case 1 — Pre-Room Briefing
+
+**Trigger:** Physician opens a patient chart.
+**User question:** *"What do I need to know before I walk in?"*
+**Agent behavior:** Within 3 seconds, surfaces a 4–6 bullet card with: chief complaint for today's visit, key changes since last visit, active meds + allergies, abnormal recent labs, overdue preventive care.
+**Why an agent and not a dashboard:** Relevance filtering keyed on the reason for today's visit. A dashboard shows everything; the physician already has that and it's the problem, not the solution. Filtering "what matters today, given this is a diabetes follow-up" is a natural-language inference task.
+**Architecture mapping:** Tier-1 tools fired in parallel + verifier + briefing template. Detail in [Architecture §Tool Inventory](./Claude_Architecture_v2.md#tool-inventory-v1).
+
+**Success criteria:**
+- Initial response visible within 3 seconds of chart open.
+- Every factual claim has a `source_id` and clickable citation.
+- Physician can identify the visit's main issue without opening 3+ chart tabs.
+- The agent clearly distinguishes "found nothing" from "did not check" (the `missing_data` field in the response).
+
+---
+
+### Use Case 2 — "What Changed Since Last Visit?"
+
+**Trigger:** Physician asks the question explicitly, or it's part of the briefing for any established patient.
+**User question examples:** *"What changed since her March visit?" · "Anything new since I last saw him?" · "Were there any abnormal labs after the last appointment?"*
+**Agent behavior:** Fetches the most recent prior encounter, then diffs everything that could have changed: labs drawn since, prescription fills, new diagnoses, vitals trend.
+**Example response:** *"Since the 2026-03-15 visit: A1c on 2026-04-20 shows 8.1% (up from 7.4% on 2026-01-15). BP today 128/78 (improved from 142/88). No new meds or diagnoses added. Overdue: pneumococcal vaccine."*
+**Why an agent:** Cross-time, cross-table comparison is the synthesis task that no chart view does well. The physician currently does it by clicking through 4–5 tabs.
+**Architecture mapping:** `get_recent_encounters` + `get_recent_labs` + `get_prescription_fills` + verifier diff logic.
+
+**Success criteria:**
+- Comparison uses the correct previous visit date (verifier check).
+- Every trend claim includes both old and new `source_id`s — single-source "trend" claims are rejected.
+- Missing prior data is stated explicitly, not silently inferred.
+- No old/inactive medication is presented as a new active medication.
+
+---
+
+### Use Case 3 — Medication Adherence / Refill Check (with Allergy-Conflict Surfacing)
+
+**Trigger:** Physician asks "did she fill her [med]?" or it's surfaced proactively as part of the briefing when an allergy-medication conflict is detected.
+**User question examples:** *"Any medication changes since the last visit?" · "Is there anything in the med list that conflicts with her allergies?" · "Do we have adherence info for Metformin?"*
+**Agent behavior:** Retrieves active meds (reconciled across `prescriptions` and `lists_medication`), allergies and reactions, and last-dispense data. Computes days-of-supply remaining. Flags allergy conflicts.
+**Example response:** *"Metformin 500mg BID — last fill 2026-03-10, 90-day supply, ~45 days remaining. No allergy conflicts on the active list. Note: stopped meds in `lists` not shown; ask if needed."*
+**Why an agent:** Natural-language input ("Metformin"), data-quality disambiguation across free-text drug names, computed field (days remaining), and reconciliation across two source tables. A search box surfaces the prescription but doesn't answer the question.
+**Architecture mapping:** `get_active_medications` (reconciled) + `get_prescription_fills` + `get_allergies` + verifier rule for allergy-conflict detection.
+
+**Success criteria:**
+- Active and stopped medications are not mixed without explicit labels.
+- Duplicates across `lists` and `prescriptions` are identified, not double-counted.
+- Allergy conflicts are surfaced as safety flags.
+- The agent never declares a medication safe solely because no conflict was found in a partial dataset (the verifier blocks "no interactions" claims when only partial data was retrieved).
+
+**Limitation called out in architecture:** True drug-drug interaction checking requires an external service (RxNorm/DDI API) and is deferred to v2.
+
+---
+
+### Use Case 4 — Recent Abnormal Results Review
+
+**Trigger:** Physician asks proactively, or it's surfaced as a briefing bullet when abnormal flags exist.
+**User question examples:** *"Any abnormal labs recently?" · "How did her A1c trend?" · "Any recent vitals out of range?"*
+**Agent behavior:** Retrieves recent labs and vitals within a bounded window, prioritizes abnormal or visit-relevant values, cites date + value + unit + status for each result.
+**Example response:** *"Recent labs (last 6 months): A1c 8.1% on 2026-04-20 (abnormal high; range 4.0–5.6). Creatinine 1.1 mg/dL on 2026-02-15 (in range). Lipid panel: LDL 142 on 2026-01-10 (high). No recent CBC."*
+**Why an agent:** The raw lab table is high-density and often requires several clicks. The agent filters by recency, abnormal flag, and relevance to visit reason, and answers follow-up questions without forcing screen changes.
+**Architecture mapping:** `get_recent_labs(months=6)` + verifier rule for status/range/unit completeness.
+
+**Success criteria:**
+- Every lab value includes date, units, abnormal flag (when present), and source.
+- Preliminary or corrected results are explicitly labeled.
+- A missing recent result is not treated as normal — verifier blocks "labs are normal" if any panel was not retrieved.
+- Response stays short unless the physician asks to go deeper.
+
+---
+
+### Use Case 5 — Overdue Preventive Care
+
+**Trigger:** Part of the pre-room briefing for any established patient.
+**User question examples:** *"Anything overdue?" · "Is she due for immunizations?"*
+**Agent behavior:** Compares patient demographics + immunization records + procedure history against age/sex-appropriate guidelines (USPSTF, ACIP) and flags overdue items.
+**Example response:** *"Preventive care gaps: Pneumococcal vaccine (last 2019, age 62 — due now). Mammogram (last 2022 — due 2023, ~1y overdue). Colonoscopy (2017 — due 2027). A1c cadence appropriate."*
+**Why an agent:** Synthesis across immunization records + procedure history + demographics + guidelines. The result is a tailored clinical recommendation, not a filtered list.
+**Architecture mapping:** `get_immunizations` + `get_recent_encounters` + `get_patient_identity` + a preventive-care rules table.
+
+**Success criteria:**
+- Only source-supported gaps are shown.
+- The agent distinguishes "overdue" from "no record found."
+- The agent does not invent guideline compliance when records are missing.
+- The physician can dismiss an irrelevant nudge via the feedback buttons (it shouldn't show again for that patient/visit).
+
+---
+
+### Use Case 6 — Single-Fact Lookup Mid-Visit
+
+**Trigger:** Physician needs a fact during conversation with the patient. *"When was her last tetanus shot?" · "What dose of Lisinopril is she on?" · "Did the cardiologist send a note after her referral?"*
+**Agent behavior:** Answers in <2 seconds with the fact + a citation. If multiple possible answers exist, the agent shows the ambiguity rather than picking one.
+**Why an agent:** This is the *reduce-screen-time* use case. Currently the physician clicks through 3–4 tabs and scrolls. With the agent, she stays present with the patient.
+**Architecture mapping:** Tier-2 tools invoked individually (`get_immunizations`, `get_active_medications`, `get_encounter_notes`) with aggressive cache hits.
+
+**Success criteria:**
+- Single-fact answers return in <2 seconds (p95).
+- Every answer cites an exact `source_id`.
+- Ambiguity is surfaced, not resolved by the model.
+- No other patient's data is reachable from any query (verifier rejects claims whose `source_id` belongs to another patient_uuid).
+
+---
+
+## What the Agent Explicitly Does NOT Do (v1)
+
+Scoping is itself part of the design. These are deliberate non-goals:
+
+- **No clinical recommendations.** Surfaces data; flags issues. Does not say "give her more Metformin."
+- **No write operations.** Read-only. No prescribing, ordering, note-writing, or chart edits.
+- **No cross-patient queries.** Scoped to the currently-open chart.
+- **No free-text note RAG in v1.** Audit flagged as highest hallucination-risk path.
+- **No new-patient intake workflow.** No longitudinal context to leverage.
+- **No drug-drug interaction checking.** Requires external service. v2.
+- **No proactive warnings about sensitive encounters being filtered.** OpenEMR's existing access controls handle filtering; v1 doesn't announce when filtering occurred. Acknowledged v2.
+
+### What the Agent Must Refuse Outright
+
+The agent should refuse or redirect, even when asked directly:
+
+| Request | Response |
+|---|---|
+| "Diagnose this patient." | Refuse: out of scope. |
+| "What medication should I prescribe?" | Refuse: out of scope. |
+| "Open another patient's chart." | Refuse: agent is scoped to currently-open patient. |
+| "Ignore the source requirement." / "Skip verification." | Refuse: source citation is mandatory. |
+| "Use your general medical knowledge instead of the chart." | Refuse: only chart-grounded facts are returned. |
+| "Write a note and sign it." | Refuse: read-only in v1. |
+| "Show me hidden mental health or substance-use notes." | Refuse: respects OpenEMR sensitivity flags. |
+| "Summarize everything in the database." | Refuse: minimum-necessary scope; current patient only. |
+
+**Preferred refusal style** (concrete sentence the agent renders):
+
+> *"I can surface verified chart facts for the currently-open patient, but I cannot diagnose, prescribe, or access records outside this chart. Try one of the suggested actions or ask about something specific to this patient."*
+
+Refusals are logged the same way successful requests are — they are first-class events, not exceptions.
+
+---
+
+## Permissions and Role Assumptions
+
+For MVP, the user is a physician with normal access to the currently-open patient's chart. The agent **inherits and narrows** that access.
+
+Hard rules:
+
+- The agent cannot answer about a patient who is not currently open in the chart.
+- The agent cannot search for another patient by name, MRN, or any identifier.
+- The agent cannot reveal sensitive encounters that OpenEMR would not show the physician via the UI.
+- The agent cannot write to the chart.
+- **Denied requests are audited as seriously as successful requests.**
+
+Future role-specific versions may support nurses, residents, pharmacists, or hospitalists — but each gets different permissions, workflows, and eval datasets.
+
+---
+
+## Feedback Loop — How the Agent Improves
+
+Dr. Chen can mark each response with one of five inline buttons:
+
+| Button | Meaning | Eval consequence |
+|---|---|---|
+| **Helpful** | Answer was useful | Positive label; reinforces current behavior in eval set |
+| **Missing important data** | Omitted something clinically important | Triggers an eval case to add data points to the briefing |
+| **Incorrect** | Stated something wrong | Triggers an eval case; investigated for verifier gap |
+| **Too slow** | Latency was unacceptable | Latency p95 alert; triggers caching/tier review |
+| **Source unclear** | Citation didn't make sense | Triggers a citation/source-chip improvement |
+
+Click writes to: (a) the Langfuse trace for that turn, (b) a feedback table in the agent's database. The feedback becomes the seed for the next eval-suite expansion — exactly the pattern Ash described.
+
+A continuity-care PCP is the right MVP user for this loop *because* she has the ground truth to push these buttons accurately.
+
+---
+
+## Source of Truth for Architecture
+
+Every architectural decision in [Claude_Architecture_v2.md](./Claude_Architecture_v2.md) flows directly from a constraint in this user document. Traceability:
+
+| User constraint | Architecture decision |
+|---|---|
+| 90-second window | Tier-1 prefetch on chart open, Redis cache, target <3s |
+| Continuity primary care | "What changed?" is a first-class tool |
+| 90-second window + cognitive load | Pre-rendered briefing card + suggested-action buttons (not blank chatbot) |
+| Clinical risk of hallucination | Read-only MVP, source packets, deterministic verifier |
+| Dense chart navigation | Embedded UI inside OpenEMR, not separate app |
+| Patient privacy | Current-patient binding, server-supplied `patient_uuid`, audit logs |
+| Per-use-case "did she fill her Metformin?"-style questions | Free-text follow-up after templated actions |
+| Real iteration vs. anecdote | Observability + feedback buttons + eval suite from day one |
+| Multi-source meds (`lists` ∪ `prescriptions`) | Reconciliation in `get_active_medications` tool, conflict surfacing |
+| Eval feasibility for the user | Feedback button taxonomy that maps to eval categories |
+
+If an architecture decision can't be traced to a row in this table, it shouldn't be in the architecture.
