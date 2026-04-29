@@ -1,14 +1,10 @@
-# USERS.md — Target User, Workflow, and Use Cases (v2)
-
-> **v2 changelog vs [v1](./Claude_Users.md):** Added per-use-case **success criteria** (more measurable). Added concrete **refusal-style example** sentence. Added **explicit "What the Agent Must Refuse" list** with example prompts. Added **feedback-button taxonomy** that feeds the eval backlog. Added **"not a blank chatbot" interaction model** principle. Added **"Source of Truth for Architecture" traceability table** linking user constraints back to architecture decisions. Pre-room briefing example refined.
->
-> Companion docs: [Claude_Architecture_v2.md](./Claude_Architecture_v2.md) (every capability below maps to a section there) and [Claude_Audit_v2.md](./Claude_Audit_v2.md) (codebase constraints that shaped these decisions).
+# USERS.md — Target User, Workflow, and Use Cases
 
 ---
 
 ## Target User
 
-**Dr. Sarah Chen, Primary Care Physician** — outpatient internal medicine, mid-sized clinic on OpenEMR.
+**Dr. Sarah Clark, Primary Care Physician** — outpatient internal medicine, mid-sized clinic on OpenEMR.
 
 | Attribute | Value |
 |---|---|
@@ -22,9 +18,9 @@
 
 I considered all of them. PCP wins for three reasons:
 
-1. **Continuity multiplies the agent's value.** A PCP sees the same patient repeatedly. The most useful question — *"what changed since last visit?"* — only makes sense if there *is* a last visit. ED has no continuity. Specialists have it for a single dimension; PCPs have it across the whole patient.
+1. **Continuity multiplies the agent's value.** A PCP sees the same patient repeatedly. The most useful question, *"what changed since last visit?" only makes sense if there *is* a last visit. ED has no continuity. Specialists have it for a single dimension; PCPs have it across the whole patient.
 2. **Volume.** PCPs see the most patients per day. Per-encounter efficiency gains compound across the schedule.
-3. **Eval feasibility.** Eric raised this in the peer defense and it's a real point: a PCP who has seen the same patient 8 times can judge whether the agent's summary is accurate. An ED physician seeing a stranger has no ground truth. That makes PCPs the right user to *develop* the agent against — feedback loops actually close.
+3. **Eval feasibility.** Eric raised this in the peer defense and it's a real point: a PCP who has seen the same patient 8 times can judge whether the agent's summary is accurate. An ED physician seeing a stranger has no ground truth. That makes PCPs the right user to *develop* the agent against, feedback loops actually close.
 
 | Other user | Why not MVP target |
 |---|---|
@@ -39,20 +35,21 @@ The architecture should support these roles later, but the MVP should not preten
 
 ---
 
-## The Workflow — Moment by Moment
+## The Workflow: Moment by Moment
 
 ### Before the agent (today)
 
-**8:54 AM** — Previous patient leaves. Dr. Chen has 1–2 minutes.
+**8:54 AM** — Previous patient leaves. Dr. Clark has 1–2 minutes.
 **8:55 AM** — Opens the next chart. Schedule says "diabetes follow-up." Chart has years of problems, meds, labs, messages, prior notes.
 **8:56 AM** — Scans problem list, recent labs, meds, allergies, vitals, last note. Under time pressure, may miss a recent abnormal result, a medication change, or an overdue preventive item.
 **8:58 AM** — Walks into the room with an incomplete mental model. Has to recover context during the conversation.
 
 ### With the agent
 
-**8:55 AM** — Dr. Chen opens the patient chart. **The Co-Pilot panel activates automatically.** Within 3 seconds, a card slides into the right rail with a pre-room briefing:
+**8:55 AM** — Dr. Clark opens the patient chart. **The Co-Pilot panel activates automatically.** Within 3 seconds, a card slides into the right rail with a pre-room briefing:
 
-> **Maria G. — Diabetes follow-up**
+> **Maria G.  Diabetes follow-up**
+>
 > - **A1c is up:** 8.1% on 2026-04-20 (was 7.4% on 2026-01-15). [chart link]
 > - **BP improved:** today's reading 128/78 (was 142/88 in March). [chart link]
 > - **Active meds:** Metformin 500mg BID, Lisinopril 10mg daily, ASA 81mg. [chart links]
@@ -64,19 +61,19 @@ The architecture should support these roles later, but the MVP should not preten
 >
 > **Suggested actions:** [What changed?] [Recent abnormal results] [Medication check] [Preventive gaps] [Ask a question…]
 
-**8:56 AM** — Dr. Chen reads. She catches the A1c spike and clicks the *Medication check* suggested action.
+**8:56 AM**  Dr. Clark reads. She catches the A1c spike and clicks the *Medication check* suggested action.
 
-**8:57 AM** — Agent responds with active meds + allergy conflicts + last fill dates, all cited. She asks via free-text: *"Did she fill her Metformin refill?"*
+**8:57 AM**  Agent responds with active meds + allergy conflicts + last fill dates, all cited. She asks via free-text: *"Did she fill her Metformin refill?"*
 
 > Last fill 2026-03-10, 90-day supply, ~45 days remaining. [pharmacy record link]
 
-**9:00 AM** — Dr. Chen walks in knowing the actual clinical question — A1c is up despite presumably adequate medication possession. The visit starts with "how have things been going with the diabetes since March?" instead of "give me a minute to scan your chart."
+**9:00 AM**  Dr. Clark walks in knowing the actual clinical question — A1c is up despite presumably adequate medication possession. The visit starts with "how have things been going with the diabetes since March?" instead of "give me a minute to scan your chart."
 
-**9:15 AM** — Visit ends. Dr. Chen documents, adjusts the Metformin dose, orders a repeat A1c in 3 months. **She doesn't use the agent during the encounter.** It's a between-rooms tool, not an in-room tool — by design.
+**9:15 AM**  Visit ends. Dr. Clark documents, adjusts the Metformin dose, orders a repeat A1c in 3 months. **She doesn't use the agent during the encounter.** It's a between-rooms tool, not an in-room tool  by design.
 
 ---
 
-## Agent Interaction Model — Not a Blank Chatbot
+## Agent Interaction Model: Not a Blank Chatbot
 
 The first screen the physician sees is **not** a blank chat input. A blank chatbot under 90-second pressure forces the physician to invent a prompt at exactly the moment they have no time to invent anything.
 
@@ -95,9 +92,9 @@ This satisfies the case-study requirement for a conversational agent (free text 
 
 ## Use Cases
 
-Every agent capability shipped in v1 must trace back to one of these. Each maps to a tool or tool-set described in [Claude_Architecture_v2.md](./Claude_Architecture_v2.md).
+Every agent capability shipped in v1 must trace back to one of these. Each maps to a tool or tool-set described in [Architecture.md](./Architecture.md).
 
-### Use Case 1 — Pre-Room Briefing
+### Use Case 1: Pre-Room Briefing
 
 **Trigger:** Physician opens a patient chart.
 **User question:** *"What do I need to know before I walk in?"*
@@ -106,6 +103,7 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 **Architecture mapping:** Tier-1 tools fired in parallel + verifier + briefing template. Detail in [Architecture §Tool Inventory](./Claude_Architecture_v2.md#tool-inventory-v1).
 
 **Success criteria:**
+
 - Initial response visible within 3 seconds of chart open.
 - Every factual claim has a `source_id` and clickable citation.
 - Physician can identify the visit's main issue without opening 3+ chart tabs.
@@ -113,7 +111,7 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 2 — "What Changed Since Last Visit?"
+### Use Case 2: "What Changed Since Last Visit?"
 
 **Trigger:** Physician asks the question explicitly, or it's part of the briefing for any established patient.
 **User question examples:** *"What changed since her March visit?" · "Anything new since I last saw him?" · "Were there any abnormal labs after the last appointment?"*
@@ -124,13 +122,13 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 **Success criteria:**
 - Comparison uses the correct previous visit date (verifier check).
-- Every trend claim includes both old and new `source_id`s — single-source "trend" claims are rejected.
+- Every trend claim includes both old and new `source_id`s , single-source "trend" claims are rejected.
 - Missing prior data is stated explicitly, not silently inferred.
 - No old/inactive medication is presented as a new active medication.
 
 ---
 
-### Use Case 3 — Medication Adherence / Refill Check (with Allergy-Conflict Surfacing)
+### Use Case 3: Medication Adherence / Refill Check (with Allergy-Conflict Surfacing)
 
 **Trigger:** Physician asks "did she fill her [med]?" or it's surfaced proactively as part of the briefing when an allergy-medication conflict is detected.
 **User question examples:** *"Any medication changes since the last visit?" · "Is there anything in the med list that conflicts with her allergies?" · "Do we have adherence info for Metformin?"*
@@ -149,7 +147,7 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 4 — Recent Abnormal Results Review
+### Use Case 4: Recent Abnormal Results Review
 
 **Trigger:** Physician asks proactively, or it's surfaced as a briefing bullet when abnormal flags exist.
 **User question examples:** *"Any abnormal labs recently?" · "How did her A1c trend?" · "Any recent vitals out of range?"*
@@ -166,7 +164,7 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 5 — Overdue Preventive Care
+### Use Case 5 : Overdue Preventive Care
 
 **Trigger:** Part of the pre-room briefing for any established patient.
 **User question examples:** *"Anything overdue?" · "Is she due for immunizations?"*
@@ -183,7 +181,7 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 6 — Single-Fact Lookup Mid-Visit
+### Use Case 6: Single-Fact Lookup Mid-Visit
 
 **Trigger:** Physician needs a fact during conversation with the patient. *"When was her last tetanus shot?" · "What dose of Lisinopril is she on?" · "Did the cardiologist send a note after her referral?"*
 **Agent behavior:** Answers in <2 seconds with the fact + a citation. If multiple possible answers exist, the agent shows the ambiguity rather than picking one.
@@ -249,9 +247,9 @@ Future role-specific versions may support nurses, residents, pharmacists, or hos
 
 ---
 
-## Feedback Loop — How the Agent Improves
+## Feedback Loop: How the Agent Improves
 
-Dr. Chen can mark each response with one of five inline buttons:
+Dr. Clark can mark each response with one of five inline buttons:
 
 | Button | Meaning | Eval consequence |
 |---|---|---|
@@ -269,7 +267,7 @@ A continuity-care PCP is the right MVP user for this loop *because* she has the 
 
 ## Source of Truth for Architecture
 
-Every architectural decision in [Claude_Architecture_v2.md](./Claude_Architecture_v2.md) flows directly from a constraint in this user document. Traceability:
+Every architectural decision in [Architecture.md](./Architecture.md) flows directly from a constraint in this user document. Traceability:
 
 | User constraint | Architecture decision |
 |---|---|
