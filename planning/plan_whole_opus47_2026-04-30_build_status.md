@@ -7,9 +7,20 @@
 
 ---
 
-## Status snapshot (Claude Code agent run — 2026-04-30)
+## Status snapshot (Claude Code agent run — 2026-04-30 → 2026-05-01)
 
 This file is a copy of `plan_whole_opus47_2026-04-30_build.md` with **_DONE** / **OUTSTANDING** / **DEFERRED** markers reflecting work performed by a Claude Code agent (Claude app), per its session summary and the current tree.
+
+### Update 2026-05-01T22:00Z (Claude Code / claude-opus-4-7) — Sunday Slices I–L
+
+- **Slice I** (allergies / labs / immunizations builders + follow-up routing) is **DONE**. Three new PHP packet builders shipped (`AllergiesPacketBuilder`, `RecentLabsPacketBuilder`, `ImmunizationsPacketBuilder`) and `public/api/brief.php` now switches builder sets on `use_case`.
+- **Slice J** (verifier rules: stale-data labeling, sensitive-data caveat, lists/prescriptions conflict surfacing) is **DONE**. Three new rules in `app/verifier.py` + optional `sensitive: bool` on `SourcePacket`.
+- **Slice K** (5 more eval cases) is **DONE**. Added `06_stale_meds.json` (Thursday parity), `07_lists_rx_conflict.json`, `08_sensitive_encounter.json`, `09_prompt_injection.json`, `10_latency_budget.json`, `11_allergy_conflict_surfaced.json`. **11/11 passing.**
+- **Slice L** (feedback buttons → gateway → Langfuse score, plus AI cost analysis) is **DONE**. `public/api/feedback.php` (CSRF + ACL gated) + sidecar `POST /v1/feedback` writing a Langfuse `score` event keyed by trace_id; panel UI gained five feedback chips and three new follow-up buttons. `planning/cost_analysis.md` covers per-turn cost (~$0.0073) + 100/1K/10K/100K projections + architectural deltas.
+- Full pytest run: **24/24 passing**. Eval suite: **11/11 passing**. PHP `-l` clean on every new file.
+- See [AgDR-0008](../agentdocs/decisions/AgDR-0008-sunday-slices-i-through-l.md) for the decision record.
+
+**Still OUTSTANDING after this session:** Railway deploy of sidecar service, demo video + README Loom URL, §12 smoke test on the *deployed* URL, Demo DB augmentation. Everything else on the Sunday rubric is checked.
 
 ### Update 2026-04-30T23:55Z (Claude Code / claude-opus-4-7)
 
@@ -31,23 +42,23 @@ This file is a copy of `plan_whole_opus47_2026-04-30_build.md` with **_DONE** / 
 
 | Area | Status |
 |------|--------|
-| OpenEMR module + chart panel | **DONE** (card + follow-up button + brief fetch) |
-| Gateway `brief.php` (session pid, CSRF `ClinicalCopilot`, ACL, trace_id) | **DONE** |
-| Three packet builders (identity, problems, meds) | **DONE** |
-| Sidecar skeleton (`agent/copilot-api/`) FastAPI + LLM + verifier | **DONE** |
-| Verifier (8 rules, repair-once) | **DONE** (behavior covered by eval runner; see pytest gap below) |
-| Observability + audit | **DONE** at agent-reported level (Langfuse hooks + `AgentTurnAuditor`) |
-| Eval framework (`python -m evals.runner`) | **DONE** (5/5 pass reported) |
+| OpenEMR module + chart panel | **DONE** (card + follow-up buttons + feedback chips + brief fetch) |
+| Gateway `brief.php` (session pid, CSRF `ClinicalCopilot`, ACL, trace_id, use_case-switched builder set) | **DONE** |
+| Six packet builders (identity, problems, meds, allergies, labs, immunizations) | **DONE** |
+| Sidecar skeleton (`agent/copilot-api/`) FastAPI + LLM + verifier + `/v1/feedback` | **DONE** |
+| Verifier (8 per-claim rules, repair-once, + Slice J stale/sensitive/conflict rules) | **DONE** |
+| Observability + audit (Langfuse traces + `agent_turn` audit row + Langfuse `score` on feedback) | **DONE** at code level |
+| Eval framework (`python -m evals.runner`) | **DONE** (11/11 passing) |
 | Sidecar Dockerfile + README / env docs | **DONE** |
-| Pytest suite (`tests/test_verifier.py` etc.) per Slice E | **DONE** — 18/18 passing in `agent/copilot-api/tests/` (verifier rules + schema boundary). Live smoke test added at `agent/copilot-api/smoke_test.py`. |
+| Pytest suite (`tests/test_verifier.py` etc.) | **DONE** — 24/24 passing in `agent/copilot-api/tests/` |
+| Sunday slices I–L (extra packet builders + verifier rules + 5 evals + feedback + cost analysis) | **DONE** (see 2026-05-01T22:00Z entry) |
 | Railway deploy + private networking + OpenEMR env wiring | **OUTSTANDING** (Dockerfile ready; service not deployed) |
 | Demo video + README Loom URL | **OUTSTANDING** |
 | §12 full checklist on **deployed** Railway URL | **OUTSTANDING** (verified locally: admin, patient chart, brief endpoint) |
 | Demo DB augmentation (thin labs) | **OUTSTANDING** / optional before video |
-| Sunday slices I–L | **DEFERRED** |
-| Agent docs (Agent_LOG, lessons, AgDR-0004/0005) | **DONE** |
+| Agent docs (Agent_LOG, lessons, AgDR-0004/0005/0006/0008) | **DONE** |
 
-**Eval cases vs plan wording:** Thursday list called for five scenarios including an explicit **stale meds** case; shipped cases cover A1c/trend-style, blank-vs-negative allergies, cross-patient, refusal scope, and unsupported source. **OUTSTANDING:** confirm or add a **stale meds / freshness labeling** eval case if rubric requires exact parity with §7 Slice G bullet list.
+**Eval cases vs plan wording:** Thursday parity gap closed. Added `06_stale_meds.json` covering the explicit stale-meds / freshness-labeling scenario from §7 Slice G. Eval suite is now 11 cases total (Thursday 5 + Sunday 5 + 1 parity).
 
 ---
 
@@ -242,7 +253,7 @@ Each slice ends with something working end-to-end, so a partial day still leaves
 - **K:** 5 more eval cases: duplicate medication, sensitive-encounter respect, prompt-injection inside note text (note-text isn't fetched in v1, so synthesize a packet with injection text), latency p95 under budget, allergy-conflict surfacing.
 - **L:** Feedback buttons (Helpful / Missing data / Incorrect / Too slow / Source unclear) → POST to gateway → Langfuse score event. AI cost analysis doc (`planning/cost_analysis.md`) at 100 / 1K / 10K / 100K users with architecture deltas at each tier.
 
-**Status:** **DEFERRED**.
+**Status:** **DONE** (2026-05-01). All four sub-slices shipped; see [AgDR-0008](../agentdocs/decisions/AgDR-0008-sunday-slices-i-through-l.md) and the 2026-05-01T22:00Z snapshot above. Pytest 24/24, evals 11/11.
 
 ## 8. File inventory (concrete paths)
 

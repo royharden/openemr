@@ -13,6 +13,56 @@ Rules for future entries:
 
 ## Entries
 
+### 2026-05-01T22:00:00Z - Claude Code / claude-opus-4-7 - Sunday Slices I–L (allergies/labs/immunizations builders, stale + sensitive + conflict verifier rules, 6 new eval cases, feedback loop, cost analysis)
+
+Trigger: user asked to continue the build past the Thursday submission and finish the Sunday rubric — Slices I, J, K, L from `planning/plan_whole_opus47_2026-04-30_build.md`.
+
+Context reviewed:
+- `planning/plan_whole_opus47_2026-04-30_build_status.md` — outstanding Sunday slices and the noted "stale meds eval case" Thursday-parity gap.
+- `agent/copilot-api/app/{schemas,verifier,orchestrator,main,observability,llm}.py` — to extend without re-architecting.
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/{ActiveProblems,ActiveMedications,Identity}PacketBuilder.php` — to mirror the existing `freshness` + `PacketDto` shape.
+- OpenEMR schema for `lists` (allergy rows), `procedure_order/report/result` (lab join), `immunizations` (CVX + administered_date) from `sql/database.sql`.
+
+Actions performed:
+- **Slice I:** New PHP builders `AllergiesPacketBuilder`, `RecentLabsPacketBuilder`, `ImmunizationsPacketBuilder`. Wired all three into `public/api/brief.php` with a `use_case` switch — `pre_room_brief` runs the full six builders; `medication_check`/`allergy_check`/`recent_abnormal_labs` run a focused subset. Allergies builder emits a synthetic NKDA packet when the chart records one explicitly so the verifier can distinguish "absence of data" from "explicit negative".
+- **Slice J:** Three new verifier rules — `stale_data_uncaveat` (drops a claim if any cited packet is `freshness=stale` and the claim has no staleness caveat); `sensitive_data_uncaveat` (same shape, for `sensitive=true` packets); `lists_rx_conflict_unsurfaced` (post-processing — detects same-drug duplicates across `lists` and `prescriptions` and emits a `verifier_issues` + `missing_data` warning when the LLM didn't surface them as a `claim_type=conflict`). Added optional `sensitive: bool` to `SourcePacket` and three new `use_case` values to `BriefRequest`.
+- **Slice K:** Six new eval cases under `agent/copilot-api/evals/cases/`: `06_stale_meds.json`, `07_lists_rx_conflict.json`, `08_sensitive_encounter.json`, `09_prompt_injection.json`, `10_latency_budget.json`, `11_allergy_conflict_surfaced.json`. Updated `evals/runner.py` to track per-case wall-clock time and check a new optional `verifier_max_ms` expectation.
+- **Slice L:** New `public/api/feedback.php` gateway endpoint (CSRF + ACL-gated POST taking `{trace_id, verdict, comment}`); writes an OpenEMR audit row and forwards to the sidecar via a new `SidecarClient::callFeedback()` method. New sidecar route `POST /v1/feedback` posts a Langfuse `score` event keyed by the same `trace_id`. Panel UI gained five feedback chips and three new follow-up buttons (Medication check / Allergy check / Recent abnormal labs).
+- **`planning/cost_analysis.md`:** Per-turn LLM math at ~$0.0073/turn (Haiku 4.5 with prompt caching, 5% repair rate). User/architecture/spend projections at 100 / 1K / 10K / 100K clinicians, including the architectural cliffs (Langfuse capacity, audit-row partitioning, Anthropic batch repair, self-hosted inference) that dominate before LLM cost does.
+- **Prompt update:** `app/prompts/brief_v1.txt` extended to teach the LLM the new constraints (stale caveat, sensitive caveat, conflict surfacing, prompt-injection resistance) and document the four follow-up use-cases.
+
+Verification:
+- `python -m pytest tests/ -q` — **24/24 passing** (added 6 new tests for the three new rules).
+- `python -m evals.runner` — **11/11 passing** (6 prior cases + 5 new + 1 Thursday parity).
+- PHP `-l` syntax check on every new/edited PHP file inside the running OpenEMR container — no errors.
+
+Files added:
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/AllergiesPacketBuilder.php`
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/RecentLabsPacketBuilder.php`
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ImmunizationsPacketBuilder.php`
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/api/feedback.php`
+- `agent/copilot-api/evals/cases/{06_stale_meds,07_lists_rx_conflict,08_sensitive_encounter,09_prompt_injection,10_latency_budget,11_allergy_conflict_surfaced}.json`
+- `planning/cost_analysis.md`
+- `agentdocs/decisions/AgDR-0008-sunday-slices-i-through-l.md`
+
+Files changed:
+- `agent/copilot-api/app/schemas.py` (added `sensitive`, new use_case literals, `FeedbackRequest`/`FeedbackAck`)
+- `agent/copilot-api/app/verifier.py` (rewrote — three new rules, per-claim and corpus-level)
+- `agent/copilot-api/app/main.py` (added `POST /v1/feedback`)
+- `agent/copilot-api/app/observability.py` (added `record_feedback` → Langfuse score)
+- `agent/copilot-api/app/prompts/brief_v1.txt` (extended constraints + use-cases)
+- `agent/copilot-api/evals/runner.py` (latency tracking)
+- `agent/copilot-api/tests/test_verifier.py` (six new tests)
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php` (new builders + use_case switch)
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Gateway/SidecarClient.php` (added `callFeedback`)
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Controller/PanelController.php` (feedback chips + new follow-up buttons + feedbackUrl in JS config)
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/assets/js/copilot.js` (feedback POST wiring)
+
+Follow-ups:
+- Live sidecar exercise of `POST /v1/feedback` against Langfuse Cloud — needs the Railway deploy live with real Langfuse keys.
+- Demo video must walk Sunday additions: panel renders allergies/labs/immunizations, feedback button posts, conflict surfacing visible, cost-analysis doc linked from README.
+- Sensitive-flag detection in PHP builders is currently always `false`; v2 should derive `sensitive=true` from `lists.sensitivity`/`form_encounter.sensitivity` rather than passing it through inert.
+
 ### 2026-05-01T~18:00Z - Claude Code / claude-sonnet-4-6 - First professional git commit + push to GitHub and GitLab
 
 Trigger: user asked to make a first real commit of all agent-built code, update `README.md`, understand the git/fork/PR workflow, and push to both GitHub and GitLab.

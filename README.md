@@ -1,10 +1,19 @@
-> **Fork:** This is a custom fork of [OpenEMR](https://github.com/openemr/openemr) developed during the [Gauntlet AgentForge](https://gauntletai.com) bootcamp. It adds a **Clinical Co-Pilot** AI module that surfaces patient briefings — active problems, medications, and key context — directly inside the OpenEMR patient chart via a Claude-powered FastAPI sidecar.
+> **Fork:** This is a custom fork of [OpenEMR](https://github.com/openemr/openemr) developed during the [Gauntlet AgentForge](https://gauntletai.com) bootcamp. It adds a **Clinical Co-Pilot** AI module that surfaces verifier-gated patient briefings — identity, active problems, medications, allergies, recent labs, and immunizations — directly inside the OpenEMR patient chart via a Claude-powered FastAPI sidecar.
+>
+> **What the Co-Pilot does:**
+> - Renders a read-only briefing card inside any patient chart, source-cited at the claim level.
+> - Follow-up tools: *What changed?*, *Medication check*, *Allergy check*, *Recent abnormal labs*.
+> - Deterministic verifier with 11 rules (source attribution, patient binding, active-status, trend, blank-vs-negative, refusal scope, cross-patient, stale-data labeling, sensitive-data caveat, lists/prescriptions conflict surfacing) — see [agent/copilot-api/app/verifier.py](agent/copilot-api/app/verifier.py).
+> - Clinician feedback chips (Helpful / Missing data / Incorrect / Too slow / Source unclear) post to Langfuse as scored trace events.
+> - 24/24 pytest + 11/11 eval cases passing offline; trace_id joins Langfuse traces to the OpenEMR `audit_master` row in one query.
 >
 > | Component | Location |
 > |---|---|
 > | OpenEMR module (PHP) | `interface/modules/custom_modules/oe-module-clinical-copilot/` |
 > | AI sidecar (Python/FastAPI) | `agent/copilot-api/` |
+> | Eval cases + runner | `agent/copilot-api/evals/` |
 > | Project planning & architecture | `planning/` |
+> | AI cost analysis (100 / 1K / 10K / 100K users) | [`planning/cost_analysis.md`](planning/cost_analysis.md) |
 > | Agent work logs & decisions | `agentdocs/` |
 > | Local Docker setup | `README-LOCAL-DOCKER.md` |
 >

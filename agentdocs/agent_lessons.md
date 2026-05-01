@@ -10,6 +10,24 @@ Rules for future entries:
 
 ## Entries
 
+### 2026-05-01T22:00:00Z - Claude Code / claude-opus-4-7 - Conflict-surfacing rules are corpus-level, not per-claim — keep them out of the per-claim drop loop
+
+Impact: The natural place to put a "duplicate medication appearing in both `lists` and `prescriptions`" check is inside `_check_claim`. That's wrong: the *absence* of a `claim_type=conflict` claim is what triggers the rule, so there's no per-claim hook to fire it on. Putting it in the loop either overfires (every fact claim citing one of the duplicates gets flagged) or never fires (no claim about either duplicate at all = silent). The right shape is post-processing over the *accepted* claim set, emitting a corpus-level warning into `missing_data` and `verifier_issues` rather than dropping anything.
+
+Recommended handling: when a verifier rule depends on what the LLM *did not* say, write it as a separate function that runs after the per-claim loop (`_detect_lists_rx_conflicts` is the example). Keep the `_check_claim` loop strictly per-claim. Document the rule as "corpus-level" in the rule list so the next agent doesn't try to inline it.
+
+### 2026-05-01T22:00:00Z - Claude Code / claude-opus-4-7 - Synthesizing an NKDA packet only when the chart already says NKDA preserves the blank-vs-negative invariant
+
+Impact: It's tempting to have `AllergiesPacketBuilder` always emit a synthetic "NKDA" packet when the chart returns zero allergy rows, so the LLM has *something* to cite for "no known allergies". Don't. That defeats the entire blank-vs-negative rule — the verifier can no longer distinguish "we asked, the chart said NKDA" from "we asked, the chart returned nothing because nobody has filled in the allergies section yet". The first is safe to surface; the second is dangerous and must surface as `missing_data: "could not retrieve allergies"`.
+
+Recommended handling: only emit an NKDA packet when there's a row in `lists` whose `title` regex-matches `\bnkda\b|no\s+known(\s+drug)?\s+allergies?\b`. Zero rows = empty packet list. The verifier's `blank_vs_negative` rule will then correctly drop any "no allergies" claim because there's no explicit-negative source to cite.
+
+### 2026-05-01T22:00:00Z - Claude Code / claude-opus-4-7 - Optional fields on Pydantic schemas are backwards-compatible if you give them a default, even with the runner reading existing JSON cases
+
+Impact: Adding `sensitive: bool = False` to `SourcePacket` means new eval cases can opt-in by setting it, and all five existing cases (which don't set it) still parse cleanly. The same trick works for the new `use_case` literal values — old `pre_room_brief` payloads still validate.
+
+Recommended handling: when extending a Pydantic schema that's already serialized in JSON fixtures, always provide a default. Run `python -m evals.runner` immediately after the schema edit to catch any missing-default regression — the runner re-validates every JSON case through the Pydantic model.
+
 ### 2026-05-01T~18:00Z - Claude Code / claude-sonnet-4-6 - This repo has two remotes; always push to both after every commit
 
 Impact: The project is published simultaneously to GitHub (`origin`, `https://github.com/royharden/openemr`) and Gauntlet GitLab (`gauntlet`, `https://labs.gauntletai.com/royharden/openemr`). Pushing to only one leaves the other stale, which matters because the Gauntlet evaluation environment reads from GitLab.
