@@ -1,0 +1,23 @@
+{
+  "name": "lists_rx_duplicate_conflict_must_be_surfaced",
+  "description": "When the same drug appears in both `lists` (problem-list med) and `prescriptions` (active rx), the LLM must surface it as a conflict claim citing both source_ids. Otherwise the verifier flags the unsurfaced duplicate.",
+  "packets": [
+    {"source_id": "med:lists:5", "patient_uuid": "uuid-A", "resource_type": "MedicationStatement", "source_table": "lists", "field": "title", "label": "Active medication (problem list)", "value": "Lisinopril 10mg daily", "freshness": "recent", "status": "active"},
+    {"source_id": "rx:prescriptions:22", "patient_uuid": "uuid-A", "resource_type": "MedicationRequest", "source_table": "prescriptions", "field": "drug", "label": "Active prescription", "value": "lisinopril", "freshness": "recent", "status": "active"}
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {"text": "Currently on Lisinopril 10mg daily.", "claim_type": "fact", "source_ids": ["med:lists:5"], "caveat": null}
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed_with_drops",
+    "min_accepted_claims": 1,
+    "rules_must_fire": ["lists_rx_conflict_unsurfaced"],
+    "missing_data_must_mention": ["lisinopril"]
+  }
+}

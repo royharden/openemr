@@ -160,6 +160,95 @@ def test_refusal_scope_allows_descriptive_claim(
     assert res.verifier_status == "passed"
 
 
+# ---------- Slice J: stale_data_uncaveat ----------
+
+
+def test_stale_data_uncaveat_drops_when_no_caveat(
+    packet_factory, claim_factory, llm_output_factory
+):
+    p = packet_factory("rx:5#stale", source_table="prescriptions", value="Lisinopril", freshness="stale")
+    out = llm_output_factory([claim_factory("Currently on Lisinopril", ["rx:5#stale"])])
+    res = _verify(out, [p])
+    assert res.verifier_status == "failed"
+    assert any(i.rule == "stale_data_uncaveat" for i in res.verifier_issues)
+
+
+def test_stale_data_uncaveat_passes_with_staleness_caveat(
+    packet_factory, claim_factory, llm_output_factory
+):
+    p = packet_factory("rx:5#stale", source_table="prescriptions", value="Lisinopril", freshness="stale")
+    out = llm_output_factory([
+        claim_factory(
+            "Currently on Lisinopril",
+            ["rx:5#stale"],
+            caveat="Last updated >90d ago — may be out of date.",
+        )
+    ])
+    res = _verify(out, [p])
+    assert res.verifier_status == "passed"
+
+
+# ---------- Slice J: sensitive_data_uncaveat ----------
+
+
+def test_sensitive_packet_drops_uncaveat_claim(
+    packet_factory, claim_factory, llm_output_factory
+):
+    p = packet_factory("problem:9#mh", value="Generalized anxiety disorder", sensitive=True)
+    out = llm_output_factory([claim_factory("Active problem: GAD", ["problem:9#mh"])])
+    res = _verify(out, [p])
+    assert res.verifier_status == "failed"
+    assert any(i.rule == "sensitive_data_uncaveat" for i in res.verifier_issues)
+
+
+def test_sensitive_packet_passes_with_caveat(
+    packet_factory, claim_factory, llm_output_factory
+):
+    p = packet_factory("problem:9#mh", value="Generalized anxiety disorder", sensitive=True)
+    out = llm_output_factory([
+        claim_factory(
+            "Active problem: GAD",
+            ["problem:9#mh"],
+            caveat="Sensitive — confirm in chart before discussion.",
+        )
+    ])
+    res = _verify(out, [p])
+    assert res.verifier_status == "passed"
+
+
+# ---------- Slice J: lists_rx_conflict_unsurfaced ----------
+
+
+def test_lists_rx_duplicate_flagged_when_not_surfaced_as_conflict(
+    packet_factory, claim_factory, llm_output_factory
+):
+    a = packet_factory("med:lists:5", resource_type="MedicationStatement", source_table="lists", value="Lisinopril 10mg daily")
+    b = packet_factory("rx:prescriptions:22", resource_type="MedicationRequest", source_table="prescriptions", value="lisinopril")
+    out = llm_output_factory([claim_factory("Currently on Lisinopril 10mg", ["med:lists:5"])])
+    res = _verify(out, [a, b])
+    assert res.verifier_status == "passed_with_drops"
+    assert any(i.rule == "lists_rx_conflict_unsurfaced" for i in res.verifier_issues)
+    assert any("lisinopril" in m.lower() for m in res.missing_data)
+
+
+def test_lists_rx_duplicate_silent_when_surfaced_as_conflict(
+    packet_factory, claim_factory, llm_output_factory
+):
+    a = packet_factory("med:lists:5", resource_type="MedicationStatement", source_table="lists", value="Lisinopril 10mg daily")
+    b = packet_factory("rx:prescriptions:22", resource_type="MedicationRequest", source_table="prescriptions", value="lisinopril")
+    out = llm_output_factory([
+        claim_factory(
+            "Lisinopril appears in both the problem-list med entry and the active prescription record.",
+            ["med:lists:5", "rx:prescriptions:22"],
+            claim_type="conflict",
+            caveat="Reconcile before prescribing.",
+        )
+    ])
+    res = _verify(out, [a, b])
+    assert res.verifier_status == "passed"
+    assert not any(i.rule == "lists_rx_conflict_unsurfaced" for i in res.verifier_issues)
+
+
 # ---------- aggregate behavior ----------
 
 def test_drops_unsupported_keeps_supported(

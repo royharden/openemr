@@ -1,0 +1,22 @@
+{
+  "name": "allergy_conflict_surfaced_as_conflict_claim",
+  "description": "Two contradictory allergy packets — NKDA on file plus a separate Penicillin allergy — must be surfaced as a `conflict` claim citing both. Single-source allergy claims are also accepted; the verifier just shouldn't drop a properly cited conflict claim.",
+  "packets": [
+    {"source_id": "allergy:lists:1", "patient_uuid": "uuid-A", "resource_type": "AllergyIntolerance", "source_table": "lists", "field": "title", "label": "Allergy (no known)", "value": "NKDA", "freshness": "recent", "status": "active"},
+    {"source_id": "allergy:lists:2", "patient_uuid": "uuid-A", "resource_type": "AllergyIntolerance", "source_table": "lists", "field": "title", "label": "Allergy", "value": "Penicillin", "freshness": "recent", "status": "active"}
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {"text": "Allergy record contains a contradiction: NKDA on file alongside a Penicillin allergy entry.", "claim_type": "conflict", "source_ids": ["allergy:lists:1", "allergy:lists:2"], "caveat": "Reconcile before prescribing."}
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

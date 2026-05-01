@@ -1,11 +1,15 @@
 """Deterministic verifier — the load-bearing piece.
 
-Eight rules in priority order. Failures drop the offending claim and log the
-reason; the verifier never raises. The gateway / orchestrator decides whether
-to attempt a single repair pass before rendering.
+Eight per-claim rules in priority order plus three corpus-level checks
+(stale-data labeling, sensitive-data caveat, lists/prescriptions duplicate
+conflict surfacing). Failures drop the offending claim and log the reason; the
+verifier never raises. The orchestrator decides whether to attempt a single
+repair pass before rendering.
 """
 
 from __future__ import annotations
+
+import re
 
 from .schemas import Claim, LLMOutput, SourcePacket, VerifiedResponse, VerifierIssue
 
@@ -19,10 +23,13 @@ REFUSAL_TRIGGERS = (
     "let me prescribe",
     "you should order",
     "i'll prescribe",
+    "start them on",
+    "start the patient on",
 )
 
 ACTIVE_LANGUAGE = ("currently on", "is on", "currently taking", "active medication", "has ", "current ")
 ABSENCE_LANGUAGE = ("no allergies", "no contact preference", "no known", "denies", "without")
+STALE_CAVEAT_HINTS = ("stale", "outdated", "old", "as of", "as-of", "last updated", "not recent", "may be out of date")
 
 
 def _packet_index(packets: list[SourcePacket]) -> dict[str, SourcePacket]:
@@ -47,14 +54,20 @@ def verify(
             continue
         accepted.append(claim)
 
+    missing = list(output.missing_data)
+
+    conflict_warnings = _detect_lists_rx_conflicts(packets, accepted)
+    for w in conflict_warnings:
+        issues.append(VerifierIssue(rule="lists_rx_conflict_unsurfaced", detail=w))
+        missing.append(f"Possible duplicate medication conflict: {w}")
+
     if not accepted and output.claims:
         status = "failed"
-    elif dropped > 0:
+    elif dropped > 0 or conflict_warnings:
         status = "passed_with_drops"
     else:
         status = "passed"
 
-    missing = list(output.missing_data)
     if dropped > 0:
         missing.append(
             f"{dropped} claim(s) failed verification and were dropped — open the relevant chart panel."
@@ -127,4 +140,60 @@ def _check_claim(
             issues.append(VerifierIssue(rule="blank_vs_negative", claim_index=i, detail="absence claim has no explicit negative source"))
             return True
 
+    caveat_text = (claim.caveat or "").lower()
+    if any(p.freshness == "stale" for p in cited_packets):
+        if not any(hint in caveat_text or hint in text_lower for hint in STALE_CAVEAT_HINTS):
+            issues.append(VerifierIssue(rule="stale_data_uncaveat", claim_index=i, detail="claim cites stale packet without staleness caveat"))
+            return True
+
+    if any(p.sensitive for p in cited_packets):
+        if not claim.caveat:
+            issues.append(VerifierIssue(rule="sensitive_data_uncaveat", claim_index=i, detail="claim cites sensitive packet without caveat"))
+            return True
+
     return False
+
+
+_MED_RX_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9\-]+")
+
+
+def _normalize_drug(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    tokens = _MED_RX_PATTERN.findall(value.lower())
+    return tokens[0] if tokens else ""
+
+
+def _detect_lists_rx_conflicts(packets: list[SourcePacket], accepted: list[Claim]) -> list[str]:
+    """Detect medication packets that appear in both `lists` and `prescriptions`.
+
+    Returns a list of warning strings naming the duplicated drug, but only when
+    the LLM did NOT surface the duplication as a `conflict` claim citing both
+    sources. This is the "lists vs prescriptions" duplicate conflict-surfacing
+    rule from Slice J.
+    """
+
+    by_drug: dict[str, dict[str, list[SourcePacket]]] = {}
+    for p in packets:
+        if p.source_table not in {"lists", "prescriptions"}:
+            continue
+        if "Medication" not in p.resource_type:
+            continue
+        drug = _normalize_drug(p.value)
+        if not drug:
+            continue
+        by_drug.setdefault(drug, {}).setdefault(p.source_table, []).append(p)
+
+    warnings: list[str] = []
+    for drug, by_table in by_drug.items():
+        if "lists" not in by_table or "prescriptions" not in by_table:
+            continue
+        all_ids = {p.source_id for ps in by_table.values() for p in ps}
+        surfaced = any(
+            c.claim_type == "conflict" and all_ids.issubset(set(c.source_ids))
+            for c in accepted
+        )
+        if surfaced:
+            continue
+        warnings.append(drug)
+    return warnings

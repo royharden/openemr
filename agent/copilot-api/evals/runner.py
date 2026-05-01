@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
+import time
 from typing import Any
 
 from app.schemas import LLMOutput, SourcePacket
@@ -30,13 +31,16 @@ def _load_cases() -> list[dict[str, Any]]:
     return cases
 
 
-def _check(case: dict[str, Any], result: Any) -> tuple[bool, list[str]]:
+def _check(case: dict[str, Any], result: Any, elapsed_ms: float) -> tuple[bool, list[str]]:
     expects = case["expectations"]
     failures: list[str] = []
 
     expected_status = expects.get("verifier_status")
     if expected_status and result.verifier_status != expected_status:
         failures.append(f"verifier_status: expected {expected_status!r}, got {result.verifier_status!r}")
+
+    if "verifier_max_ms" in expects and elapsed_ms > expects["verifier_max_ms"]:
+        failures.append(f"verifier_max_ms: expected <= {expects['verifier_max_ms']}ms, got {elapsed_ms:.2f}ms")
 
     if "min_accepted_claims" in expects and len(result.claims) < expects["min_accepted_claims"]:
         failures.append(f"min_accepted_claims: expected >= {expects['min_accepted_claims']}, got {len(result.claims)}")
@@ -77,8 +81,10 @@ def main() -> int:
         llm_output = LLMOutput(**case["llm_output"])
         request_uuid_hash = "test-hash"
 
+        started = time.monotonic()
         result = verify(llm_output, packets, request_uuid_hash, trace_id=f"eval-{i}")
-        passed, failures = _check(case, result)
+        elapsed_ms = (time.monotonic() - started) * 1000
+        passed, failures = _check(case, result, elapsed_ms)
         if passed:
             pass_count += 1
 
@@ -94,6 +100,7 @@ def main() -> int:
             "accepted_claims": len(result.claims),
             "unsupported_dropped": result.unsupported_dropped,
             "rules_fired": sorted({i.rule for i in result.verifier_issues}),
+            "elapsed_ms": round(elapsed_ms, 3),
             "passed": passed,
             "failures": failures,
         })

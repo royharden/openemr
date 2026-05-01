@@ -26,7 +26,10 @@ use OpenEMR\Modules\ClinicalCopilot\Gateway\SidecarClient;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\TaskToken;
 use OpenEMR\Modules\ClinicalCopilot\SourcePackets\ActiveMedicationsPacketBuilder;
 use OpenEMR\Modules\ClinicalCopilot\SourcePackets\ActiveProblemsPacketBuilder;
+use OpenEMR\Modules\ClinicalCopilot\SourcePackets\AllergiesPacketBuilder;
 use OpenEMR\Modules\ClinicalCopilot\SourcePackets\IdentityPacketBuilder;
+use OpenEMR\Modules\ClinicalCopilot\SourcePackets\ImmunizationsPacketBuilder;
+use OpenEMR\Modules\ClinicalCopilot\SourcePackets\RecentLabsPacketBuilder;
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -77,7 +80,13 @@ try {
     }
 
     $useCaseRaw = (string)($_POST['use_case'] ?? 'pre_room_brief');
-    $allowedUseCases = ['pre_room_brief', 'what-changed'];
+    $allowedUseCases = [
+        'pre_room_brief',
+        'what-changed',
+        'medication_check',
+        'allergy_check',
+        'recent_abnormal_labs',
+    ];
     $useCase = in_array($useCaseRaw, $allowedUseCases, true) ? $useCaseRaw : 'pre_room_brief';
 
     try {
@@ -87,11 +96,31 @@ try {
         $patientUuid = (string)$pid;
     }
 
-    $builders = [
-        new IdentityPacketBuilder(),
-        new ActiveProblemsPacketBuilder(),
-        new ActiveMedicationsPacketBuilder(),
-    ];
+    $builders = match ($useCase) {
+        'medication_check' => [
+            new IdentityPacketBuilder(),
+            new ActiveMedicationsPacketBuilder(),
+            new AllergiesPacketBuilder(),
+        ],
+        'allergy_check' => [
+            new IdentityPacketBuilder(),
+            new AllergiesPacketBuilder(),
+            new ActiveMedicationsPacketBuilder(),
+        ],
+        'recent_abnormal_labs' => [
+            new IdentityPacketBuilder(),
+            new ActiveProblemsPacketBuilder(),
+            new RecentLabsPacketBuilder(),
+        ],
+        default => [
+            new IdentityPacketBuilder(),
+            new ActiveProblemsPacketBuilder(),
+            new ActiveMedicationsPacketBuilder(),
+            new AllergiesPacketBuilder(),
+            new RecentLabsPacketBuilder(),
+            new ImmunizationsPacketBuilder(),
+        ],
+    };
     $packets = [];
     foreach ($builders as $builder) {
         foreach ($builder->build($pid, $patientUuid) as $packet) {

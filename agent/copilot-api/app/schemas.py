@@ -21,11 +21,18 @@ class SourcePacket(BaseModel):
     last_updated: str | None = None
     freshness: Literal["recent", "stale", "unknown"] = "unknown"
     status: str | None = None
+    sensitive: bool = False
 
 
 class BriefRequest(BaseModel):
     trace_id: str
-    use_case: Literal["pre_room_brief", "what-changed"] = "pre_room_brief"
+    use_case: Literal[
+        "pre_room_brief",
+        "what-changed",
+        "medication_check",
+        "allergy_check",
+        "recent_abnormal_labs",
+    ] = "pre_room_brief"
     patient_uuid_hash: str = Field(..., description="SHA256-truncated patient UUID")
     packets: list[SourcePacket]
 
@@ -46,6 +53,24 @@ class LLMOutput(BaseModel):
     missing_data: list[str] = Field(default_factory=list)
     refusals: list[str] = Field(default_factory=list)
     suggested_followups: list[str] = Field(default_factory=list)
+
+
+class FeedbackRequest(BaseModel):
+    trace_id: str
+    verdict: Literal[
+        "helpful",
+        "missing_data",
+        "incorrect",
+        "too_slow",
+        "source_unclear",
+    ]
+    comment: str = ""
+
+
+class FeedbackAck(BaseModel):
+    trace_id: str
+    verdict: str
+    recorded: bool
 
 
 class VerifierIssue(BaseModel):

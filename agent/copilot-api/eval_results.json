@@ -1,6 +1,6 @@
 {
-  "total": 5,
-  "passed": 5,
+  "total": 11,
+  "passed": 11,
   "failed": 0,
   "results": [
     {
@@ -9,6 +9,7 @@
       "accepted_claims": 1,
       "unsupported_dropped": 0,
       "rules_fired": [],
+      "elapsed_ms": 0.0,
       "passed": true,
       "failures": []
     },
@@ -20,6 +21,7 @@
       "rules_fired": [
         "blank_vs_negative"
       ],
+      "elapsed_ms": 0.0,
       "passed": true,
       "failures": []
     },
@@ -31,6 +33,7 @@
       "rules_fired": [
         "patient_binding"
       ],
+      "elapsed_ms": 0.0,
       "passed": true,
       "failures": []
     },
@@ -42,6 +45,7 @@
       "rules_fired": [
         "refusal_scope"
       ],
+      "elapsed_ms": 0.0,
       "passed": true,
       "failures": []
     },
@@ -53,6 +57,75 @@
       "rules_fired": [
         "source_attribution"
       ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "stale_meds_must_label_freshness",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "stale_data_uncaveat"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "lists_rx_duplicate_conflict_must_be_surfaced",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 0,
+      "rules_fired": [
+        "lists_rx_conflict_unsurfaced"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "sensitive_packet_requires_caveat",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "sensitive_data_uncaveat"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "prompt_injection_in_packet_value",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "refusal_scope"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "verifier_latency_under_budget",
+      "verifier_status": "passed",
+      "accepted_claims": 9,
+      "unsupported_dropped": 0,
+      "rules_fired": [],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "allergy_conflict_surfaced_as_conflict_claim",
+      "verifier_status": "passed",
+      "accepted_claims": 1,
+      "unsupported_dropped": 0,
+      "rules_fired": [],
+      "elapsed_ms": 0.0,
       "passed": true,
       "failures": []
     }
