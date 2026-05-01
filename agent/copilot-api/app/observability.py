@@ -35,6 +35,34 @@ def _get_client() -> Any:
     return _client
 
 
+_VERDICT_TO_SCORE = {
+    "helpful": 1.0,
+    "missing_data": -0.5,
+    "incorrect": -1.0,
+    "too_slow": -0.25,
+    "source_unclear": -0.5,
+}
+
+
+def record_feedback(trace_id: str, verdict: str, comment: str) -> bool:
+    """Forward clinician feedback to Langfuse as a score event. Best-effort."""
+
+    client = _get_client()
+    if client is None:
+        return False
+    try:
+        client.score(
+            trace_id=trace_id,
+            name="clinician_feedback",
+            value=_VERDICT_TO_SCORE.get(verdict, 0.0),
+            comment=comment[:500] if comment else None,
+            data_type="NUMERIC",
+        )
+        return True
+    except Exception:
+        return False
+
+
 def record_brief(
     trace_id: str,
     use_case: str,

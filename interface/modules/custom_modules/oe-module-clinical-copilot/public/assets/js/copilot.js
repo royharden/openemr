@@ -11,8 +11,12 @@
     var claimsEl = document.getElementById('copilot-claims');
     var missingEl = document.getElementById('copilot-missing');
     var followupsEl = document.getElementById('copilot-followups');
+    var feedbackEl = document.getElementById('copilot-feedback');
+    var feedbackStatusEl = document.getElementById('copilot-feedback-status');
     var errorEl = document.getElementById('copilot-error');
     var traceEl = document.getElementById('copilot-trace-id');
+
+    var lastTraceId = null;
 
     function showError(msg) {
         statusEl.style.display = 'none';
@@ -54,9 +58,14 @@
         if (missing.length) {
             missingEl.innerHTML = '<strong>Missing:</strong> ' + missing.map(escapeHtml).join('; ');
             missingEl.style.display = 'block';
+        } else {
+            missingEl.style.display = 'none';
+            missingEl.innerHTML = '';
         }
 
         followupsEl.style.display = 'block';
+        feedbackEl.style.display = 'block';
+        feedbackStatusEl.textContent = '';
     }
 
     function fetchBrief(useCase) {
@@ -75,6 +84,7 @@
         }).then(function (resp) {
             if (resp.body && resp.body.trace_id) {
                 traceEl.textContent = 'trace: ' + resp.body.trace_id;
+                lastTraceId = resp.body.trace_id;
             }
             if (resp.status >= 400 || (resp.body && resp.body.error)) {
                 showError((resp.body && resp.body.error) || 'Co-Pilot error: HTTP ' + resp.status);
@@ -86,9 +96,55 @@
         });
     }
 
+    function sendFeedback(verdict, btn) {
+        if (!lastTraceId || !cfg.feedbackUrl) {
+            return;
+        }
+        var formData = new FormData();
+        formData.append('csrf_token_form', cfg.csrfToken);
+        formData.append('trace_id', lastTraceId);
+        formData.append('verdict', verdict);
+
+        document.querySelectorAll('.copilot-feedback-btn').forEach(function (b) {
+            b.disabled = true;
+        });
+        feedbackStatusEl.textContent = 'Sending feedback…';
+
+        fetch(cfg.feedbackUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        }).then(function (res) {
+            return res.json().then(function (json) { return { status: res.status, body: json }; });
+        }).then(function (resp) {
+            if (resp.status >= 400 || (resp.body && resp.body.error)) {
+                feedbackStatusEl.textContent = 'Feedback failed.';
+                document.querySelectorAll('.copilot-feedback-btn').forEach(function (b) {
+                    b.disabled = false;
+                });
+                return;
+            }
+            feedbackStatusEl.textContent = 'Thanks — feedback recorded.';
+            if (btn) {
+                btn.classList.add('active');
+            }
+        }).catch(function () {
+            feedbackStatusEl.textContent = 'Feedback failed.';
+            document.querySelectorAll('.copilot-feedback-btn').forEach(function (b) {
+                b.disabled = false;
+            });
+        });
+    }
+
     document.querySelectorAll('.copilot-followup-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             fetchBrief(btn.getAttribute('data-followup'));
+        });
+    });
+
+    document.querySelectorAll('.copilot-feedback-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            sendFeedback(btn.getAttribute('data-verdict'), btn);
         });
     });
 

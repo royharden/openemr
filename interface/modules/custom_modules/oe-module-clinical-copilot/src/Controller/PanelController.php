@@ -29,6 +29,7 @@ class PanelController
         $webRoot = OEGlobalsBag::getInstance()->getWebRoot();
         $assetBase = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/assets';
         $apiBriefUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/brief.php';
+        $apiFeedbackUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/feedback.php';
 
         ob_start();
         ?>
@@ -51,6 +52,34 @@ class PanelController
                     <button type="button" class="btn btn-sm btn-outline-primary copilot-followup-btn" data-followup="what-changed">
                         <?php echo xlt('What changed?'); ?>
                     </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary copilot-followup-btn" data-followup="medication_check">
+                        <?php echo xlt('Medication check'); ?>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary copilot-followup-btn" data-followup="allergy_check">
+                        <?php echo xlt('Allergy check'); ?>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary copilot-followup-btn" data-followup="recent_abnormal_labs">
+                        <?php echo xlt('Recent abnormal labs'); ?>
+                    </button>
+                </div>
+                <div class="copilot-feedback mt-2" id="copilot-feedback" style="display:none">
+                    <span class="text-muted small mr-2"><?php echo xlt('How was this brief?'); ?></span>
+                    <button type="button" class="btn btn-sm btn-outline-success copilot-feedback-btn" data-verdict="helpful">
+                        <?php echo xlt('Helpful'); ?>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-warning copilot-feedback-btn" data-verdict="missing_data">
+                        <?php echo xlt('Missing data'); ?>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger copilot-feedback-btn" data-verdict="incorrect">
+                        <?php echo xlt('Incorrect'); ?>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary copilot-feedback-btn" data-verdict="too_slow">
+                        <?php echo xlt('Too slow'); ?>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary copilot-feedback-btn" data-verdict="source_unclear">
+                        <?php echo xlt('Source unclear'); ?>
+                    </button>
+                    <span class="copilot-feedback-status text-muted small ml-2" id="copilot-feedback-status"></span>
                 </div>
                 <div class="copilot-error" id="copilot-error" style="display:none"></div>
             </div>
@@ -61,6 +90,7 @@ class PanelController
         <script>
             window.OE_COPILOT_CONFIG = {
                 briefUrl: <?php echo js_escape($apiBriefUrl); ?>,
+                feedbackUrl: <?php echo js_escape($apiFeedbackUrl); ?>,
                 csrfToken: <?php echo js_escape($csrfToken); ?>,
                 pid: <?php echo (int)$pid; ?>
             };

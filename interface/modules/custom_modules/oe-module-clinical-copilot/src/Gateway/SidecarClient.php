@@ -76,4 +76,52 @@ final class SidecarClient
             ];
         }
     }
+
+    /**
+     * Forward a clinician's feedback verdict for a previous brief.
+     *
+     * @return array<string, mixed>
+     */
+    public function callFeedback(
+        string $traceId,
+        string $verdict,
+        string $comment = '',
+    ): array {
+        $url = rtrim($this->baseUrl, '/') . '/v1/feedback';
+        $client = new Client([
+            'timeout' => 4.0,
+            'http_errors' => false,
+        ]);
+        $body = [
+            'trace_id' => $traceId,
+            'verdict' => $verdict,
+            'comment' => $comment,
+        ];
+        try {
+            $resp = $client->post($url, [
+                'headers' => [
+                    'X-Copilot-Gateway-Secret' => $this->sharedSecret,
+                    'X-Copilot-Trace-Id' => $traceId,
+                    'Content-Type' => 'application/json',
+                ],
+                'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
+            ]);
+            $status = $resp->getStatusCode();
+            $raw = (string)$resp->getBody();
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) {
+                return [
+                    '__sidecar_error' => 'invalid_json',
+                    '__sidecar_status' => $status,
+                ];
+            }
+            $decoded['__sidecar_status'] = $status;
+            return $decoded;
+        } catch (GuzzleException | \Throwable $e) {
+            return [
+                '__sidecar_error' => 'request_failed',
+                '__sidecar_message' => $e->getMessage(),
+            ];
+        }
+    }
 }
