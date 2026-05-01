@@ -1,0 +1,23 @@
+{
+  "name": "unsupported_source_id",
+  "description": "Cited source_id not in the request packet set must drop the claim (would trigger one repair attempt in production).",
+  "packets": [
+    {"source_id": "problem:lists:1", "patient_uuid": "uuid-A", "resource_type": "Condition", "source_table": "lists", "field": "title", "label": "Active problem", "value": "HTN", "freshness": "recent", "status": "active"}
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {"text": "Active problem: HTN.", "claim_type": "fact", "source_ids": ["problem:lists:1"], "caveat": null},
+      {"text": "Recent vitals trending up.", "claim_type": "fact", "source_ids": ["vitals:fabricated:99"], "caveat": null}
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed_with_drops",
+    "min_accepted_claims": 1,
+    "min_dropped": 1,
+    "rules_must_fire": ["source_attribution"]
+  }
+}

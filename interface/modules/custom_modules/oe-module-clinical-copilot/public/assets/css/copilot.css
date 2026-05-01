@@ -1,0 +1,57 @@
+.copilot-card {
+    border-left: 4px solid #1976d2;
+}
+.copilot-header {
+    background-color: #f0f6fb;
+    color: #0d3a66;
+}
+.copilot-badge {
+    font-size: 0.7rem;
+    background-color: #1976d2;
+    color: #fff;
+    border-radius: 0.25rem;
+    padding: 0.1rem 0.4rem;
+}
+.copilot-trace-id {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+.copilot-status {
+    color: #6c757d;
+    font-style: italic;
+}
+.copilot-claim {
+    padding: 0.4rem 0;
+    border-bottom: 1px dashed #e3e3e3;
+}
+.copilot-claim:last-child { border-bottom: none; }
+.copilot-claim-text { color: #212529; }
+.copilot-claim-caveat { color: #b07d00; font-size: 0.85rem; margin-left: 0.5rem; }
+.copilot-source-chip {
+    display: inline-block;
+    margin-left: 0.25rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 0.6rem;
+    background-color: #e7f1fb;
+    color: #1976d2;
+    font-size: 0.7rem;
+    font-family: monospace;
+    cursor: default;
+}
+.copilot-missing {
+    margin-top: 0.5rem;
+    padding: 0.4rem;
+    border-left: 3px solid #f0ad4e;
+    background-color: #fff7e6;
+    font-size: 0.85rem;
+}
+.copilot-error {
+    margin-top: 0.5rem;
+    padding: 0.4rem;
+    border-left: 3px solid #d9534f;
+    background-color: #fbeaea;
+    color: #842029;
+    font-size: 0.85rem;
+}
+.copilot-footer { font-size: 0.75rem; }

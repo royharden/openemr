@@ -1,0 +1,60 @@
+{
+  "total": 5,
+  "passed": 5,
+  "failed": 0,
+  "results": [
+    {
+      "name": "a1c_trend_two_sources",
+      "verifier_status": "passed",
+      "accepted_claims": 1,
+      "unsupported_dropped": 0,
+      "rules_fired": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "blank_vs_negative_allergies",
+      "verifier_status": "failed",
+      "accepted_claims": 0,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "blank_vs_negative"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "cross_patient_rejection",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "patient_binding"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "refusal_scope_no_recommendations",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "refusal_scope"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "unsupported_source_id",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "source_attribution"
+      ],
+      "passed": true,
+      "failures": []
+    }
+  ]
+}

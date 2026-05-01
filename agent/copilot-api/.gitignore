@@ -1,0 +1,9 @@
+# Belt-and-suspenders: the repo root .gitignore already covers .env, but
+# keep this here so a renamed/relocated checkout still protects the secret.
+.env
+.env.local
+.env.*.local
+
+__pycache__/
+*.pyc
+.pytest_cache/

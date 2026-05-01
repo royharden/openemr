@@ -1,3 +1,17 @@
+> **Fork:** This is a custom fork of [OpenEMR](https://github.com/openemr/openemr) developed during the [Gauntlet AgentForge](https://gauntletai.com) bootcamp. It adds a **Clinical Co-Pilot** AI module that surfaces patient briefings — active problems, medications, and key context — directly inside the OpenEMR patient chart via a Claude-powered FastAPI sidecar.
+>
+> | Component | Location |
+> |---|---|
+> | OpenEMR module (PHP) | `interface/modules/custom_modules/oe-module-clinical-copilot/` |
+> | AI sidecar (Python/FastAPI) | `agent/copilot-api/` |
+> | Project planning & architecture | `planning/` |
+> | Agent work logs & decisions | `agentdocs/` |
+> | Local Docker setup | `README-LOCAL-DOCKER.md` |
+>
+> Upstream: [openemr/openemr](https://github.com/openemr/openemr) — all original OpenEMR documentation follows below.
+
+---
+
 [![Syntax Status](https://github.com/openemr/openemr/actions/workflows/syntax.yml/badge.svg)](https://github.com/openemr/openemr/actions/workflows/syntax.yml)
 [![Styling Status](https://github.com/openemr/openemr/actions/workflows/styling.yml/badge.svg)](https://github.com/openemr/openemr/actions/workflows/styling.yml)
 [![Testing Status](https://github.com/openemr/openemr/actions/workflows/test.yml/badge.svg)](https://github.com/openemr/openemr/actions/workflows/test.yml)
