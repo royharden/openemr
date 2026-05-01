@@ -10,6 +10,16 @@ Rules for future entries:
 
 ## Entries
 
+### 2026-05-01T~18:00Z - Claude Code / claude-sonnet-4-6 - This repo has two remotes; always push to both after every commit
+
+Impact: The project is published simultaneously to GitHub (`origin`, `https://github.com/royharden/openemr`) and Gauntlet GitLab (`gauntlet`, `https://labs.gauntletai.com/royharden/openemr`). Pushing to only one leaves the other stale, which matters because the Gauntlet evaluation environment reads from GitLab.
+
+Recommended handling: After every `git commit` sequence, run both pushes:
+```bash
+git push origin master && git push gauntlet master
+```
+There is also a `gitlab` remote pointing to the same GitLab URL — this is a duplicate and can be ignored; `gauntlet` is canonical. See AgDR-0007 for the decision record.
+
 ### 2026-04-30T23:55:00Z - Claude Code / claude-opus-4-7 - `messages.parse()` and top-level `cache_control=` don't exist in the Anthropic Python SDK
 
 Impact: The previously written `app/llm.py` called `client.messages.parse(output_format=LLMOutput, cache_control={"type":"ephemeral"})`. Neither symbol exists in `anthropic==0.46.0` (and pyproject pinned an `anthropic>=0.92` version that doesn't exist on PyPI either). The whole sidecar was therefore non-functional against a real key — it would fail on the first call. The issue was masked because the only smoke path was the offline `evals.runner` (which imports the verifier directly and never hits the LLM).
