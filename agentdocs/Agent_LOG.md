@@ -13,6 +13,23 @@ Rules for future entries:
 
 ## Entries
 
+### 2026-05-02T02:11:00Z - Codex / GPT-5 - Post-commit documentation consistency cleanup
+
+Trigger: user committed the previously dirty files and asked Codex to update anything left alone because of commit status, then make commits.
+
+Actions performed:
+- Updated active architecture deliverables (`ARCHITECTURE.md` and `planning/Architecture.md`) to reflect the implemented Langfuse Cloud US trace path instead of stale LangSmith references.
+- Redacted the full Langfuse public key and direct project URL from `agentdocs/decisions/AgDR-0009-langfuse-cloud-us-activated.md`; retained the operational facts needed by future agents.
+
+Verification:
+- `rg` sweep confirmed the remaining `LangSmith` and `messages.parse` references are historical plan/log/AgDR context rather than current deliverable instructions.
+
+Files changed:
+- `ARCHITECTURE.md`
+- `planning/Architecture.md`
+- `agentdocs/decisions/AgDR-0009-langfuse-cloud-us-activated.md`
+- `agentdocs/Agent_LOG.md`
+
 ### 2026-05-02T01:05:00Z - Codex / GPT-5 - Test, eval, and observability audit hardening
 
 Trigger: user asked to audit the other agents' Clinical Co-Pilot work, specifically whether tests/evals/observability were appropriate and sufficient, and to make testing/evaluation changes while leaving broader architecture changes as report-only.

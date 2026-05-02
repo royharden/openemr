@@ -10,7 +10,7 @@ Deployment for this sprint will use Railway rather than AWS or Azure. Railway is
 
 Verification is mandatory and happens after every model response. Tool results are converted into source packets: small structured records with a stable `source_id`, clinical value, source table or FHIR resource, row UUID, field name, timestamp, and freshness metadata. The model must return structured JSON, not final free-form clinical prose. Each factual claim must cite one or more `source_id` values. A deterministic verifier rejects unsupported claims, mismatched values, stale-data assertions, forbidden clinical recommendations, and outputs that ignore known constraints such as allergies or abnormal lab flags. The final physician-facing response is rendered from verified claims and templates. If verification fails, the system says what it can verify and explicitly states what is missing.
 
-Observability is not optional. Every request will have a trace ID connecting the UI request, OpenEMR audit event, tool calls, LLM call, verifier result, token usage, latency, cost, and user feedback. I will use Langfuse as the preferred trace store because it is self-hostable for a production healthcare path; LangSmith remains acceptable for class/dev tracing if already configured. Raw PHI should be redacted or minimized in traces. Evals will run against synthetic OpenEMR patients and test groundedness, authorization, missing data, prompt injection, tool selection, and latency. The architecture is intentionally conservative: read-only first, structured data first, no vector database until unstructured note retrieval proves necessary, and no write-back until verification and audit behavior are reliable.
+Observability is not optional. Every request will have a trace ID connecting the UI request, OpenEMR audit event, tool calls, LLM call, verifier result, token usage, latency, cost, and user feedback. I will use Langfuse as the trace store because it is already wired for this sprint and remains self-hostable for a production healthcare path. Raw PHI should be redacted or minimized in traces. Evals will run against synthetic OpenEMR patients and test groundedness, authorization, missing data, prompt injection, tool selection, and latency. The architecture is intentionally conservative: read-only first, structured data first, no vector database until unstructured note retrieval proves necessary, and no write-back until verification and audit behavior are reliable.
 
 ## Scope
 
@@ -43,14 +43,14 @@ The deployed MVP will use Railway because the sprint risk is the agent architect
 | `openemr-db` | MariaDB backing OpenEMR | No |
 | `copilot-api` | Python FastAPI agent orchestration sidecar | No, private network only |
 | `redis` | Optional short-lived cache for patient source packets and request state | No |
-| LangSmith | Development tracing and eval inspection | External SaaS under Gauntlet BAA assumption |
+| Langfuse Cloud US | Development tracing, eval inspection, feedback scores, token/cost telemetry | External SaaS under Gauntlet BAA assumption |
 
 Railway tradeoffs:
 
 - Benefit: fast deploy, one account, easy environment variables, low setup overhead.
 - Benefit: simple enough that I can spend time on audit, verification, evals, and user fit.
 - Risk: not my final answer for a real production hospital without a formal BAA and platform review.
-- Mitigation: keep the architecture portable. The sidecar is stateless, the database remains MariaDB-compatible, and observability can move from LangSmith to self-hosted Langfuse or an internal trace store.
+- Mitigation: keep the architecture portable. The sidecar is stateless, the database remains MariaDB-compatible, and observability can move from Langfuse Cloud to self-hosted Langfuse or an internal trace store.
 
 ## System Architecture
 
@@ -69,7 +69,7 @@ flowchart LR
     Verifier --> Gateway
     Gateway --> Module
     Gateway --> Audit["OpenEMR EventAuditLogger and API Log"]
-    Sidecar --> Obs["LangSmith Trace and Eval Metadata"]
+    Sidecar --> Obs["Langfuse Trace and Eval Metadata"]
 ```
 
 ## Request Flow
@@ -137,7 +137,7 @@ Responsibilities:
 - LLM calls.
 - Structured output validation.
 - Verification pipeline.
-- Langfuse/LangSmith tracing.
+- Langfuse tracing.
 - Eval runner integration.
 
 The sidecar will not have direct MariaDB credentials. That is intentional. A sidecar that can directly query the database becomes an alternate EHR permission system. The sidecar only receives source packets or calls patient-scoped tools through the gateway.
@@ -332,7 +332,7 @@ Minimum trace fields:
 Two logs serve different jobs:
 
 - OpenEMR audit log: who accessed which patient data, when, under what purpose, and whether the request succeeded.
-- Langfuse or LangSmith trace: agent behavior, tool sequence, latency, token cost, and eval debugging.
+- Langfuse trace: agent behavior, tool sequence, latency, token cost, feedback, and eval debugging.
 
 PHI handling:
 
@@ -470,7 +470,7 @@ The response may feel less fluid because verified claims are rendered from struc
 4. Implement source packet builders for demographics, problems, allergies, medications, vitals, labs, and encounters.
 5. Add the FastAPI sidecar with structured-output model calls.
 6. Implement verifier and template renderer.
-7. Wire OpenEMR audit events and LangSmith tracing.
+7. Wire OpenEMR audit events and Langfuse tracing.
 8. Build the synthetic eval dataset and run it in CI or as a repeatable script.
 9. Add feedback buttons for "helpful", "wrong", "missing source", and "too slow".
 10. Only after that, consider unstructured note retrieval or vector search.

@@ -18,7 +18,7 @@ status: executed
 
 - Langfuse project: **EMR-SO** (org: REH)
 - Cloud region: **US** — host `https://us.cloud.langfuse.com`
-- Public key: `pk-lf-6b575b35-e7c0-4708-bcbd-146a9ca6f4f8`
+- Public key: stored in `agent/copilot-api/.env` (gitignored); never committed in full
 - Secret key: stored in `agent/copilot-api/.env` (gitignored); never committed
 - Credential source file: `LANGFUSE_KEY_DEV.txt` at repo root (outside `openemr/`, not tracked by git)
 - Tier: **Hobby (free)** — sufficient for demo; see tradeoffs below
@@ -44,4 +44,4 @@ The Langfuse Cloud UI `.env` snippet uses `LANGFUSE_BASE_URL`. The Langfuse **Py
 
 - `.env` updated; sidecar reads the three vars at startup via `observability._get_client()`.
 - With all three vars set, `_get_client()` returns a live `Langfuse` instance pointing at `us.cloud.langfuse.com`.
-- Next manual verification: start the sidecar locally and POST a brief; confirm a trace appears in the Langfuse Cloud dashboard at `https://us.cloud.langfuse.com/project/cmonl547j026aad076aflztxp`.
+- Next manual verification: start the sidecar locally and POST a brief; confirm a trace appears in the Langfuse Cloud dashboard.
