@@ -13,6 +13,23 @@ Rules for future entries:
 
 ## Entries
 
+### 2026-05-02T02:55:00Z - Codex / GPT-5 - Planned free-text follow-up and final local completion work
+
+Trigger: user asked whether the project is complete locally, called out the missing free-text chatbot, and requested a plan saved under `planning/` with prefix `plan_next01_codex_`, including remaining items from the Opus build plan/status.
+
+Actions performed:
+- Created `planning/plan_next01_codex_2026-05-02_free_text_and_final_local_completion.md`.
+- Planned a constrained free-text follow-up surface that keeps the automatic pre-room brief and suggested buttons primary, while allowing current-patient, read-only, verifier-gated chart questions.
+- Included implementation slices for UI, gateway router, sidecar schema/prompt, evals, local smoke, and documentation updates.
+- Folded in remaining gaps from `plan_whole_opus47_2026-04-30_build_status.md`: Railway deploy, deployed smoke, demo video/README links, demo data, source chip behavior, sidecar task token validation, feedback persistence/docs, preventive-care wording, and gateway SQL wording.
+
+Verification:
+- Planning-only change; no tests run.
+
+Files changed:
+- `planning/plan_next01_codex_2026-05-02_free_text_and_final_local_completion.md`
+- `agentdocs/Agent_LOG.md`
+
 ### 2026-05-02T02:11:00Z - Codex / GPT-5 - Post-commit documentation consistency cleanup
 
 Trigger: user committed the previously dirty files and asked Codex to update anything left alone because of commit status, then make commits.
