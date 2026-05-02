@@ -13,6 +13,76 @@ Rules for future entries:
 
 ## Entries
 
+### 2026-05-02T01:05:00Z - Codex / GPT-5 - Test, eval, and observability audit hardening
+
+Trigger: user asked to audit the other agents' Clinical Co-Pilot work, specifically whether tests/evals/observability were appropriate and sufficient, and to make testing/evaluation changes while leaving broader architecture changes as report-only.
+
+Context reviewed:
+- `Week1-AgentForge.md` for PRD requirements around verification, observability, evals, deployment, cost analysis, and final deliverables.
+- `planning/Architecture.md`, `planning/plan_whole_opus47_2026-04-30_build.md`, and `planning/plan_whole_opus47_2026-04-30_build_status.md`.
+- `agent/copilot-api/app/{verifier,schemas,observability,orchestrator,llm}.py`, `agent/copilot-api/evals/`, `agent/copilot-api/tests/`, and the PHP gateway/audit files under `interface/modules/custom_modules/oe-module-clinical-copilot/`.
+
+Actions performed:
+- Hardened verifier patient binding to compare cited packet UUID hashes against the request's `patient_uuid_hash`, instead of trusting the first packet as the expected patient.
+- Expanded the refusal-scope verifier triggers to catch treatment-adjustment wording such as dose increases/decreases and discontinuation, with a regression test.
+- Added `agent/copilot-api/evals/cases/12_all_wrong_patient_packets.json` to catch an all-wrong-patient packet set.
+- Updated `agent/copilot-api/evals/runner.py` to support optional per-case `request.patient_uuid_hash` and derive hashes for older fixtures.
+- Added `agent/copilot-api/tests/test_observability.py` to check PHI-minimized Langfuse metadata, feedback score mapping, comment truncation, and configurable cost estimation.
+- Added `estimated_cost_usd` to Langfuse trace/generation metadata and documented cost-rate env vars in `agent/copilot-api/.env.example`.
+- Updated sidecar/eval/root README snippets and the execution status plan to reflect 29/29 pytest and 12/12 evals.
+- Created `agentdocs/decisions/AgDR-0010-request-hash-patient-binding-eval-hardening.md`.
+
+Verification:
+- `cd agent/copilot-api; python -m pytest tests -q` - **29/29 passing**.
+- `cd agent/copilot-api; python -m evals.runner` - **12/12 passing**, wrote `agent/copilot-api/eval_results.json`.
+
+Files changed:
+- `agent/copilot-api/app/verifier.py`
+- `agent/copilot-api/app/observability.py`
+- `agent/copilot-api/evals/runner.py`
+- `agent/copilot-api/evals/README.md`
+- `agent/copilot-api/evals/cases/12_all_wrong_patient_packets.json`
+- `agent/copilot-api/tests/test_verifier.py`
+- `agent/copilot-api/tests/test_observability.py`
+- `agent/copilot-api/smoke_test.py`
+- `agent/copilot-api/.env.example`
+- `agent/copilot-api/README.md`
+- `agent/copilot-api/eval_results.json`
+- `README.md`
+- `planning/plan_whole_opus47_2026-04-30_build_status.md`
+- `agentdocs/decisions/AgDR-0010-request-hash-patient-binding-eval-hardening.md`
+- `agentdocs/agent_lessons.md`
+- `agentdocs/Agent_LOG.md`
+
+Follow-ups / submission risks:
+- Railway sidecar deployment and private networking smoke remain outstanding.
+- Demo video and README deployed URL/Loom link remain outstanding.
+- Production Langfuse trace and deployed OpenEMR `audit_master` join verification remain outstanding.
+- Sidecar still accepts only the shared secret; the minted `X-Copilot-Task-Token` is sent but not validated by the sidecar. That is an architecture/security follow-up, not changed in this testing-only pass.
+
+### 2026-05-01T23:00:00Z - Claude Code / claude-sonnet-4-6 - Langfuse Cloud credentials activated
+
+Trigger: user provided Langfuse Hobby-tier API keys and asked to complete the integration.
+
+Context reviewed:
+- `agent/copilot-api/app/observability.py` — confirmed it reads `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`.
+- `agent/copilot-api/.env` — no Langfuse vars present prior to this session.
+- `agent/copilot-api/.env.example` — confirmed `LANGFUSE_HOST` is the correct var name for this project (SDK reads `host` kwarg from this env var).
+- User's Langfuse project: "EMR-SO", org "REH", cloud region US (`us.cloud.langfuse.com`).
+
+Actions:
+- Added `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_HOST=https://us.cloud.langfuse.com` to `agent/copilot-api/.env` (gitignored).
+- Created `agentdocs/decisions/AgDR-0009-langfuse-cloud-us-activated.md`.
+- Added lesson about `LANGFUSE_HOST` vs `LANGFUSE_BASE_URL` naming difference to `agentdocs/agent_lessons.md`.
+
+Verification pending: start sidecar locally, POST a brief, confirm trace appears in Langfuse Cloud dashboard. Secret key stored only in `.env` (gitignored) — not logged here.
+
+Files changed:
+- `agent/copilot-api/.env` (added three Langfuse vars)
+- `agentdocs/decisions/AgDR-0009-langfuse-cloud-us-activated.md` (created)
+- `agentdocs/agent_lessons.md` (new entry)
+- `agentdocs/Agent_LOG.md` (this entry)
+
 ### 2026-05-01T22:00:00Z - Claude Code / claude-opus-4-7 - Sunday Slices I–L (allergies/labs/immunizations builders, stale + sensitive + conflict verifier rules, 6 new eval cases, feedback loop, cost analysis)
 
 Trigger: user asked to continue the build past the Thursday submission and finish the Sunday rubric — Slices I, J, K, L from `planning/plan_whole_opus47_2026-04-30_build.md`.

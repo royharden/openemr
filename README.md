@@ -5,7 +5,7 @@
 > - Follow-up tools: *What changed?*, *Medication check*, *Allergy check*, *Recent abnormal labs*.
 > - Deterministic verifier with 11 rules (source attribution, patient binding, active-status, trend, blank-vs-negative, refusal scope, cross-patient, stale-data labeling, sensitive-data caveat, lists/prescriptions conflict surfacing) — see [agent/copilot-api/app/verifier.py](agent/copilot-api/app/verifier.py).
 > - Clinician feedback chips (Helpful / Missing data / Incorrect / Too slow / Source unclear) post to Langfuse as scored trace events.
-> - 24/24 pytest + 11/11 eval cases passing offline; trace_id joins Langfuse traces to the OpenEMR `audit_master` row in one query.
+> - 29/29 pytest + 12/12 eval cases passing offline; trace_id joins Langfuse traces to the OpenEMR `audit_master` row in one query.
 >
 > | Component | Location |
 > |---|---|

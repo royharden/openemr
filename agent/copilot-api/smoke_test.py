@@ -15,6 +15,7 @@ import uuid
 
 from app.orchestrator import process_brief
 from app.schemas import BriefRequest, SourcePacket
+from app.verifier import patient_uuid_hash
 
 
 def _fixture_packets() -> list[SourcePacket]:
@@ -101,7 +102,7 @@ def main() -> int:
     req = BriefRequest(
         trace_id=str(uuid.uuid4()),
         use_case="pre_room_brief",
-        patient_uuid_hash="smoke-test-hash",
+        patient_uuid_hash=patient_uuid_hash(packets[0].patient_uuid),
         packets=packets,
     )
 

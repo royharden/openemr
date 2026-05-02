@@ -9,6 +9,7 @@ repair pass before rendering.
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from .schemas import Claim, LLMOutput, SourcePacket, VerifiedResponse, VerifierIssue
@@ -25,6 +26,12 @@ REFUSAL_TRIGGERS = (
     "i'll prescribe",
     "start them on",
     "start the patient on",
+    "increase the dose",
+    "decrease the dose",
+    "adjust the dose",
+    "discontinue",
+    "stop taking",
+    "refer the patient",
 )
 
 ACTIVE_LANGUAGE = ("currently on", "is on", "currently taking", "active medication", "has ", "current ")
@@ -34,6 +41,10 @@ STALE_CAVEAT_HINTS = ("stale", "outdated", "old", "as of", "as-of", "last update
 
 def _packet_index(packets: list[SourcePacket]) -> dict[str, SourcePacket]:
     return {p.source_id: p for p in packets}
+
+
+def patient_uuid_hash(patient_uuid: str) -> str:
+    return hashlib.sha256(patient_uuid.encode("utf-8")).hexdigest()[:12]
 
 
 def verify(
@@ -48,7 +59,7 @@ def verify(
     pkt_idx = _packet_index(packets)
 
     for i, claim in enumerate(output.claims):
-        rule_failed = _check_claim(claim, i, pkt_idx, packets, issues)
+        rule_failed = _check_claim(claim, i, pkt_idx, request_patient_uuid_hash, issues)
         if rule_failed:
             dropped += 1
             continue
@@ -90,7 +101,7 @@ def _check_claim(
     claim: Claim,
     i: int,
     pkt_idx: dict[str, SourcePacket],
-    packets: list[SourcePacket],
+    request_patient_uuid_hash: str,
     issues: list[VerifierIssue],
 ) -> bool:
     """Returns True if the claim must be dropped."""
@@ -113,12 +124,10 @@ def _check_claim(
             return True
         cited_packets.append(pkt)
 
-    expected_uuid = packets[0].patient_uuid if packets else None
-    if expected_uuid is not None:
-        for pkt in cited_packets:
-            if pkt.patient_uuid != expected_uuid:
-                issues.append(VerifierIssue(rule="patient_binding", claim_index=i, detail=f"packet {pkt.source_id} patient_uuid != request"))
-                return True
+    for pkt in cited_packets:
+        if patient_uuid_hash(pkt.patient_uuid) != request_patient_uuid_hash:
+            issues.append(VerifierIssue(rule="patient_binding", claim_index=i, detail=f"packet {pkt.source_id} patient_uuid != request hash"))
+            return True
 
     if any(phrase in text_lower for phrase in ACTIVE_LANGUAGE):
         if not any(p.status == "active" for p in cited_packets):

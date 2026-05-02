@@ -14,10 +14,12 @@ Rules in priority order (per plan_whole_opus47):
 from __future__ import annotations
 
 from app.schemas import SourcePacket
-from app.verifier import verify
+from app.verifier import patient_uuid_hash, verify
 
 
-def _verify(llm_output, packets, *, request_uuid="hash-x"):
+def _verify(llm_output, packets, *, request_uuid=None):
+    if request_uuid is None:
+        request_uuid = patient_uuid_hash(packets[0].patient_uuid if packets else "")
     return verify(llm_output, packets, request_uuid, trace_id="t-test")
 
 
@@ -56,6 +58,16 @@ def test_patient_binding_fails_when_packet_uuid_differs(
     bad = packet_factory("lists:99#other", patient_uuid=other_patient_uuid)
     out = llm_output_factory([claim_factory("Diabetic", ["lists:99#other"])])
     res = _verify(out, [good, bad])
+    assert res.verifier_status == "failed"
+    assert any(i.rule == "patient_binding" for i in res.verifier_issues)
+
+
+def test_patient_binding_uses_request_hash_not_first_packet(
+    packet_factory, claim_factory, llm_output_factory, other_patient_uuid
+):
+    bad = packet_factory("lists:99#other", patient_uuid=other_patient_uuid)
+    out = llm_output_factory([claim_factory("Diabetic", ["lists:99#other"])])
+    res = _verify(out, [bad], request_uuid=patient_uuid_hash("patient-uuid-fixture"))
     assert res.verifier_status == "failed"
     assert any(i.rule == "patient_binding" for i in res.verifier_issues)
 
@@ -146,6 +158,16 @@ def test_refusal_scope_drops_diagnostic_recommendation(
 ):
     p = packet_factory("lists:1#problem")
     out = llm_output_factory([claim_factory("I recommend starting insulin therapy", ["lists:1#problem"])])
+    res = _verify(out, [p])
+    assert res.verifier_status == "failed"
+    assert any(i.rule == "refusal_scope" for i in res.verifier_issues)
+
+
+def test_refusal_scope_drops_treatment_adjustment(
+    packet_factory, claim_factory, llm_output_factory
+):
+    p = packet_factory("rx:1#med", resource_type="MedicationRequest", source_table="prescriptions", value="Metformin")
+    out = llm_output_factory([claim_factory("Increase the dose of Metformin.", ["rx:1#med"])])
     res = _verify(out, [p])
     assert res.verifier_status == "failed"
     assert any(i.rule == "refusal_scope" for i in res.verifier_issues)

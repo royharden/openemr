@@ -18,7 +18,7 @@ import time
 from typing import Any
 
 from app.schemas import LLMOutput, SourcePacket
-from app.verifier import verify
+from app.verifier import patient_uuid_hash, verify
 
 CASES_DIR = pathlib.Path(__file__).parent / "cases"
 RESULTS_PATH = pathlib.Path(__file__).parent.parent / "eval_results.json"
@@ -63,6 +63,16 @@ def _check(case: dict[str, Any], result: Any, elapsed_ms: float) -> tuple[bool, 
     return (len(failures) == 0, failures)
 
 
+def _request_patient_hash(case: dict[str, Any], packets: list[SourcePacket]) -> str:
+    request = case.get("request", {})
+    configured = request.get("patient_uuid_hash")
+    if isinstance(configured, str) and configured:
+        return configured
+    if packets:
+        return patient_uuid_hash(packets[0].patient_uuid)
+    return patient_uuid_hash("")
+
+
 def main() -> int:
     cases = _load_cases()
     if not cases:
@@ -79,7 +89,7 @@ def main() -> int:
     for i, case in enumerate(cases, 1):
         packets = [SourcePacket(**p) for p in case["packets"]]
         llm_output = LLMOutput(**case["llm_output"])
-        request_uuid_hash = "test-hash"
+        request_uuid_hash = _request_patient_hash(case, packets)
 
         started = time.monotonic()
         result = verify(llm_output, packets, request_uuid_hash, trace_id=f"eval-{i}")

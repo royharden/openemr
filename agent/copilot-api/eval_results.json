@@ -1,6 +1,6 @@
 {
-  "total": 11,
-  "passed": 11,
+  "total": 12,
+  "passed": 12,
   "failed": 0,
   "results": [
     {
@@ -125,6 +125,18 @@
       "accepted_claims": 1,
       "unsupported_dropped": 0,
       "rules_fired": [],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "all_wrong_patient_packets_rejected",
+      "verifier_status": "failed",
+      "accepted_claims": 0,
+      "unsupported_dropped": 2,
+      "rules_fired": [
+        "patient_binding"
+      ],
       "elapsed_ms": 0.0,
       "passed": true,
       "failures": []

@@ -10,6 +10,24 @@ Rules for future entries:
 
 ## Entries
 
+### 2026-05-02T01:05:00Z - Codex / GPT-5 - Patient-binding evals must include an all-wrong-packet case
+
+Impact: The existing cross-patient eval covered a mixed packet set where the first packet belonged to the expected patient and the second did not. That let the verifier infer "expected patient" from `packets[0]`. It would still miss the more dangerous boundary where the whole packet set belongs to another patient but is internally consistent.
+
+Recommended handling: include both mixed-patient and all-wrong-patient evals. The verifier should compare cited packet UUID hashes to the gateway-provided `patient_uuid_hash`, not to the first packet in the request. See `agent/copilot-api/evals/cases/12_all_wrong_patient_packets.json`.
+
+### 2026-05-02T01:05:00Z - Codex / GPT-5 - Observability tests should assert what is *not* sent to the trace sink
+
+Impact: A trace can look useful while accidentally storing PHI. The positive checks (trace_id, token counts, verifier status) are not enough; tests also need to assert absence of raw patient UUIDs, claim text, source values, or other high-risk payloads in metadata.
+
+Recommended handling: keep trace metadata tests alongside the observability adapter. Use fake Langfuse clients to inspect emitted metadata without making network calls. Prefer hash, counts, timings, token usage, and estimated cost over raw clinical content.
+
+### 2026-05-01T23:00:00Z - Claude Code / claude-sonnet-4-6 - LANGFUSE_HOST vs LANGFUSE_BASE_URL: Python SDK uses HOST, Cloud UI shows BASE_URL
+
+Impact: The Langfuse Cloud dashboard `.env` snippet shows `LANGFUSE_BASE_URL` for the host. The Langfuse Python SDK v3 (and this project's `observability.py`) read `LANGFUSE_HOST`. Using `LANGFUSE_BASE_URL` means the sidecar ignores the env var and falls back to the default `https://cloud.langfuse.com` (EU), causing auth failures for accounts on the US region.
+
+Recommended handling: always set `LANGFUSE_HOST` (not `LANGFUSE_BASE_URL`) in `.env`. The US region URL is `https://us.cloud.langfuse.com` — do not omit the `us.` subdomain prefix. If traces are not appearing in the dashboard, verify the host var first.
+
 ### 2026-05-01T22:00:00Z - Claude Code / claude-opus-4-7 - Conflict-surfacing rules are corpus-level, not per-claim — keep them out of the per-claim drop loop
 
 Impact: The natural place to put a "duplicate medication appearing in both `lists` and `prescriptions`" check is inside `_check_claim`. That's wrong: the *absence* of a `claim_type=conflict` claim is what triggers the rule, so there's no per-claim hook to fire it on. Putting it in the loop either overfires (every fact claim citing one of the duplicates gets flagged) or never fires (no claim about either duplicate at all = silent). The right shape is post-processing over the *accepted* claim set, emitting a corpus-level warning into `missing_data` and `verifier_issues` rather than dropping anything.

@@ -1,0 +1,27 @@
+{
+  "name": "all_wrong_patient_packets_rejected",
+  "description": "If every cited packet belongs to a different patient than the request hash, the verifier must reject the claims. This catches regressions where patient binding is inferred from the first packet instead of the request.",
+  "request": {
+    "patient_uuid_hash": "8865441d74c3"
+  },
+  "packets": [
+    {"source_id": "problem:lists:other-1", "patient_uuid": "uuid-B", "resource_type": "Condition", "source_table": "lists", "field": "title", "label": "Active problem", "value": "Hypertension", "freshness": "recent", "status": "active"},
+    {"source_id": "med:lists:other-2", "patient_uuid": "uuid-B", "resource_type": "MedicationStatement", "source_table": "lists", "field": "title", "label": "Active medication", "value": "Lisinopril", "freshness": "recent", "status": "active"}
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {"text": "Active problem: Hypertension.", "claim_type": "fact", "source_ids": ["problem:lists:other-1"], "caveat": null},
+      {"text": "Currently on Lisinopril.", "claim_type": "fact", "source_ids": ["med:lists:other-2"], "caveat": null}
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "failed",
+    "min_accepted_claims": 0,
+    "min_dropped": 2,
+    "rules_must_fire": ["patient_binding"]
+  }
+}

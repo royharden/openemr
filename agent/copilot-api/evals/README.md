@@ -22,6 +22,13 @@ Result artifact: `eval_results.json` in the repo root.
 | 03 | `cross_patient_rejection` | packet from a different `patient_uuid` is dropped |
 | 04 | `refusal_scope_no_recommendations` | "I recommend prescribing X" is dropped |
 | 05 | `unsupported_source_id` | citation to a packet not in the request set is dropped |
+| 06 | `stale_meds_must_label_freshness` | stale medication claims require a staleness caveat |
+| 07 | `lists_rx_duplicate_conflict_must_be_surfaced` | duplicate list/prescription meds must be surfaced as conflicts |
+| 08 | `sensitive_packet_requires_caveat` | sensitive packets require explicit caveats |
+| 09 | `prompt_injection_in_packet_value` | chart text that tries to instruct the model cannot create recommendations |
+| 10 | `verifier_latency_under_budget` | verifier-only latency stays inside budget |
+| 11 | `allergy_conflict_surfaced_as_conflict_claim` | contradictory allergy facts can pass when surfaced as a conflict |
+| 12 | `all_wrong_patient_packets_rejected` | request hash, not first packet, controls patient binding |
 
 ## Add a case
 
@@ -31,6 +38,9 @@ Drop a new `cases/NN_name.json` with shape:
 {
   "name": "...",
   "description": "...",
+  "request": {
+    "patient_uuid_hash": "optional sha256(patient_uuid) first 12 chars"
+  },
   "packets": [/* SourcePacket[] */],
   "llm_output": {/* LLMOutput */},
   "expectations": {

@@ -11,6 +11,19 @@
 
 This file is a copy of `plan_whole_opus47_2026-04-30_build.md` with **_DONE** / **OUTSTANDING** / **DEFERRED** markers reflecting work performed by a Claude Code agent (Claude app), per its session summary and the current tree.
 
+### Update 2026-05-02T01:05:00Z (Codex / GPT-5) - test/eval audit hardening
+
+- **Verifier patient binding hardened.** `app/verifier.py` now compares every cited packet's `patient_uuid` hash against the request's `patient_uuid_hash` instead of inferring the expected patient from the first packet. This closes an eval gap where an all-wrong-patient packet set could pass.
+- **Eval suite expanded to 12 cases.** Added `12_all_wrong_patient_packets.json` for the all-wrong-patient boundary. `evals.runner` now supports an optional per-case `request.patient_uuid_hash` while deriving the hash from the first packet for legacy cases.
+- **Observability tests added.** New `tests/test_observability.py` checks PHI-minimized Langfuse metadata, feedback scoring, comment truncation, and configurable cost estimation.
+- **Trace cost visibility added.** `observability.record_brief()` now records `estimated_cost_usd` in trace/generation metadata from configurable per-1M token rates documented in `.env.example`.
+- Verification after this audit: `python -m pytest tests -q` - **29/29 passing**; `python -m evals.runner` - **12/12 passing**.
+
+### Update 2026-05-01T23:00Z (Claude Code / claude-sonnet-4-6) — Langfuse credentials activated
+
+- **Langfuse** is now fully live. Added `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_HOST=https://us.cloud.langfuse.com` to `agent/copilot-api/.env` (gitignored). Project "EMR-SO" on US Cloud, Hobby/free tier — sufficient for demo volume (~25 k briefs/month headroom). See [AgDR-0009](../agentdocs/decisions/AgDR-0009-langfuse-cloud-us-activated.md).
+- **Agent docs** updated: AgDR-0009, Agent_LOG.md, agent_lessons.md (LANGFUSE_HOST vs LANGFUSE_BASE_URL naming pitfall).
+
 ### Update 2026-05-01T22:00Z (Claude Code / claude-opus-4-7) — Sunday Slices I–L
 
 - **Slice I** (allergies / labs / immunizations builders + follow-up routing) is **DONE**. Three new PHP packet builders shipped (`AllergiesPacketBuilder`, `RecentLabsPacketBuilder`, `ImmunizationsPacketBuilder`) and `public/api/brief.php` now switches builder sets on `use_case`.
@@ -47,18 +60,18 @@ This file is a copy of `plan_whole_opus47_2026-04-30_build.md` with **_DONE** / 
 | Six packet builders (identity, problems, meds, allergies, labs, immunizations) | **DONE** |
 | Sidecar skeleton (`agent/copilot-api/`) FastAPI + LLM + verifier + `/v1/feedback` | **DONE** |
 | Verifier (8 per-claim rules, repair-once, + Slice J stale/sensitive/conflict rules) | **DONE** |
-| Observability + audit (Langfuse traces + `agent_turn` audit row + Langfuse `score` on feedback) | **DONE** at code level |
-| Eval framework (`python -m evals.runner`) | **DONE** (11/11 passing) |
+| Observability + audit (Langfuse traces + `agent_turn` audit row + Langfuse `score` on feedback) | **DONE** — credentials active, project "EMR-SO" on US Cloud |
+| Eval framework (`python -m evals.runner`) | **DONE** (12/12 passing) |
 | Sidecar Dockerfile + README / env docs | **DONE** |
-| Pytest suite (`tests/test_verifier.py` etc.) | **DONE** — 24/24 passing in `agent/copilot-api/tests/` |
+| Pytest suite (`tests/test_verifier.py` etc.) | **DONE** — 29/29 passing in `agent/copilot-api/tests/` |
 | Sunday slices I–L (extra packet builders + verifier rules + 5 evals + feedback + cost analysis) | **DONE** (see 2026-05-01T22:00Z entry) |
 | Railway deploy + private networking + OpenEMR env wiring | **OUTSTANDING** (Dockerfile ready; service not deployed) |
 | Demo video + README Loom URL | **OUTSTANDING** |
 | §12 full checklist on **deployed** Railway URL | **OUTSTANDING** (verified locally: admin, patient chart, brief endpoint) |
 | Demo DB augmentation (thin labs) | **OUTSTANDING** / optional before video |
-| Agent docs (Agent_LOG, lessons, AgDR-0004/0005/0006/0008) | **DONE** |
+| Agent docs (Agent_LOG, lessons, AgDR-0004/0005/0006/0008/0009) | **DONE** |
 
-**Eval cases vs plan wording:** Thursday parity gap closed. Added `06_stale_meds.json` covering the explicit stale-meds / freshness-labeling scenario from §7 Slice G. Eval suite is now 11 cases total (Thursday 5 + Sunday 5 + 1 parity).
+**Eval cases vs plan wording:** Thursday parity gap closed. Added `06_stale_meds.json` covering the explicit stale-meds / freshness-labeling scenario from §7 Slice G. Codex later added `12_all_wrong_patient_packets.json` to cover all-wrong-patient packet binding. Eval suite is now 12 cases total.
 
 ---
 
@@ -212,7 +225,7 @@ Each slice ends with something working end-to-end, so a partial day still leaves
 - On failure: try one repair (send Claude the verifier errors + ask for a fixed JSON). If still failing, drop unsupported claims and render only the verified subset with an explicit "I couldn't verify X — open the [section] panel" line.
 - **Done = unit tests in `agent/copilot-api/tests/test_verifier.py` cover all 8 rules with passing + failing cases.**
 
-**Status:** **DONE** for verifier implementation + eval-driven coverage (5/5). **OUTSTANDING:** dedicated **pytest** suite as specified (`tests/test_verifier.py` + related files).
+**Status:** **DONE** for verifier implementation + dedicated pytest/eval coverage (29/29 pytest, 12/12 evals as of 2026-05-02).
 
 ### Slice F — observability (target: 1 hr)
 
@@ -231,7 +244,7 @@ Each slice ends with something working end-to-end, so a partial day still leaves
 - Runner: `python -m evals.runner` → prints table + writes `eval_results.json`.
 - **Done = `python -m evals.runner` prints 5/5 pass.**
 
-**Status:** **DONE** for runner + 5 passing cases + `eval_results.json`. **OUTSTANDING:** optional parity with named “stale meds” scenario (see snapshot).
+**Status:** **DONE** for runner + 12 passing cases + `eval_results.json`. Stale meds parity and all-wrong-patient packet binding are covered.
 
 ### Slice H — deploy + demo (target: 1.5 hr)
 
@@ -253,7 +266,7 @@ Each slice ends with something working end-to-end, so a partial day still leaves
 - **K:** 5 more eval cases: duplicate medication, sensitive-encounter respect, prompt-injection inside note text (note-text isn't fetched in v1, so synthesize a packet with injection text), latency p95 under budget, allergy-conflict surfacing.
 - **L:** Feedback buttons (Helpful / Missing data / Incorrect / Too slow / Source unclear) → POST to gateway → Langfuse score event. AI cost analysis doc (`planning/cost_analysis.md`) at 100 / 1K / 10K / 100K users with architecture deltas at each tier.
 
-**Status:** **DONE** (2026-05-01). All four sub-slices shipped; see [AgDR-0008](../agentdocs/decisions/AgDR-0008-sunday-slices-i-through-l.md) and the 2026-05-01T22:00Z snapshot above. Pytest 24/24, evals 11/11.
+**Status:** **DONE** (2026-05-01). All four sub-slices shipped; see [AgDR-0008](../agentdocs/decisions/AgDR-0008-sunday-slices-i-through-l.md) and the 2026-05-01T22:00Z snapshot above. Codex audit later raised coverage to 29/29 pytest, 12/12 evals.
 
 ## 8. File inventory (concrete paths)
 
@@ -370,7 +383,7 @@ End-to-end Thursday smoke test:
 5. Click `What changed?` → sidecar handles a follow-up turn within 5 seconds. **DONE** in UI wiring; **OUTSTANDING** full timing/sidecar test on deploy.
 6. Open Langfuse → find the trace by trace_id; tool spans + token counts visible. **OUTSTANDING** on cloud project until sidecar deployed with keys.
 7. Open phpMyAdmin / DB UI → `SELECT * FROM audit_master WHERE event = 'agent_turn' ORDER BY date DESC LIMIT 5` → row exists with matching trace_id. **DONE** locally per agent; **OUTSTANDING** on Railway DB.
-8. Run `python -m evals.runner` from `agent/copilot-api/` → 5/5 pass. **DONE** per agent.
+8. Run `python -m evals.runner` from `agent/copilot-api/` → 12/12 pass. **DONE** per Codex audit.
 9. Try forging a request with a different `pid` → returns 403, audit row logs denial. **OUTSTANDING** explicit adversarial test documented.
 
 If 1–9 all pass, Thursday submission is real. If 6, 7, or 8 fail, the agent isn't observable/auditable/measurable and Thursday should ship with explicit gaps documented.
@@ -380,7 +393,7 @@ If 1–9 all pass, Thursday submission is real. If 6, 7, or 8 fail, the agent is
 - **Repo `royharden/openemr`:** all module + sidecar code committed; root `AUDIT.md`, `USERS.md` (+ stub `USER.md`), `ARCHITECTURE.md`. Commit messages follow Conventional Commits with `Assisted-by: Claude Code` trailer per [openemr/CLAUDE.md](../CLAUDE.md). **OUTSTANDING:** confirm commit scope + root doc filenames vs `planning/` moves.
 - **README:** deployed URL, login note, deliverable links. **PARTIAL** — module/sidecar READMEs **DONE**; root marketing README **OUTSTANDING**.
 - **Demo video (3–5 min):** opens with the deployed URL on screen; shows the panel, a verification failure, a trace, and an eval run. **OUTSTANDING**.
-- **Eval dataset + results:** in `agent/copilot-api/evals/` with a JSON results artifact. **DONE** (`eval_results.json` + cases).
+- **Eval dataset + results:** in `agent/copilot-api/evals/` with a JSON results artifact. **DONE** (`eval_results.json` + 12 cases).
 - **AI Cost Analysis (Sunday):** `planning/cost_analysis.md`. Real dev spend + projected at 100/1K/10K/100K users with architecture deltas (caching, batch, scaling) at each tier. **DEFERRED** Sunday.
 - **Social post (Final only):** drafted Sunday morning. **DEFERRED**.
 

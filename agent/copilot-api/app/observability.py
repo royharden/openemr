@@ -44,6 +44,38 @@ _VERDICT_TO_SCORE = {
 }
 
 
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def estimate_cost_usd(usage: dict[str, Any]) -> float:
+    """Estimate LLM cost from token usage using configurable per-1M-token rates."""
+
+    input_rate = _env_float("COPILOT_COST_INPUT_PER_1M", 1.00)
+    output_rate = _env_float("COPILOT_COST_OUTPUT_PER_1M", 5.00)
+    cache_read_rate = _env_float("COPILOT_COST_CACHE_READ_PER_1M", 0.10)
+    cache_write_rate = _env_float("COPILOT_COST_CACHE_WRITE_PER_1M", 1.25)
+
+    input_tokens = usage.get("input_tokens", 0) or 0
+    output_tokens = usage.get("output_tokens", 0) or 0
+    cache_read_tokens = usage.get("cache_read_input_tokens", 0) or 0
+    cache_write_tokens = usage.get("cache_creation_input_tokens", 0) or 0
+
+    return round(
+        (
+            input_tokens * input_rate
+            + output_tokens * output_rate
+            + cache_read_tokens * cache_read_rate
+            + cache_write_tokens * cache_write_rate
+        )
+        / 1_000_000,
+        6,
+    )
+
+
 def record_feedback(trace_id: str, verdict: str, comment: str) -> bool:
     """Forward clinician feedback to Langfuse as a score event. Best-effort."""
 
@@ -79,6 +111,7 @@ def record_brief(
     if client is None:
         return
     try:
+        estimated_cost_usd = estimate_cost_usd(usage)
         trace = client.trace(
             id=trace_id,
             name="clinical_copilot.brief",
@@ -90,6 +123,7 @@ def record_brief(
                 "unsupported_dropped": unsupported_dropped,
                 "prompt_template_version": usage.get("prompt_template_version"),
                 "model": usage.get("model"),
+                "estimated_cost_usd": estimated_cost_usd,
             },
         )
         trace.generation(
@@ -101,7 +135,11 @@ def record_brief(
                 "input_cached_read": usage.get("cache_read_input_tokens", 0),
                 "input_cache_write": usage.get("cache_creation_input_tokens", 0),
             },
-            metadata={"duration_ms": duration_ms, "repair": usage.get("repair", False)},
+            metadata={
+                "duration_ms": duration_ms,
+                "repair": usage.get("repair", False),
+                "estimated_cost_usd": estimated_cost_usd,
+            },
         )
     except Exception:
         pass

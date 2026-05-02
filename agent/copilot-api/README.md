@@ -3,8 +3,8 @@
 Python FastAPI service that:
 
 1. Receives source packets + a task token from the OpenEMR gateway.
-2. Calls Claude (Sonnet 4.6 by default, adaptive thinking) with prompt caching on the system prompt.
-3. Parses structured JSON via Pydantic (`messages.parse(output_format=LLMOutput)`).
+2. Calls Claude (Haiku 4.5 by default for demo cost control) with tool-use-forced structured output.
+3. Parses the tool payload through Pydantic (`LLMOutput.model_validate(...)`).
 4. Runs the deterministic verifier (8 rules).
 5. Optionally repairs once.
 6. Emits Langfuse spans (PHI-safe metadata only).
@@ -67,7 +67,7 @@ docker run --rm -p 8000:8000 \
    - `ANTHROPIC_API_KEY`
    - `COPILOT_OPENEMR_GATEWAY_SHARED_SECRET`
    - `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` (optional)
-   - `COPILOT_MODEL=claude-sonnet-4-6` (override to switch model)
+   - `COPILOT_MODEL=claude-haiku-4-5-20251001` (override to switch model)
 4. Set on the OpenEMR service:
    - `COPILOT_API_BASE_URL=http://${{copilot-api.RAILWAY_PRIVATE_DOMAIN}}:8000`
    - `COPILOT_OPENEMR_GATEWAY_SHARED_SECRET=<same secret>`
