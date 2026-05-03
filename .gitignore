@@ -1,6 +1,10 @@
 # logs
 /logs
 
+# local planning and agent handoff notes
+/planning/
+/agentdocs/
+
 # environment vars
 .env
 
