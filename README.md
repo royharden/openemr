@@ -1,3 +1,6 @@
+> Username: admin
+> For a limited time, password is 4 lowercase letters, starts with a p and rhymes with SaaS or Sass and protects nothing but sample data
+>
 > **Fork:** This is a custom fork of [OpenEMR](https://github.com/openemr/openemr) developed during the [Gauntlet AgentForge](https://gauntletai.com) bootcamp. It adds a **Clinical Co-Pilot** AI module that surfaces verifier-gated patient briefings — identity, active problems, medications, allergies, recent labs, and immunizations — directly inside the OpenEMR patient chart via a Claude-powered FastAPI sidecar.
 >
 > **Thesis:** *A clinical agent intentionally constrained — read-only, current-patient, source-cited, verifier-gated, observable, and deployed — because in a clinical context the trustworthy 30% beats the impressive 80%.*
@@ -21,11 +24,9 @@
 > | Demo data seed (synthetic) | [`agent/copilot-api/demo/seed_demo_patient.sql`](agent/copilot-api/demo/seed_demo_patient.sql) |
 > | Project planning & architecture | `planning/` |
 > | **AI Cost Analysis** (per-turn + 100 / 1K / 10K / 100K users) | [`planning/cost_analysis.md`](planning/cost_analysis.md) |
-> | Audit & user docs | [`AUDIT.md`](AUDIT.md), [`planning/Users.md`](planning/Users.md) |
+> | Audit & user docs | [`AUDIT.md`](AUDIT.md), [`Users.md`](Users.md) |
 > | Agent work logs & decisions | `agentdocs/` |
-> | Local Docker setup | `README-LOCAL-DOCKER.md` |
->
-> **Deployment status:** Sidecar Dockerfile under `agent/copilot-api/Dockerfile`. Deployed URL and demo video link are pending Railway provisioning (see [`planning/plan_next01_opus47_2026-05-02_review_and_final_local_completion_status.md`](planning/plan_next01_opus47_2026-05-02_review_and_final_local_completion_status.md)).
+> |                                                              |                                                              |
 >
 > Upstream: [openemr/openemr](https://github.com/openemr/openemr) — all original OpenEMR documentation follows below.
 

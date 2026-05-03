@@ -1,4 +1,4 @@
-# USERS.md — Target User, Workflow, and Use Cases
+# USER.md — Target User, Workflow, and Use Cases
 
 ---
 
@@ -59,7 +59,7 @@ The architecture should support these roles later, but the MVP should not preten
 >
 > *Sources: 6 records in this patient's chart. Click any claim to verify.*
 >
-> **Suggested actions:** [What changed?] [Recent abnormal results] [Medication check] [Immunization history] [Ask a question…]
+> **Suggested actions:** [What changed?] [Medication check] [Allergy check] [Recent abnormal labs] [Immunizations] [Ask a question…]
 
 **8:56 AM**  Dr. Clark reads. She catches the A1c spike and clicks the *Medication check* suggested action.
 
@@ -161,7 +161,24 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 4: Recent Abnormal Results Review
+### Use Case 4: Allergy Check
+
+**Trigger:** Physician clicks the *Allergy check* button, or the briefing flags a potential allergy/medication overlap.
+**User question examples:** *"Any allergy conflicts with her current meds?" · "What is she allergic to?" · "Is Penicillin on her allergy list?"*
+**Agent behavior:** Retrieves the allergy list and active medications, then surfaces any overlap between documented allergens and active medication names. Presents the allergy list with reactions noted; surfaces conflicts as `claim_type=conflict` claims.
+**Example response:** *"Documented allergy: Penicillin (rash). No currently active medication matches the documented allergen. Active meds: Metformin 500 mg BID, Lisinopril 10 mg PO daily, ASA 81 mg."*
+**Why an agent:** Allergy/medication reconciliation across two source tables (`lists_allergy` and `prescriptions`/`lists`) is a multi-step lookup that a search box doesn't answer. The physician asks one natural-language question and the agent resolves the join.
+**Architecture mapping:** Planner selects `get_allergy_list` + `get_active_medications`; gateway executes both builders; verifier applies `lists_rx_conflict_unsurfaced` rule.
+
+**Success criteria:**
+- Every allergen is cited with source and documented reaction.
+- Medication-allergen overlaps are surfaced explicitly, not silently ignored.
+- Absence of an overlap is stated explicitly with caveats about data completeness, not declared safe by default.
+- Drug-drug interaction checking is **not** in v1 scope; the agent does not attempt it.
+
+---
+
+### Use Case 5: Recent Abnormal Labs
 
 **Trigger:** Physician asks proactively, or it's surfaced as a briefing bullet when abnormal flags exist.
 **User question examples:** *"Any abnormal labs recently?" · "How did her A1c trend?" · "Any recent vitals out of range?"*
@@ -178,7 +195,7 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 5: Immunization History
+### Use Case 6: Immunization History
 
 **Trigger:** Part of the pre-room briefing for any established patient.
 **User question examples:** *"When was her last tetanus shot?" · "Does she have a pneumococcal on file?"*
@@ -197,18 +214,20 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 6: Single-Fact Lookup Mid-Visit
+### Use Case 7: Free-Text Chart Follow-Up
 
-**Trigger:** Physician needs a fact during conversation with the patient. *"When was her last tetanus shot?" · "What dose of Lisinopril is she on?" · "Did the cardiologist send a note after her referral?"*
-**Agent behavior:** Answers in <2 seconds with the fact + a citation. If multiple possible answers exist, the agent shows the ambiguity rather than picking one.
-**Why an agent:** This is the *reduce-screen-time* use case. Currently the physician clicks through 3–4 tabs and scrolls. With the agent, she stays present with the patient.
-**Architecture mapping:** Single packet builder invoked per question via the gateway router (`ImmunizationsPacketBuilder`, `ActiveMedicationsPacketBuilder`, etc.) with the deterministic verifier as the gate.
+**Trigger:** Physician types a question into the free-text input after the auto-brief or a quick-action response.
+**User question examples:** *"What dose of Lisinopril is she on?" · "When was her last tetanus shot?" · "Did she fill her Metformin refill?"*
+**Agent behavior:** The gateway first checks the question against a local refusal ruleset: clinical-action requests ("increase her dose", "prescribe") and cross-patient requests ("what meds is John Smith on?") are refused before any LLM call is made. For allowed questions, the LLM planner (`POST /v1/tool-plan`) selects which of the six read-only tools are needed; the gateway executes them; the LLM synthesizes a verified answer.
+**Why an agent:** Free-text reduces cognitive load for questions the buttons don't cover. The physician stays present with the patient rather than navigating tabs. The conversational interface also lets the physician ask follow-ups to a prior answer in the same session.
+**Architecture mapping:** Gateway refusal ruleset → LLM tool planner → gateway-executed packet builders → verifier → structured claims → rendered answer.
 
 **Success criteria:**
-- Single-fact answers return in <2 seconds (p95).
-- Every answer cites an exact `source_id`.
-- Ambiguity is surfaced, not resolved by the model.
-- No other patient's data is reachable from any query (verifier rejects claims whose `source_id` belongs to another patient_uuid).
+- Single-fact answers cite an exact `source_id`.
+- Clinical-action requests are refused at the gateway; no sidecar call made.
+- Cross-patient requests are refused at the gateway; no sidecar call made.
+- Questions about data not present in v1 (pharmacy fill, dispense records) produce an explicit "not available in v1" statement, not a hallucinated answer.
+- Ambiguous answers surface the ambiguity rather than picking one answer.
 
 ---
 
