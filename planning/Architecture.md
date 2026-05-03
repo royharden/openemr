@@ -4,13 +4,15 @@
 
 The Clinical Co-Pilot will be a read-only, patient-scoped AI assistant embedded inside OpenEMR for an established-patient primary care visit. The target physician has roughly 90 seconds between rooms, so the agent's first job is not to practice medicine or replace chart review. Its job is to surface the patient-specific facts most likely to matter before the physician enters the room: who the patient is, why they are here, what changed since the last visit, active medications and allergies, recent abnormal labs or vitals, and relevant preventive care gaps.
 
-The core architectural decision is to keep OpenEMR and MariaDB as the clinical system of record, then place a narrow Co-Pilot layer beside it rather than giving the model broad database access. The first release will use an OpenEMR custom module for the in-chart user interface and a small Co-Pilot gateway running in the OpenEMR application context. That gateway verifies the current session, the currently open patient, the encounter context, the physician's access rights, and the read-only purpose of use. It then calls a Python FastAPI sidecar for orchestration. The sidecar is useful because the agent, observability, and evaluation ecosystem is stronger in Python, but it will not receive raw database credentials and will not be allowed to query arbitrary patients. It can only request bounded tools through the gateway, and every tool call is pinned to the patient already open in the OpenEMR chart.
+The core architectural decision is to keep OpenEMR and MariaDB as the clinical system of record, then place a narrow Co-Pilot layer beside it rather than giving the model broad database access. The first release uses an OpenEMR custom module for the in-chart user interface and a small Co-Pilot gateway running in the OpenEMR application context. That gateway verifies the current session, the currently open patient, the encounter context, the physician's access rights, and the read-only purpose of use. It then calls a Python FastAPI sidecar for orchestration. The sidecar is useful because the agent, observability, and evaluation ecosystem is stronger in Python, but it does not receive raw database credentials and cannot query arbitrary patients. The sidecar can plan read-only tool names, but OpenEMR executes every selected tool inside the authenticated current-patient gateway.
 
 Deployment for this sprint will use Railway rather than AWS or Azure. Railway is a deliberate speed tradeoff: it lets me host OpenEMR, MariaDB, the Python sidecar, and optional Redis with far less DevOps overhead. For Gauntlet's demo-data context, I will assume the required BAAs with LLM and hosting vendors as permitted by the case study. For a real hospital, Railway would need a formal compliance review or the same architecture could move to a HIPAA-ready cloud environment. Railway is not shaping the clinical trust model: the database remains private, the sidecar is internal-only, secrets are Railway-managed, and the LLM is an untrusted external processor that receives minimum necessary context.
 
 Verification is mandatory and happens after every model response. Tool results are converted into source packets: small structured records with a stable `source_id`, clinical value, source table or FHIR resource, row UUID, field name, timestamp, and freshness metadata. The model must return structured JSON, not final free-form clinical prose. Each factual claim must cite one or more `source_id` values. A deterministic verifier rejects unsupported claims, mismatched values, stale-data assertions, forbidden clinical recommendations, and outputs that ignore known constraints such as allergies or abnormal lab flags. The final physician-facing response is rendered from verified claims and templates. If verification fails, the system says what it can verify and explicitly states what is missing.
 
-Observability is not optional. Every request will have a trace ID connecting the UI request, OpenEMR audit event, tool calls, LLM call, verifier result, token usage, latency, cost, and user feedback. I will use Langfuse as the trace store because it is already wired for this sprint and remains self-hostable for a production healthcare path. Raw PHI should be redacted or minimized in traces. Evals will run against synthetic OpenEMR patients and test groundedness, authorization, missing data, prompt injection, tool selection, and latency. The architecture is intentionally conservative: read-only first, structured data first, no vector database until unstructured note retrieval proves necessary, and no write-back until verification and audit behavior are reliable.
+Observability is not optional. Every request has a trace ID connecting the UI request, OpenEMR audit event, selected tools, planner status, LLM call, verifier result, token usage, latency, cost, and user feedback. I use Langfuse as the trace store because it is already wired for this sprint and remains self-hostable for a production healthcare path. Raw PHI is redacted or minimized in traces. Evals run against synthetic OpenEMR patients and test groundedness, authorization, missing data, prompt injection, tool selection, tool failure, and latency. The local suite now has 34 offline eval cases and 71 Python tests. The architecture is intentionally conservative: read-only first, structured data first, no vector database until unstructured note retrieval proves necessary, and no write-back until verification and audit behavior are reliable.
+
+The shipped v1 surface has 7 first-class use cases: pre-room briefing, what changed, medication check, allergy check, recent abnormal labs, immunization history, and free-text chart follow-up. It exposes 6 LLM-callable read-only tools: `get_patient_identity`, `get_active_problems`, `get_active_medications`, `get_allergy_list`, `get_recent_labs`, and `get_immunization_history`.
 
 ## Scope
 
@@ -86,11 +88,12 @@ flowchart LR
    - The Co-Pilot module is enabled for the current OpenEMR site.
    - The request is read-only and allowed for the stated purpose.
 5. The gateway mints an internal 15-minute task token with one user UUID, one patient UUID, one encounter UUID when available, allowed tool names, read-only scope, and purpose of use.
-6. The sidecar receives the task token and either uses the prebuilt patient source packet or requests additional bounded tool calls through the gateway.
-7. The sidecar orchestrates the agent using structured tools and asks the model for structured JSON.
-8. The verifier checks every claim against the source packet.
-9. The final response is rendered with sources and returned to the OpenEMR panel.
-10. Audit and observability events are written for the full request lifecycle.
+6. The gateway asks the sidecar `/v1/tool-plan` endpoint which read-only clinical data tools are needed for the current-patient use case.
+7. The gateway executes only allowlisted selected tools, rejecting patient identifiers, SQL, table names, source IDs, or arbitrary query text in tool arguments.
+8. The sidecar orchestrates synthesis from the gateway-built source packets and asks the model for structured JSON.
+9. The verifier checks every claim against the source packet.
+10. The final response is rendered with sources and returned to the OpenEMR panel.
+11. Audit and observability events are written for the full request lifecycle.
 
 ## Component Design
 
@@ -144,21 +147,16 @@ The sidecar will not have direct MariaDB credentials. That is intentional. A sid
 
 ### 4. Data Tools
 
-Initial tools are deliberately boring and bounded:
+Initial tools are deliberately boring and bounded. The LLM chooses tool names via `/v1/tool-plan`; OpenEMR executes them:
 
 | Tool | Data | Default bound |
 |---|---|---|
-| `get_patient_identity` | Demographics, age, sex at birth, preferred contact flags | Current patient only |
-| `get_visit_context` | Today's appointment or current encounter reason | Current encounter or today's schedule |
-| `get_recent_encounters` | Recent encounters and reasons | Last 5 |
+| `get_patient_identity` | Demographics and chart identity summary | Current patient only |
 | `get_active_problems` | Active problem list | Active only |
-| `get_allergies` | Active allergies and reactions | Active only |
-| `get_medications` | Medication list plus prescriptions | Active first, include stopped only when asked |
+| `get_active_medications` | Medication list plus prescriptions | Active first |
+| `get_allergy_list` | Active allergies and reactions | Active only |
 | `get_recent_labs` | Lab observations with range and abnormal flag | Last 6 months or last 20 results |
-| `get_recent_vitals` | Vitals trend | Last 3 encounters |
-| `get_immunizations` | Immunization history | Relevant preventive care only |
-| `get_renal_context` | Latest creatinine/eGFR plus renal-relevant active meds | On demand |
-| `get_source_by_id` | Exact source drill-down for a cited claim | One source ID |
+| `get_immunization_history` | Immunization history | Current patient only |
 
 Tool rules:
 
@@ -167,6 +165,8 @@ Tool rules:
 - The `patient_uuid` is server supplied and cannot be changed by the model.
 - Every result includes source metadata.
 - Tools fail closed: no data is better than cross-patient data.
+- If `/v1/tool-plan` returns no usable tools, the gateway uses a deterministic minimum map and records `planner_status=fallback_required`.
+- If `/v1/tool-plan` fails at HTTP or network level, the gateway returns the existing `sidecar_failed` 502 shape rather than pretending success.
 
 ## Data Sources
 

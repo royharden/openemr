@@ -1,0 +1,26 @@
+{
+  "name": "what-changed fallback remains full chart packet set",
+  "mode": "tool_plan",
+  "request": {
+    "trace_id": "tp-33",
+    "use_case": "what-changed",
+    "patient_uuid_hash": "hash"
+  },
+  "mocked_tool_plan": {
+    "trace_id": "tp-33",
+    "planner_status": "fallback_required",
+    "tool_calls": []
+  },
+  "expectations": {
+    "planner_status": "fallback_required",
+    "use_fallback_when_empty": true,
+    "expected_fallback_tools": [
+      "get_patient_identity",
+      "get_active_problems",
+      "get_active_medications",
+      "get_allergy_list",
+      "get_recent_labs",
+      "get_immunization_history"
+    ]
+  }
+}

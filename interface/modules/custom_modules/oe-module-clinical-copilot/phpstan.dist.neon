@@ -1,0 +1,26 @@
+parameters:
+  level: 10
+  tmpDir: /tmp/copilot-phpstan-cache
+  bootstrapFiles:
+    - ../../../../vendor/autoload.php
+  scanFiles:
+    - ../../../../library/sql.inc.php
+    - src/SourcePackets/PacketBuilder.php
+    - src/SourcePackets/PacketDto.php
+    - src/SourcePackets/IdentityPacketBuilder.php
+    - src/SourcePackets/ActiveProblemsPacketBuilder.php
+    - src/SourcePackets/ActiveMedicationsPacketBuilder.php
+    - src/SourcePackets/AllergiesPacketBuilder.php
+    - src/SourcePackets/RecentLabsPacketBuilder.php
+    - src/SourcePackets/ImmunizationsPacketBuilder.php
+    - src/Gateway/LocalTraceLogger.php
+    - src/Gateway/QuestionRouter.php
+    - src/Gateway/TaskToken.php
+    - src/Audit/AgentTurnAuditor.php
+    - src/Bootstrap.php
+  paths:
+    - public/api/brief.php
+    - src/Gateway/SidecarClient.php
+    - src/Gateway/ClinicalToolExecutor.php
+    - src/Controller/PanelController.php
+    - tests/tool_executor_smoke.php

@@ -1,0 +1,23 @@
+{
+  "name": "free_text_abnormal_labs_only_abnormal_accepted",
+  "description": "Free-text follow-up: 'Any abnormal labs since March?' — verifier accepts only claims grounded in abnormal-flagged lab packets; non-abnormal claims are dropped.",
+  "request": {"use_case": "free_text_followup"},
+  "packets": [
+    {"source_id": "lab:procedure_result:301", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "ldl", "label": "LDL", "value": "186 mg/dL (abnormal)", "observed_at": "2026-04-12", "freshness": "recent"},
+    {"source_id": "lab:procedure_result:302", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "tsh", "label": "TSH", "value": "2.1 mIU/L", "observed_at": "2026-04-15", "freshness": "recent"}
+  ],
+  "llm_output": {
+    "answer_type": "follow_up",
+    "claims": [
+      {"text": "LDL 186 mg/dL flagged abnormal on 2026-04-12.", "claim_type": "fact", "source_ids": ["lab:procedure_result:301"], "caveat": null}
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

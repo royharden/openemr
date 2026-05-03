@@ -1,0 +1,21 @@
+{
+  "name": "value_mismatch_observed_date",
+  "description": "Claim cites a lab packet but writes a different ISO date than observed_at. Verifier must drop with source_value_mismatch.",
+  "packets": [
+    {"source_id": "lab:procedure_result:888", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "result", "label": "LDL Cholesterol", "value": "186", "unit": "mg/dL", "observed_at": "2026-04-20", "freshness": "recent"}
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {"text": "LDL 186 mg/dL on 2026-04-22.", "claim_type": "fact", "source_ids": ["lab:procedure_result:888"], "caveat": null}
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "failed",
+    "min_dropped": 1,
+    "rules_must_fire": ["source_value_mismatch"]
+  }
+}

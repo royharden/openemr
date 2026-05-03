@@ -3,6 +3,11 @@
 This tests the deterministic verifier in isolation. It does NOT call the LLM,
 so it runs offline, fast, and CI-safe.
 
+A subset of cases (those with `mode: "router_refusal"`) instead exercise the
+gateway-side `QuestionRouter` (mirrored in `app.router_logic`) and assert that
+no sidecar/LLM call would have been made — i.e. the router itself produced the
+refusal.
+
 Usage:
     python -m evals.runner
 
@@ -17,7 +22,9 @@ import sys
 import time
 from typing import Any
 
-from app.schemas import LLMOutput, SourcePacket
+from app.router_logic import classify, normalize
+from app.schemas import LLMOutput, SourcePacket, ToolPlanResponse
+from app.tool_planner import fallback_tool_calls
 from app.verifier import patient_uuid_hash, verify
 
 CASES_DIR = pathlib.Path(__file__).parent / "cases"
@@ -60,6 +67,89 @@ def _check(case: dict[str, Any], result: Any, elapsed_ms: float) -> tuple[bool, 
         if not any(needle.lower() in m.lower() for m in result.missing_data):
             failures.append(f"missing_data_must_mention: {needle!r} not present")
 
+    for needle in expects.get("must_state_missing", []):
+        if not any(needle.lower() in m.lower() for m in result.missing_data):
+            failures.append(f"must_state_missing: {needle!r} not present in missing_data")
+
+    for needle in expects.get("missing_data_must_not_mention", []):
+        if any(needle.lower() in m.lower() for m in result.missing_data):
+            failures.append(f"missing_data_must_not_mention: {needle!r} was present")
+
+    return (len(failures) == 0, failures)
+
+
+def _check_router_refusal(case: dict[str, Any]) -> tuple[bool, list[str]]:
+    expects = case["expectations"]
+    failures: list[str] = []
+    question = case.get("question", "")
+    decision = classify(normalize(question))
+
+    expected_family = expects.get("expected_family")
+    if expected_family and decision.family != expected_family:
+        failures.append(f"expected_family: expected {expected_family!r}, got {decision.family!r}")
+
+    if expects.get("must_not_call_sidecar"):
+        if decision.refusal_reason is None:
+            failures.append("must_not_call_sidecar: router did not refuse locally (would have called sidecar)")
+
+    expected_reason = expects.get("expected_refusal_reason")
+    if expected_reason and decision.refusal_reason != expected_reason:
+        failures.append(
+            f"expected_refusal_reason: expected {expected_reason!r}, got {decision.refusal_reason!r}"
+        )
+
+    return (len(failures) == 0, failures)
+
+
+def _check_tool_plan(case: dict[str, Any]) -> tuple[bool, list[str], str]:
+    expects = case["expectations"]
+    failures: list[str] = []
+    request = case.get("request", {})
+    mocked = case.get("mocked_tool_plan", {})
+    status_label = "tool_plan"
+
+    try:
+        plan = ToolPlanResponse(**mocked)
+        names = [call.name for call in plan.tool_calls]
+        status_label = plan.planner_status
+    except Exception as exc:
+        if expects.get("schema_must_reject"):
+            return True, [], "schema_rejected"
+        return False, [f"tool plan schema rejected unexpectedly: {exc}"], "schema_rejected"
+
+    if expects.get("schema_must_reject"):
+        failures.append("schema_must_reject: mocked tool plan parsed successfully")
+
+    expected_status = expects.get("planner_status")
+    if expected_status and plan.planner_status != expected_status:
+        failures.append(f"planner_status: expected {expected_status!r}, got {plan.planner_status!r}")
+
+    expected_tools = expects.get("expected_tools")
+    if expected_tools and names != expected_tools:
+        failures.append(f"expected_tools: expected {expected_tools!r}, got {names!r}")
+
+    if expects.get("use_fallback_when_empty"):
+        fallback = fallback_tool_calls(
+            str(request.get("use_case", "pre_room_brief")),
+            request.get("router_family") if isinstance(request.get("router_family"), str) else None,
+        )
+        fallback_names = [call.name for call in fallback]
+        expected_fallback = expects.get("expected_fallback_tools")
+        if expected_fallback and fallback_names != expected_fallback:
+            failures.append(
+                f"expected_fallback_tools: expected {expected_fallback!r}, got {fallback_names!r}"
+            )
+
+    return (len(failures) == 0, failures, status_label)
+
+
+def _check_tool_error(case: dict[str, Any]) -> tuple[bool, list[str]]:
+    expects = case["expectations"]
+    failures: list[str] = []
+    if expects.get("gateway_should_502") is not True:
+        failures.append("gateway_should_502 expectation must be true for tool_error cases")
+    if expects.get("brief_must_not_call_llm") is not True:
+        failures.append("brief_must_not_call_llm expectation must be true for tool_error cases")
     return (len(failures) == 0, failures)
 
 
@@ -87,6 +177,68 @@ def main() -> int:
     print("-" * 71)
 
     for i, case in enumerate(cases, 1):
+        mode = case.get("mode", "verifier")
+        if mode == "router_refusal":
+            started = time.monotonic()
+            passed, failures = _check_router_refusal(case)
+            elapsed_ms = (time.monotonic() - started) * 1000
+            status_label = "router_refusal"
+            if passed:
+                pass_count += 1
+            flag = "PASS" if passed else "FAIL"
+            print(f"{i:<3}{case['name'][:38]:<40}{status_label:<22}{flag:<6}")
+            if not passed:
+                for f in failures:
+                    print(f"      - {f}")
+            results.append({
+                "name": case["name"],
+                "mode": mode,
+                "elapsed_ms": round(elapsed_ms, 3),
+                "passed": passed,
+                "failures": failures,
+            })
+            continue
+        if mode == "tool_plan":
+            started = time.monotonic()
+            passed, failures, status_label = _check_tool_plan(case)
+            elapsed_ms = (time.monotonic() - started) * 1000
+            if passed:
+                pass_count += 1
+            flag = "PASS" if passed else "FAIL"
+            print(f"{i:<3}{case['name'][:38]:<40}{status_label:<22}{flag:<6}")
+            if not passed:
+                for f in failures:
+                    print(f"      - {f}")
+            results.append({
+                "name": case["name"],
+                "mode": mode,
+                "status": status_label,
+                "elapsed_ms": round(elapsed_ms, 3),
+                "passed": passed,
+                "failures": failures,
+            })
+            continue
+        if mode == "tool_error":
+            started = time.monotonic()
+            passed, failures = _check_tool_error(case)
+            elapsed_ms = (time.monotonic() - started) * 1000
+            status_label = "tool_error"
+            if passed:
+                pass_count += 1
+            flag = "PASS" if passed else "FAIL"
+            print(f"{i:<3}{case['name'][:38]:<40}{status_label:<22}{flag:<6}")
+            if not passed:
+                for f in failures:
+                    print(f"      - {f}")
+            results.append({
+                "name": case["name"],
+                "mode": mode,
+                "elapsed_ms": round(elapsed_ms, 3),
+                "passed": passed,
+                "failures": failures,
+            })
+            continue
+
         packets = [SourcePacket(**p) for p in case["packets"]]
         llm_output = LLMOutput(**case["llm_output"])
         request_uuid_hash = _request_patient_hash(case, packets)

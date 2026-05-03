@@ -1,0 +1,13 @@
+{
+  "name": "tool plan transport failure fails closed before brief LLM",
+  "mode": "tool_error",
+  "request": {
+    "trace_id": "tp-34",
+    "use_case": "pre_room_brief",
+    "patient_uuid_hash": "hash"
+  },
+  "expectations": {
+    "gateway_should_502": true,
+    "brief_must_not_call_llm": true
+  }
+}

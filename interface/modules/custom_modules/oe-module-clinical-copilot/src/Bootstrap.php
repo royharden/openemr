@@ -35,8 +35,14 @@ class Bootstrap
 
     public function subscribeToEvents(): void
     {
+        // Render the Co-Pilot card BEFORE the patient demographic section list
+        // so it is the first thing the physician sees when a chart opens — the
+        // workflow described in USER.md ("a card slides into the right rail
+        // within 3 seconds"). Switching from EVENT_SECTION_LIST_RENDER_AFTER
+        // to _BEFORE places the card immediately above the demographics /
+        // problems / meds / allergies / labs widgets.
         $this->eventDispatcher->addListener(
-            RenderEvent::EVENT_SECTION_LIST_RENDER_AFTER,
+            RenderEvent::EVENT_SECTION_LIST_RENDER_BEFORE,
             $this->renderPanel(...)
         );
     }

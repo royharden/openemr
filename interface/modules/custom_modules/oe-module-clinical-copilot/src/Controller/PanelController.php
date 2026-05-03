@@ -34,7 +34,7 @@ class PanelController
         ob_start();
         ?>
         <link rel="stylesheet" href="<?php echo attr($assetBase); ?>/css/copilot.css">
-        <div class="card mb-3 copilot-card" id="copilot-card" data-pid="<?php echo attr($pid); ?>">
+        <div class="card mb-3 copilot-card" id="copilot-card" data-pid="<?php echo attr((string)$pid); ?>">
             <div class="card-header copilot-header">
                 <i class="fa fa-robot mr-2"></i>
                 <strong><?php echo xlt('Clinical Co-Pilot'); ?></strong>
@@ -61,6 +61,26 @@ class PanelController
                     <button type="button" class="btn btn-sm btn-outline-primary copilot-followup-btn" data-followup="recent_abnormal_labs">
                         <?php echo xlt('Recent abnormal labs'); ?>
                     </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary copilot-followup-btn" data-followup="immunization_history">
+                        <?php echo xlt('Immunizations'); ?>
+                    </button>
+                </div>
+                <div class="copilot-ask mt-2" id="copilot-ask" style="display:none">
+                    <form class="form-inline copilot-ask-form" id="copilot-ask-form" autocomplete="off">
+                        <textarea
+                            class="form-control form-control-sm copilot-ask-input"
+                            id="copilot-ask-input"
+                            rows="1"
+                            maxlength="500"
+                            placeholder="<?php echo attr(xl("Ask about this patient's chart...")); ?>"
+                            aria-label="<?php echo attr(xl('Ask a question about the current patient')); ?>"></textarea>
+                        <button type="submit" class="btn btn-sm btn-primary ml-2 copilot-ask-btn" id="copilot-ask-btn">
+                            <?php echo xlt('Ask'); ?>
+                        </button>
+                    </form>
+                    <div class="copilot-ask-help text-muted small mt-1">
+                        <?php echo xlt('Current patient only. Source-cited answers. Press Enter to submit, Shift+Enter for newline.'); ?>
+                    </div>
                 </div>
                 <div class="copilot-feedback mt-2" id="copilot-feedback" style="display:none">
                     <span class="text-muted small mr-2"><?php echo xlt('How was this brief?'); ?></span>
@@ -92,7 +112,7 @@ class PanelController
                 briefUrl: <?php echo js_escape($apiBriefUrl); ?>,
                 feedbackUrl: <?php echo js_escape($apiFeedbackUrl); ?>,
                 csrfToken: <?php echo js_escape($csrfToken); ?>,
-                pid: <?php echo (int)$pid; ?>
+                pid: <?php echo $pid; ?>
             };
         </script>
         <script src="<?php echo attr($assetBase); ?>/js/copilot.js"></script>

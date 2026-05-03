@@ -1,0 +1,22 @@
+{
+  "name": "tool plan labs selects recent labs with bounded args",
+  "mode": "tool_plan",
+  "request": {
+    "trace_id": "tp-27",
+    "use_case": "recent_abnormal_labs",
+    "patient_uuid_hash": "hash"
+  },
+  "mocked_tool_plan": {
+    "trace_id": "tp-27",
+    "planner_status": "planned",
+    "tool_calls": [
+      {"name": "get_patient_identity", "arguments": {}},
+      {"name": "get_active_problems", "arguments": {}},
+      {"name": "get_recent_labs", "arguments": {"months": 6, "limit": 10}}
+    ]
+  },
+  "expectations": {
+    "planner_status": "planned",
+    "expected_tools": ["get_patient_identity", "get_active_problems", "get_recent_labs"]
+  }
+}

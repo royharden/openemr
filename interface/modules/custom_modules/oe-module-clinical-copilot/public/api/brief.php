@@ -22,18 +22,18 @@ use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Services\BaseService;
 use OpenEMR\Modules\ClinicalCopilot\Audit\AgentTurnAuditor;
+use OpenEMR\Modules\ClinicalCopilot\Gateway\ClinicalToolExecutor;
+use OpenEMR\Modules\ClinicalCopilot\Gateway\LocalTraceLogger;
+use OpenEMR\Modules\ClinicalCopilot\Gateway\QuestionRouter;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\SidecarClient;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\TaskToken;
-use OpenEMR\Modules\ClinicalCopilot\SourcePackets\ActiveMedicationsPacketBuilder;
-use OpenEMR\Modules\ClinicalCopilot\SourcePackets\ActiveProblemsPacketBuilder;
-use OpenEMR\Modules\ClinicalCopilot\SourcePackets\AllergiesPacketBuilder;
-use OpenEMR\Modules\ClinicalCopilot\SourcePackets\IdentityPacketBuilder;
-use OpenEMR\Modules\ClinicalCopilot\SourcePackets\ImmunizationsPacketBuilder;
-use OpenEMR\Modules\ClinicalCopilot\SourcePackets\RecentLabsPacketBuilder;
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 
+/**
+ * @param array<string, mixed> $payload
+ */
 function copilot_send_json(int $status, array $payload): never
 {
     http_response_code($status);
@@ -49,6 +49,108 @@ function copilot_uuid_v4(): string
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
+function copilot_int(mixed $value, int $default = 0): int
+{
+    if (is_int($value)) {
+        return $value;
+    }
+    if (is_float($value) || is_numeric($value)) {
+        return (int)$value;
+    }
+    return $default;
+}
+
+function copilot_string(mixed $value, string $default = ''): string
+{
+    if (is_string($value)) {
+        return $value;
+    }
+    if (is_int($value) || is_float($value) || is_bool($value)) {
+        return (string)$value;
+    }
+    return $default;
+}
+
+function copilot_env_string(string $name): string
+{
+    $value = getenv($name);
+    return is_string($value) ? $value : '';
+}
+
+/**
+ * @return array<int, mixed>
+ */
+function copilot_list(mixed $value): array
+{
+    return is_array($value) ? array_values($value) : [];
+}
+
+/**
+ * @param array<string, mixed>|null $payload
+ */
+function copilot_payload_string(?array $payload, string $key, string $default = ''): string
+{
+    return copilot_string($payload[$key] ?? null, $default);
+}
+
+/**
+ * @param array<string, mixed>|null $payload
+ */
+function copilot_payload_int(?array $payload, string $key, int $default = 0): int
+{
+    return copilot_int($payload[$key] ?? null, $default);
+}
+
+/**
+ * @param array<int, string> $selectedTools
+ */
+function copilot_audit_tag(?string $routerFamily, string $plannerStatus, array $selectedTools): string
+{
+    $prefix = ($routerFamily !== null && $routerFamily !== '') ? $routerFamily . ' ' : '';
+    return trim($prefix . 'planner=' . $plannerStatus . ' tools=' . implode(',', $selectedTools));
+}
+
+function copilot_scalar_text(mixed $value): string
+{
+    if (is_scalar($value)) {
+        return (string)$value;
+    }
+    $encoded = json_encode($value, JSON_UNESCAPED_SLASHES);
+    return is_string($encoded) ? $encoded : '';
+}
+
+/**
+ * @param array<int, string> $allowedKeys
+ * @param array<int, array<string, mixed>> $packets
+ * @return array<int, array<string, mixed>>
+ */
+function copilot_filter_builders(array $packets, array $allowedKeys): array
+{
+    if (in_array('all', $allowedKeys, true)) {
+        return $packets;
+    }
+    return $packets;
+}
+
+/**
+ * @param array<int, array<string, mixed>> $packets
+ * @return array<int, array<string, mixed>>
+ */
+function copilot_packets_summary(array $packets): array
+{
+    $summary = [];
+    foreach ($packets as $p) {
+        $summary[] = [
+            'source_id' => $p['source_id'] ?? '',
+            'source_table' => $p['source_table'] ?? '',
+            'label' => $p['label'] ?? '',
+            'observed_at' => $p['observed_at'] ?? null,
+            'freshness' => $p['freshness'] ?? 'unknown',
+        ];
+    }
+    return $summary;
+}
+
 $traceId = copilot_uuid_v4();
 
 try {
@@ -60,10 +162,10 @@ try {
 
     if (!AclMain::aclCheckCore('patients', 'med')) {
         AgentTurnAuditor::record(
-            (int)($_SESSION['authUserID'] ?? 0),
-            (int)($_SESSION['pid'] ?? 0),
+            copilot_int($_SESSION['authUserID'] ?? null),
+            copilot_int($_SESSION['pid'] ?? null),
             $traceId,
-            (string)($_POST['use_case'] ?? 'pre_room_brief'),
+            copilot_string($_POST['use_case'] ?? null, 'pre_room_brief'),
             'denied',
             0,
             'acl_denied',
@@ -71,72 +173,112 @@ try {
         copilot_send_json(403, ['error' => 'acl_denied', 'trace_id' => $traceId]);
     }
 
-    $pid = (int)($session->get('pid') ?? 0);
-    $userId = (int)($session->get('authUserID') ?? 0);
-    $encounterId = (int)($session->get('encounter') ?? 0);
+    $pid = copilot_int($session->get('pid'));
+    $userId = copilot_int($session->get('authUserID'));
+    $encounterId = copilot_int($session->get('encounter'));
 
     if ($pid <= 0) {
         copilot_send_json(400, ['error' => 'no_active_patient', 'trace_id' => $traceId]);
     }
 
-    $useCaseRaw = (string)($_POST['use_case'] ?? 'pre_room_brief');
+    $useCaseRaw = copilot_string($_POST['use_case'] ?? null, 'pre_room_brief');
     $allowedUseCases = [
         'pre_room_brief',
         'what-changed',
         'medication_check',
         'allergy_check',
         'recent_abnormal_labs',
+        'immunization_history',
+        'free_text_followup',
     ];
     $useCase = in_array($useCaseRaw, $allowedUseCases, true) ? $useCaseRaw : 'pre_room_brief';
 
+    $rawQuestion = '';
+    $normalizedQuestion = '';
+    $routerFamily = null;
+    $routerRefusalReason = null;
+    $routerBuilders = null;
+
+    if ($useCase === 'free_text_followup') {
+        $rawQuestion = copilot_string($_POST['question'] ?? null);
+        $normalizedQuestion = QuestionRouter::normalize($rawQuestion);
+        if ($normalizedQuestion === '') {
+            copilot_send_json(400, ['error' => 'empty_question', 'trace_id' => $traceId]);
+        }
+        $decision = QuestionRouter::classify($normalizedQuestion);
+        $routerFamily = $decision['family'];
+        $routerRefusalReason = $decision['refusal_reason'];
+        $routerBuilders = $decision['builders'];
+    }
+
     try {
-        $patientUuidBin = BaseService::getUuidById($pid, 'patient_data', 'pid');
-        $patientUuid = !empty($patientUuidBin) ? UuidRegistry::uuidToString($patientUuidBin) : (string)$pid;
+        $patientUuidBin = BaseService::getUuidById((string)$pid, 'patient_data', 'pid');
+        $patientUuid = $patientUuidBin !== false && $patientUuidBin !== ''
+            ? UuidRegistry::uuidToString($patientUuidBin)
+            : (string)$pid;
     } catch (\Throwable $e) {
         $patientUuid = (string)$pid;
     }
+    $patientUuidHash = TaskToken::patientUuidHash($patientUuid);
 
-    $builders = match ($useCase) {
-        'medication_check' => [
-            new IdentityPacketBuilder(),
-            new ActiveMedicationsPacketBuilder(),
-            new AllergiesPacketBuilder(),
-        ],
-        'allergy_check' => [
-            new IdentityPacketBuilder(),
-            new AllergiesPacketBuilder(),
-            new ActiveMedicationsPacketBuilder(),
-        ],
-        'recent_abnormal_labs' => [
-            new IdentityPacketBuilder(),
-            new ActiveProblemsPacketBuilder(),
-            new RecentLabsPacketBuilder(),
-        ],
-        default => [
-            new IdentityPacketBuilder(),
-            new ActiveProblemsPacketBuilder(),
-            new ActiveMedicationsPacketBuilder(),
-            new AllergiesPacketBuilder(),
-            new RecentLabsPacketBuilder(),
-            new ImmunizationsPacketBuilder(),
-        ],
-    };
-    $packets = [];
-    foreach ($builders as $builder) {
-        foreach ($builder->build($pid, $patientUuid) as $packet) {
-            $packets[] = $packet->toArray();
-            if (count($packets) >= 50) {
-                break 2;
+    $sidecarBase = copilot_env_string('COPILOT_API_BASE_URL');
+    $sharedSecret = copilot_env_string('COPILOT_OPENEMR_GATEWAY_SHARED_SECRET');
+
+    // Local refusal: short-circuit before building any packets or calling the sidecar.
+    if ($useCase === 'free_text_followup' && $routerRefusalReason !== null) {
+        $localRefusal = QuestionRouter::buildRefusalResponse(
+            $traceId,
+            $routerFamily,
+            $routerRefusalReason,
+        );
+
+        // Best-effort: tell the sidecar's observability endpoint about this refusal so
+        // Langfuse keeps a trace_id-keyed record. PHI never sent.
+        if ($sidecarBase !== '' && $sharedSecret !== '') {
+            try {
+                $logger = new LocalTraceLogger($sidecarBase, $sharedSecret);
+                $logger->recordLocalRefusal(
+                    $traceId,
+                    $useCase,
+                    $routerFamily,
+                    $routerRefusalReason,
+                    $patientUuidHash,
+                );
+            } catch (\Throwable $e) {
+                error_log('ClinicalCopilot local refusal trace log failed: ' . $e->getMessage());
             }
         }
+
+        $localRefusal['pid'] = $pid;
+        $localRefusal['patient_uuid_hash'] = $patientUuidHash;
+        $localRefusal['use_case'] = $useCase;
+        $localRefusal['packet_count'] = 0;
+        $localRefusal['packets_summary'] = [];
+
+        AgentTurnAuditor::record(
+            $userId,
+            $pid,
+            $traceId,
+            $useCase,
+            'refused_by_router',
+            0,
+            copilot_audit_tag($routerFamily, 'not_called', []),
+        );
+
+        copilot_send_json(200, $localRefusal);
     }
 
-    $sidecarBase = (string)(getenv('COPILOT_API_BASE_URL') ?: '');
-    $sharedSecret = (string)(getenv('COPILOT_OPENEMR_GATEWAY_SHARED_SECRET') ?: '');
+    $sidecarConfigured = $sidecarBase !== '' && $sharedSecret !== '';
     $sidecarResponse = null;
-    $verifierStatus = 'no_sidecar';
+    $verifierStatus = $sidecarConfigured ? 'unknown' : 'no_sidecar';
+    $executor = new ClinicalToolExecutor();
+    $plannerStatus = $sidecarConfigured ? 'unknown' : 'fallback_required';
+    $toolCalls = [];
+    $selectedTools = [];
+    $toolResultsSummary = [];
+    $rejectedTools = [];
 
-    if ($sidecarBase !== '' && $sharedSecret !== '') {
+    if ($sidecarConfigured) {
         $taskToken = TaskToken::mint(
             sharedSecret: $sharedSecret,
             patientUuid: $patientUuid,
@@ -145,47 +287,210 @@ try {
             purposeOfUse: 'TREAT',
         );
         $client = new SidecarClient($sidecarBase, $sharedSecret);
+
+        $toolPlan = $client->callToolPlan(
+            traceId: $traceId,
+            useCase: $useCase,
+            patientUuidHash: $patientUuidHash,
+            question: $useCase === 'free_text_followup' ? $normalizedQuestion : null,
+            routerFamily: $routerFamily,
+        );
+        if (isset($toolPlan['__sidecar_error'])) {
+            $response = [
+                'trace_id' => $traceId,
+                'pid' => $pid,
+                'patient_uuid_hash' => $patientUuidHash,
+                'use_case' => $useCase,
+                'packet_count' => 0,
+                'verifier_status' => 'sidecar_failed',
+                'planner_status' => 'failed',
+                'selected_tools' => [],
+                'tool_results_summary' => [],
+                'packets_summary' => [],
+                'answer_type' => $useCase === 'free_text_followup' ? 'follow_up' : 'pre_room_brief',
+                'claims' => [],
+                'missing_data' => ['Verification temporarily unavailable for this turn - open the chart panels directly.'],
+                'refusals' => [],
+                'suggested_followups' => [],
+                'unsupported_dropped' => 0,
+                'sidecar_warning' => copilot_payload_string($toolPlan, '__sidecar_error'),
+            ];
+            if (isset($toolPlan['__sidecar_status'])) {
+                $response['sidecar_status'] = copilot_payload_int($toolPlan, '__sidecar_status');
+            }
+            AgentTurnAuditor::record(
+                $userId,
+                $pid,
+                $traceId,
+                $useCase,
+                'sidecar_failed',
+                0,
+                'tool_plan_failed',
+            );
+            copilot_send_json(502, $response);
+        }
+
+        $plannerStatus = is_string($toolPlan['planner_status'] ?? null)
+            ? $toolPlan['planner_status']
+            : 'fallback_required';
+        $toolCalls = copilot_list($toolPlan['tool_calls'] ?? null);
+    }
+
+    if (!$sidecarConfigured || $toolCalls === []) {
+        $fallback = $executor->fallbackToolCalls($useCase, $routerFamily);
+        $toolCalls = $fallback['tool_calls'];
+        $plannerStatus = 'fallback_required';
+    }
+
+    $toolResult = $executor->execute($pid, $patientUuid, $toolCalls);
+    $packets = $toolResult['packets'];
+    $selectedTools = $toolResult['selected_tools'];
+    $toolResultsSummary = $toolResult['summary'];
+    $rejectedTools = $toolResult['rejected_tools'];
+
+    if ($selectedTools === []) {
+        $fallback = $executor->fallbackToolCalls($useCase, $routerFamily);
+        $toolResult = $executor->execute($pid, $patientUuid, $fallback['tool_calls']);
+        $packets = $toolResult['packets'];
+        $selectedTools = $toolResult['selected_tools'];
+        $toolResultsSummary = $toolResult['summary'];
+        $rejectedTools = array_merge($rejectedTools, $toolResult['rejected_tools']);
+        $plannerStatus = 'fallback_required';
+    }
+
+    if ($sidecarConfigured) {
+
+        $priorIds = [];
+        $priorIdsRaw = $_POST['prior_turn_source_ids'] ?? null;
+        if (is_string($priorIdsRaw) && $priorIdsRaw !== '') {
+            $decoded = json_decode($priorIdsRaw, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $sid) {
+                    if (is_string($sid) && strlen($sid) <= 128) {
+                        $priorIds[] = $sid;
+                        if (count($priorIds) >= 20) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         $sidecarResponse = $client->callBrief(
             traceId: $traceId,
             taskToken: $taskToken,
             useCase: $useCase,
             packets: $packets,
-            patientUuidHash: substr(hash('sha256', $patientUuid), 0, 12),
+            patientUuidHash: $patientUuidHash,
+            question: $useCase === 'free_text_followup' ? $normalizedQuestion : null,
+            priorTurnSourceIds: $priorIds !== [] ? $priorIds : null,
+            routerFamily: $routerFamily,
+            selectedTools: $selectedTools,
+            plannerStatus: $plannerStatus,
+            toolResultsSummary: $toolResultsSummary,
         );
         if (isset($sidecarResponse['__sidecar_error'])) {
             $verifierStatus = 'sidecar_failed';
         } elseif (isset($sidecarResponse['verifier_status'])) {
-            $verifierStatus = (string)$sidecarResponse['verifier_status'];
-        } else {
-            $verifierStatus = 'unknown';
+            $verifierStatus = copilot_payload_string($sidecarResponse, 'verifier_status');
         }
     }
 
     $response = [
         'trace_id' => $traceId,
         'pid' => $pid,
-        'patient_uuid_hash' => substr(hash('sha256', $patientUuid), 0, 12),
+        'patient_uuid_hash' => $patientUuidHash,
         'use_case' => $useCase,
         'packet_count' => count($packets),
         'verifier_status' => $verifierStatus,
+        'planner_status' => $plannerStatus,
+        'selected_tools' => $selectedTools,
+        'tool_results_summary' => $toolResultsSummary,
+        'packets_summary' => copilot_packets_summary($packets),
     ];
+    if ($routerFamily !== null) {
+        $response['router_family'] = $routerFamily;
+    }
+    if ($rejectedTools !== []) {
+        $response['rejected_tools'] = $rejectedTools;
+    }
 
-    if (is_array($sidecarResponse) && empty($sidecarResponse['__sidecar_error'])) {
+    $sidecarErrored = is_array($sidecarResponse)
+        && isset($sidecarResponse['__sidecar_error'])
+        && $sidecarResponse['__sidecar_error'] !== '';
+
+    if (is_array($sidecarResponse) && !$sidecarErrored) {
+        // Normal verified path: sidecar produced a VerifiedResponse.
         $response['answer_type'] = $sidecarResponse['answer_type'] ?? 'pre_room_brief';
         $response['claims'] = $sidecarResponse['claims'] ?? [];
         $response['missing_data'] = $sidecarResponse['missing_data'] ?? [];
         $response['refusals'] = $sidecarResponse['refusals'] ?? [];
         $response['suggested_followups'] = $sidecarResponse['suggested_followups'] ?? [];
         $response['unsupported_dropped'] = $sidecarResponse['unsupported_dropped'] ?? 0;
+        $response['selected_tools'] = $sidecarResponse['selected_tools'] ?? $selectedTools;
+        $response['planner_status'] = $sidecarResponse['planner_status'] ?? $plannerStatus;
+        $response['tool_results_summary'] = $sidecarResponse['tool_results_summary'] ?? $toolResultsSummary;
+
+        AgentTurnAuditor::record(
+            $userId,
+            $pid,
+            $traceId,
+            $useCase,
+            $verifierStatus,
+            count($packets),
+            copilot_audit_tag($routerFamily, $plannerStatus, $selectedTools),
+        );
+        copilot_send_json(200, $response);
+    } elseif ($sidecarErrored) {
+        // Sidecar configured but transport/HTTP/JSON failure. Do NOT flatten
+        // packets into pseudo-claims — that previously hid 4xx auth failures
+        // behind a "successful" 200 response. Surface as 502 sidecar_failed
+        // with empty claims and a missing_data hint.
+        error_log(sprintf(
+            'ClinicalCopilot sidecar_failed trace_id=%s err=%s status=%s',
+            $traceId,
+            copilot_payload_string($sidecarResponse, '__sidecar_error', 'unknown'),
+            copilot_payload_string($sidecarResponse, '__sidecar_status')
+        ));
+        $response['answer_type'] = $useCase === 'free_text_followup' ? 'follow_up' : 'pre_room_brief';
+        $response['claims'] = [];
+        $response['missing_data'] = [
+            'Verification temporarily unavailable for this turn — open the chart panels directly.',
+        ];
+        $response['refusals'] = [];
+        $response['suggested_followups'] = [];
+        $response['unsupported_dropped'] = 0;
+        $response['sidecar_warning'] = copilot_payload_string($sidecarResponse, '__sidecar_error');
+        if (isset($sidecarResponse['__sidecar_status'])) {
+            $response['sidecar_status'] = copilot_payload_int($sidecarResponse, '__sidecar_status');
+        }
+
+        AgentTurnAuditor::record(
+            $userId,
+            $pid,
+            $traceId,
+            $useCase,
+            'sidecar_failed',
+            count($packets),
+            copilot_audit_tag($routerFamily, $plannerStatus, $selectedTools),
+        );
+        copilot_send_json(502, $response);
     } else {
-        $response['answer_type'] = 'pre_room_brief';
+        // No sidecar configured at all — local-only dev mode. Flatten packets
+        // into pseudo-claims so the chart card still has something to show
+        // for development without an API key.
+        $response['answer_type'] = $useCase === 'free_text_followup' ? 'follow_up' : 'pre_room_brief';
         $response['claims'] = [];
         foreach ($packets as $p) {
             $response['claims'][] = [
-                'text' => sprintf('%s: %s', $p['label'], is_scalar($p['value']) ? (string)$p['value'] : json_encode($p['value'])),
+                'text' => sprintf(
+                    '%s: %s',
+                    copilot_string($p['label'] ?? null, 'Source'),
+                    copilot_scalar_text($p['value'] ?? null)
+                ),
                 'claim_type' => 'fact',
-                'source_ids' => [$p['source_id']],
-                'caveat' => $p['freshness'] === 'stale' ? 'stale data' : null,
+                'source_ids' => [copilot_string($p['source_id'] ?? null)],
+                'caveat' => copilot_string($p['freshness'] ?? null) === 'stale' ? 'stale data' : null,
             ];
             if (count($response['claims']) >= 8) {
                 break;
@@ -195,26 +500,28 @@ try {
         $response['refusals'] = [];
         $response['suggested_followups'] = ['What changed?'];
         $response['unsupported_dropped'] = 0;
-        if (is_array($sidecarResponse) && !empty($sidecarResponse['__sidecar_error'])) {
-            $response['sidecar_warning'] = $sidecarResponse['__sidecar_error'];
-        }
+
+        AgentTurnAuditor::record(
+            $userId,
+            $pid,
+            $traceId,
+            $useCase,
+            $verifierStatus,
+            count($packets),
+            copilot_audit_tag($routerFamily, $plannerStatus, $selectedTools),
+        );
+        copilot_send_json(200, $response);
     }
-
-    AgentTurnAuditor::record(
-        $userId,
-        $pid,
-        $traceId,
-        $useCase,
-        $verifierStatus,
-        count($packets),
-    );
-
-    copilot_send_json(200, $response);
 } catch (\Throwable $e) {
-    error_log('ClinicalCopilot brief.php error: ' . $e->getMessage());
+    // Log full detail server-side; never leak the exception message to the browser.
+    error_log(sprintf(
+        'ClinicalCopilot brief.php internal_error trace_id=%s exception=%s message=%s',
+        $traceId,
+        get_class($e),
+        $e->getMessage()
+    ));
     copilot_send_json(500, [
         'error' => 'internal_error',
         'trace_id' => $traceId,
-        'message' => $e->getMessage(),
     ]);
 }

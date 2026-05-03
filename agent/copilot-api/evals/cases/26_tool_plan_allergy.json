@@ -1,0 +1,22 @@
+{
+  "name": "tool plan allergy selects allergies and meds",
+  "mode": "tool_plan",
+  "request": {
+    "trace_id": "tp-26",
+    "use_case": "allergy_check",
+    "patient_uuid_hash": "hash"
+  },
+  "mocked_tool_plan": {
+    "trace_id": "tp-26",
+    "planner_status": "planned",
+    "tool_calls": [
+      {"name": "get_patient_identity", "arguments": {}},
+      {"name": "get_allergy_list", "arguments": {}},
+      {"name": "get_active_medications", "arguments": {}}
+    ]
+  },
+  "expectations": {
+    "planner_status": "planned",
+    "expected_tools": ["get_patient_identity", "get_allergy_list", "get_active_medications"]
+  }
+}

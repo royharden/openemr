@@ -24,22 +24,25 @@ final class AgentTurnAuditor
         string $useCase,
         string $verifierStatus,
         int $sourceCount,
-        ?string $denialReason = null,
+        ?string $extra = null,
     ): void {
+        // `$extra` carries either a denial reason (acl_denied) or a router_family
+        // tag for free-text turns. Question text is intentionally never included.
         $comment = sprintf(
             'agent_turn trace_id=%s use_case=%s verifier=%s sources=%d%s',
             $traceId,
             $useCase,
             $verifierStatus,
             $sourceCount,
-            $denialReason ? (' denial=' . $denialReason) : ''
+            $extra ? (' tag=' . $extra) : ''
         );
+        $isDenial = $extra === 'acl_denied' || $verifierStatus === 'denied';
         try {
-            EventAuditLogger::instance()->newEvent(
+            EventAuditLogger::getInstance()->newEvent(
                 'agent_turn',
                 (string)$userId,
                 'Default',
-                empty($denialReason) ? 1 : 0,
+                $isDenial ? 0 : 1,
                 $comment,
                 $pid,
                 'clinical-copilot',

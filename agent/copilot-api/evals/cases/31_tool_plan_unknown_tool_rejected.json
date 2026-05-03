@@ -1,0 +1,19 @@
+{
+  "name": "tool plan rejects unknown tool",
+  "mode": "tool_plan",
+  "request": {
+    "trace_id": "tp-31",
+    "use_case": "free_text_followup",
+    "patient_uuid_hash": "hash"
+  },
+  "mocked_tool_plan": {
+    "trace_id": "tp-31",
+    "planner_status": "planned",
+    "tool_calls": [
+      {"name": "read_arbitrary_table", "arguments": {}}
+    ]
+  },
+  "expectations": {
+    "schema_must_reject": true
+  }
+}

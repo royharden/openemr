@@ -11,6 +11,10 @@
 
 This file is a copy of `plan_whole_opus47_2026-04-30_build.md` with **_DONE** / **OUTSTANDING** / **DEFERRED** markers reflecting work performed by a Claude Code agent (Claude app), per its session summary and the current tree.
 
+### Update 2026-05-03T07:22:18Z (Codex / GPT-5) - outstanding final-submission items moved to Next04
+
+The remaining plan-whole outstanding items that still matter for final submission (Railway sidecar deployment, deployed smoke/denial matrix, demo video/README links, deployed observability/audit verification, and any final demo-data validation) have been explicitly moved into `planning/plan_next04_codex_wise_2026-05-03_gateway_tool_planning_evals_and_submission.md`. Next04 also supersedes the final-submission path with the instructor-feedback recovery work: 7 first-class use cases, gateway-orchestrated LLM tool planning, and 34+ behavioral evals. These items remain **not done** until the Next04 implementation completes them.
+
 ### Update 2026-05-02T01:05:00Z (Codex / GPT-5) - test/eval audit hardening
 
 - **Verifier patient binding hardened.** `app/verifier.py` now compares every cited packet's `patient_uuid` hash against the request's `patient_uuid_hash` instead of inferring the expected patient from the first packet. This closes an eval gap where an all-wrong-patient packet set could pass.
@@ -33,7 +37,7 @@ This file is a copy of `plan_whole_opus47_2026-04-30_build.md` with **_DONE** / 
 - Full pytest run: **24/24 passing**. Eval suite: **11/11 passing**. PHP `-l` clean on every new file.
 - See [AgDR-0008](../agentdocs/decisions/AgDR-0008-sunday-slices-i-through-l.md) for the decision record.
 
-**Still OUTSTANDING after this session:** Railway deploy of sidecar service, demo video + README Loom URL, §12 smoke test on the *deployed* URL, Demo DB augmentation. Everything else on the Sunday rubric is checked.
+**Moved to Next04 after this session:** Railway deploy of sidecar service, demo video + README Loom URL, §12 smoke test on the deployed URL, and final demo-data/deployed validation are now tracked in `plan_next04_codex_wise_2026-05-03_gateway_tool_planning_evals_and_submission.md`. Everything else on the original Sunday rubric is checked locally.
 
 ### Update 2026-04-30T23:55Z (Claude Code / claude-opus-4-7)
 
@@ -65,10 +69,10 @@ This file is a copy of `plan_whole_opus47_2026-04-30_build.md` with **_DONE** / 
 | Sidecar Dockerfile + README / env docs | **DONE** |
 | Pytest suite (`tests/test_verifier.py` etc.) | **DONE** — 29/29 passing in `agent/copilot-api/tests/` |
 | Sunday slices I–L (extra packet builders + verifier rules + 5 evals + feedback + cost analysis) | **DONE** (see 2026-05-01T22:00Z entry) |
-| Railway deploy + private networking + OpenEMR env wiring | **OUTSTANDING** (Dockerfile ready; service not deployed) |
-| Demo video + README Loom URL | **OUTSTANDING** |
-| §12 full checklist on **deployed** Railway URL | **OUTSTANDING** (verified locally: admin, patient chart, brief endpoint) |
-| Demo DB augmentation (thin labs) | **OUTSTANDING** / optional before video |
+| Railway deploy + private networking + OpenEMR env wiring | **Moved to Next04** (Dockerfile ready; implementation tracked in Next04) |
+| Demo video + README Loom URL | **Moved to Next04** |
+| §12 full checklist on **deployed** Railway URL | **Moved to Next04** (local smoke mostly complete; deployed matrix still required) |
+| Demo DB augmentation / validation | **Moved to Next04** (local synthetic Maria G. seed is strong; deployed seed/validation remains a deployment task) |
 | Agent docs (Agent_LOG, lessons, AgDR-0004/0005/0006/0008/0009) | **DONE** |
 
 **Eval cases vs plan wording:** Thursday parity gap closed. Added `06_stale_meds.json` covering the explicit stale-meds / freshness-labeling scenario from §7 Slice G. Codex later added `12_all_wrong_patient_packets.json` to cover all-wrong-patient packet binding. Eval suite is now 12 cases total.
@@ -125,7 +129,7 @@ Browser ↔ OpenEMR (auth + chart panel) ↔ **Co-Pilot Gateway** (PHP, inside t
 | Deployed | If Railway sidecar comes up: deployed. Else local demo + note that Sunday Final adds Railway deploy. |
 | Demo video | 3–5 min walking deployed URL → panel → brief → follow-up → trace → eval output → tradeoff. |
 
-**Status:** Panel + pre-room + **What changed?** wired in JS (**DONE**). Deployed URL + video (**OUTSTANDING**). Local demo path (**DONE**).
+**Status:** Panel + pre-room + follow-up workflows are locally built. Deployed URL + video are **Moved to Next04**.
 
 ### Sunday (Final) — bring it to defensible
 
@@ -365,9 +369,9 @@ Rendering rule: the UI renders **only verified claims**. Unsupported/dropped cla
 
 | Risk | Mitigation |
 |---|---|
-| Demo data is too thin (no recent labs, no abnormal flags on demo patients) | Pre-stage 1–2 demo rows via SQL on the deployed DB before recording. Document in README that this is demo augmentation. **Status:** **OUTSTANDING** before polished video. |
+| Demo data is too thin (no recent labs, no abnormal flags on demo patients) | Local synthetic Maria G. seed has since been strengthened; deployed seed/validation and final demo-data proof are **Moved to Next04**. |
 | Module ACL/event registration is fiddlier than expected | Slice A is intentionally first and isolated. If event hook is slow, fall back to direct include from `interface/patient_file/summary/demographics.php` via a sites-customization include — uglier but works. |
-| Sidecar Railway deploy hits networking issues at 23:00 CT | Have a local-only demo recorded as a backup video before attempting deploy. Submit local demo + "Railway deploy in progress" note if needed. **Status:** aligns with current **OUTSTANDING** deploy. |
+| Sidecar Railway deploy hits networking issues at 23:00 CT | Local backup video remains the fallback; Railway deploy and deployed proof are **Moved to Next04**. |
 | Verifier is too strict and the demo shows nothing | Pre-record one good run on a tested patient. Verifier strictness is the **feature** — defend it. |
 | LLM JSON occasionally invalid | Repair-once is built in. Use Anthropic tool-use mode (forces JSON) not freeform text. |
 | Token cost explodes on a long context | Cap source packets at 50/turn. Truncate `display` to 200 chars per packet. Use prompt caching on the system + rules block. |
@@ -375,6 +379,8 @@ Rendering rule: the UI renders **only verified claims**. Unsupported/dropped cla
 ## 12. Verification (how to test before declaring done)
 
 End-to-end Thursday smoke test:
+
+> 2026-05-03T07:22:18Z Codex note: The deploy-dependent unchecked items in this historical smoke checklist are now **Moved to Next04**. Local-only checks remain recorded here for provenance.
 
 1. Open deployed Railway URL in incognito → log in as `admin`. **OUTSTANDING** (local **DONE** per agent).
 2. Open Farrah Rolle's chart → panel renders within 5 seconds. **PARTIAL** — chart verified locally; named patient / deployed **OUTSTANDING**.
@@ -389,6 +395,8 @@ End-to-end Thursday smoke test:
 If 1–9 all pass, Thursday submission is real. If 6, 7, or 8 fail, the agent isn't observable/auditable/measurable and Thursday should ship with explicit gaps documented.
 
 ## 13. Submission deliverables (don't forget)
+
+> 2026-05-03T07:22:18Z Codex note: The final README, deployed URL proof, demo video, commit/push housekeeping, and submission packaging are now **Moved to Next04**.
 
 - **Repo `royharden/openemr`:** all module + sidecar code committed; root `AUDIT.md`, `USERS.md` (+ stub `USER.md`), `ARCHITECTURE.md`. Commit messages follow Conventional Commits with `Assisted-by: Claude Code` trailer per [openemr/CLAUDE.md](../CLAUDE.md). **OUTSTANDING:** confirm commit scope + root doc filenames vs `planning/` moves.
 - **README:** deployed URL, login note, deliverable links. **PARTIAL** — module/sidecar READMEs **DONE**; root marketing README **OUTSTANDING**.
@@ -405,4 +413,4 @@ If 1–9 all pass, Thursday submission is real. If 6, 7, or 8 fail, the agent is
 
 **One-line thesis to defend:** *I'm shipping the smallest version of a clinical agent that is honest about what it knows and what it doesn't — read-only, current-patient, source-cited, verifier-gated, observable, and deployed — because in a clinical context the trustworthy 30% beats the impressive 80%.*
 
-**Status note:** “Deployed” portion of the thesis remains **OUTSTANDING** until Railway sidecar + env wiring + deployed smoke complete.
+**Status note:** "Deployed" portion of the thesis is **Moved to Next04** until Railway sidecar + env wiring + deployed smoke complete.

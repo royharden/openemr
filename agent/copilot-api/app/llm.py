@@ -19,7 +19,7 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
 _PROMPTS_DIR = pathlib.Path(__file__).parent / "prompts"
 _BRIEF_V1 = (_PROMPTS_DIR / "brief_v1.txt").read_text(encoding="utf-8")
 
-_MODEL = os.getenv("COPILOT_MODEL", "claude-3-haiku-20240307")
+_MODEL = os.getenv("COPILOT_MODEL", "claude-haiku-4-5-20251001")
 _PROMPT_TEMPLATE_VERSION = "v1"
 _TOOL_NAME = "emit_briefing"
 
@@ -38,12 +38,25 @@ def _briefing_tool() -> dict:
 
 
 def _user_payload(req: BriefRequest) -> dict:
-    return {
+    payload: dict = {
         "use_case": req.use_case,
         "patient_uuid_hash": req.patient_uuid_hash,
         "trace_id": req.trace_id,
         "packets": [p.model_dump(mode="json") for p in req.packets[:50]],
     }
+    if req.question is not None:
+        payload["question"] = req.question
+    if req.prior_turn_source_ids:
+        payload["prior_turn_source_ids"] = req.prior_turn_source_ids[:20]
+    if req.router_family:
+        payload["router_family"] = req.router_family
+    if req.selected_tools:
+        payload["selected_tools"] = req.selected_tools
+    if req.planner_status:
+        payload["planner_status"] = req.planner_status
+    if req.tool_results_summary:
+        payload["tool_results_summary"] = req.tool_results_summary
+    return payload
 
 
 def _parse_tool_use(response: anthropic.types.Message) -> tuple[LLMOutput | None, str]:

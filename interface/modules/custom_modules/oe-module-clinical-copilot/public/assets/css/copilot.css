@@ -37,7 +37,43 @@
     color: #1976d2;
     font-size: 0.7rem;
     font-family: monospace;
-    cursor: default;
+    cursor: pointer;
+}
+.copilot-source-chip:focus { outline: 2px solid #1976d2; }
+.copilot-popover {
+    position: relative;
+    margin: 0.4rem 0;
+    padding: 0.5rem 0.75rem;
+    background-color: #fff;
+    border: 1px solid #1976d2;
+    border-radius: 0.4rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    font-size: 0.8rem;
+    z-index: 10;
+    max-width: 360px;
+}
+.copilot-popover-header { font-weight: 600; margin-bottom: 0.25rem; color: #0d3a66; }
+.copilot-popover-body { display: grid; grid-template-columns: 4.5rem 1fr; column-gap: 0.5rem; row-gap: 0.15rem; margin: 0; }
+.copilot-popover-body dt { font-weight: 600; color: #6c757d; }
+.copilot-popover-body dd { margin: 0; color: #212529; word-break: break-word; }
+.copilot-popover-footer { margin-top: 0.4rem; font-size: 0.75rem; }
+.copilot-ask textarea {
+    width: 100%;
+    resize: none;
+    line-height: 1.4;
+    overflow: hidden;
+}
+.copilot-ask-form { display: flex; align-items: flex-start; }
+.copilot-ask-help { font-style: italic; }
+.copilot-refusal { margin: 0.4rem 0; }
+.copilot-refusal-pill {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 0.6rem;
+    background-color: #fbeaea;
+    color: #842029;
+    border-left: 3px solid #d9534f;
+    font-size: 0.85rem;
 }
 .copilot-missing {
     margin-top: 0.5rem;

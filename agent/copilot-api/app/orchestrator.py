@@ -45,8 +45,18 @@ def process_brief(req: BriefRequest) -> VerifiedResponse:
         verifier_status=verified.verifier_status,
         unsupported_dropped=verified.unsupported_dropped,
         duration_ms=elapsed_ms,
+        router_family=req.router_family,
+        selected_tools=req.selected_tools,
+        planner_status=req.planner_status,
+        tool_results_summary=req.tool_results_summary,
     )
-    return verified
+    return verified.model_copy(
+        update={
+            "selected_tools": req.selected_tools or [],
+            "planner_status": req.planner_status,
+            "tool_results_summary": req.tool_results_summary or [],
+        }
+    )
 
 
 def _llm_failure(req: BriefRequest, message: str, elapsed_ms: float) -> VerifiedResponse:
@@ -59,6 +69,10 @@ def _llm_failure(req: BriefRequest, message: str, elapsed_ms: float) -> Verified
         verifier_status="failed",
         unsupported_dropped=0,
         duration_ms=elapsed_ms,
+        router_family=req.router_family,
+        selected_tools=req.selected_tools,
+        planner_status=req.planner_status,
+        tool_results_summary=req.tool_results_summary,
     )
     return VerifiedResponse(
         answer_type="refusal",
@@ -72,4 +86,7 @@ def _llm_failure(req: BriefRequest, message: str, elapsed_ms: float) -> Verified
         unsupported_dropped=0,
         verifier_issues=[VerifierIssue(rule="llm_unavailable", detail=message)],
         trace_id=req.trace_id,
+        selected_tools=req.selected_tools or [],
+        planner_status=req.planner_status,
+        tool_results_summary=req.tool_results_summary or [],
     )

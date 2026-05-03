@@ -1,0 +1,34 @@
+{
+  "name": "immunization history does not invent absent vaccines",
+  "packets": [
+    {
+      "source_id": "immunization:1",
+      "patient_uuid": "patient-a",
+      "resource_type": "Immunization",
+      "source_table": "immunizations",
+      "source_uuid": "1",
+      "field": "cvx_code",
+      "label": "Immunization",
+      "value": "Pneumococcal PPSV23",
+      "observed_at": "2025-10-15",
+      "freshness": "recent",
+      "status": "completed"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Pneumococcal PPSV23 documented on 2025-10-15.",
+        "claim_type": "fact",
+        "source_ids": ["immunization:1"]
+      }
+    ],
+    "missing_data": ["Limited immunization data - only one Pneumococcal entry on file."]
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "missing_data_must_not_mention": ["Hepatitis A", "influenza", "COVID", "tetanus"]
+  }
+}

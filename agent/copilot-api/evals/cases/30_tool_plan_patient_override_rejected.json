@@ -1,0 +1,19 @@
+{
+  "name": "tool plan rejects patient override arguments",
+  "mode": "tool_plan",
+  "request": {
+    "trace_id": "tp-30",
+    "use_case": "recent_abnormal_labs",
+    "patient_uuid_hash": "hash"
+  },
+  "mocked_tool_plan": {
+    "trace_id": "tp-30",
+    "planner_status": "planned",
+    "tool_calls": [
+      {"name": "get_recent_labs", "arguments": {"patient_uuid": "other-patient"}}
+    ]
+  },
+  "expectations": {
+    "schema_must_reject": true
+  }
+}

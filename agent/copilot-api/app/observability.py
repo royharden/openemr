@@ -95,6 +95,42 @@ def record_feedback(trace_id: str, verdict: str, comment: str) -> bool:
         return False
 
 
+def record_local_refusal(
+    trace_id: str,
+    use_case: str,
+    router_family: str,
+    refusal_reason: str,
+    patient_uuid_hash: str,
+) -> bool:
+    """Emit a Langfuse trace for a gateway-only refusal turn.
+
+    The gateway never calls the LLM in this case (e.g. "should I increase
+    the dose?"). We still emit a trace so observability covers all four
+    turn outcomes: verified, repaired, refused-by-router, sidecar-failed.
+    Cost is 0; no token usage; no PHI beyond the already-hashed patient.
+    """
+
+    client = _get_client()
+    if client is None:
+        return False
+    try:
+        client.trace(
+            id=trace_id,
+            name="clinical_copilot.local_refusal",
+            metadata={
+                "use_case": use_case,
+                "router_family": router_family,
+                "refusal_reason": refusal_reason,
+                "patient_uuid_hash": patient_uuid_hash,
+                "verifier_status": "refused_by_router",
+                "estimated_cost_usd": 0.0,
+            },
+        )
+        return True
+    except Exception:
+        return False
+
+
 def record_brief(
     trace_id: str,
     use_case: str,
@@ -104,6 +140,10 @@ def record_brief(
     verifier_status: str,
     unsupported_dropped: int,
     duration_ms: float,
+    router_family: str | None = None,
+    selected_tools: list[str] | None = None,
+    planner_status: str | None = None,
+    tool_results_summary: list[dict[str, Any]] | None = None,
 ) -> None:
     """Best-effort. A trace-sink outage never breaks the brief response."""
 
@@ -112,19 +152,36 @@ def record_brief(
         return
     try:
         estimated_cost_usd = estimate_cost_usd(usage)
+        metadata: dict[str, Any] = {
+            "use_case": use_case,
+            "patient_uuid_hash": patient_uuid_hash,
+            "packet_count": packet_count,
+            "verifier_status": verifier_status,
+            "unsupported_dropped": unsupported_dropped,
+            "prompt_template_version": usage.get("prompt_template_version"),
+            "model": usage.get("model"),
+            "estimated_cost_usd": estimated_cost_usd,
+        }
+        if router_family is not None:
+            metadata["router_family"] = router_family
+        if selected_tools is not None:
+            metadata["selected_tools"] = selected_tools
+        if planner_status is not None:
+            metadata["planner_status"] = planner_status
+        if tool_results_summary is not None:
+            metadata["tool_results_summary"] = [
+                {
+                    "tool": str(item.get("tool", "")),
+                    "packet_count": int(item.get("packet_count", 0) or 0),
+                    "status": str(item.get("status", "")),
+                }
+                for item in tool_results_summary[:6]
+                if isinstance(item, dict)
+            ]
         trace = client.trace(
             id=trace_id,
             name="clinical_copilot.brief",
-            metadata={
-                "use_case": use_case,
-                "patient_uuid_hash": patient_uuid_hash,
-                "packet_count": packet_count,
-                "verifier_status": verifier_status,
-                "unsupported_dropped": unsupported_dropped,
-                "prompt_template_version": usage.get("prompt_template_version"),
-                "model": usage.get("model"),
-                "estimated_cost_usd": estimated_cost_usd,
-            },
+            metadata=metadata,
         )
         trace.generation(
             name="brief_v1",

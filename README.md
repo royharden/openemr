@@ -1,21 +1,31 @@
 > **Fork:** This is a custom fork of [OpenEMR](https://github.com/openemr/openemr) developed during the [Gauntlet AgentForge](https://gauntletai.com) bootcamp. It adds a **Clinical Co-Pilot** AI module that surfaces verifier-gated patient briefings — identity, active problems, medications, allergies, recent labs, and immunizations — directly inside the OpenEMR patient chart via a Claude-powered FastAPI sidecar.
 >
+> **Thesis:** *A clinical agent intentionally constrained — read-only, current-patient, source-cited, verifier-gated, observable, and deployed — because in a clinical context the trustworthy 30% beats the impressive 80%.*
+>
 > **What the Co-Pilot does:**
 > - Renders a read-only briefing card inside any patient chart, source-cited at the claim level.
-> - Follow-up tools: *What changed?*, *Medication check*, *Allergy check*, *Recent abnormal labs*.
+> - Supports **7 first-class use cases**: pre-room brief, what changed, medication check, allergy check, recent abnormal labs, immunization history, and free-text chart follow-up.
+> - LLM tool planning: the sidecar `POST /v1/tool-plan` chooses among **6 read-only tools** (`get_patient_identity`, `get_active_problems`, `get_active_medications`, `get_allergy_list`, `get_recent_labs`, `get_immunization_history`); OpenEMR executes them inside the authenticated current-patient gateway.
+> - Free-text follow-up: physician can ask a chart-scoped question (e.g., *"What dose of lisinopril?"*) and gets a verifier-gated answer with click-through source chips. Clinical-action and other-patient questions are refused at the gateway before tool planning or LLM synthesis.
+> - Source chip popovers: every cited claim chip opens a metadata card (table, field, observed-at, freshness) with an optional "Open record" deep-link.
 > - Deterministic verifier with 11 rules (source attribution, patient binding, active-status, trend, blank-vs-negative, refusal scope, cross-patient, stale-data labeling, sensitive-data caveat, lists/prescriptions conflict surfacing) — see [agent/copilot-api/app/verifier.py](agent/copilot-api/app/verifier.py).
-> - Clinician feedback chips (Helpful / Missing data / Incorrect / Too slow / Source unclear) post to Langfuse as scored trace events.
-> - 29/29 pytest + 12/12 eval cases passing offline; trace_id joins Langfuse traces to the OpenEMR `audit_master` row in one query.
+> - Sidecar auth: shared-secret **and** per-request HMAC task token bound to `patient_uuid_hash` (validated at the sidecar; expired tokens denied).
+> - Clinician feedback chips (Helpful / Missing data / Incorrect / Too slow / Source unclear) post to Langfuse as scored trace events; `trace_id` joins to the OpenEMR `agent_turn` audit row.
+> - 71/71 pytest + 34/34 eval cases passing offline (including router refusals, tool selection, tool failure, patient-override arguments, and immunization-history grounding).
 >
 > | Component | Location |
 > |---|---|
 > | OpenEMR module (PHP) | `interface/modules/custom_modules/oe-module-clinical-copilot/` |
 > | AI sidecar (Python/FastAPI) | `agent/copilot-api/` |
 > | Eval cases + runner | `agent/copilot-api/evals/` |
+> | Demo data seed (synthetic) | [`agent/copilot-api/demo/seed_demo_patient.sql`](agent/copilot-api/demo/seed_demo_patient.sql) |
 > | Project planning & architecture | `planning/` |
-> | AI cost analysis (100 / 1K / 10K / 100K users) | [`planning/cost_analysis.md`](planning/cost_analysis.md) |
+> | **AI Cost Analysis** (per-turn + 100 / 1K / 10K / 100K users) | [`planning/cost_analysis.md`](planning/cost_analysis.md) |
+> | Audit & user docs | [`AUDIT.md`](AUDIT.md), [`planning/Users.md`](planning/Users.md) |
 > | Agent work logs & decisions | `agentdocs/` |
 > | Local Docker setup | `README-LOCAL-DOCKER.md` |
+>
+> **Deployment status:** Sidecar Dockerfile under `agent/copilot-api/Dockerfile`. Deployed URL and demo video link are pending Railway provisioning (see [`planning/plan_next01_opus47_2026-05-02_review_and_final_local_completion_status.md`](planning/plan_next01_opus47_2026-05-02_review_and_final_local_completion_status.md)).
 >
 > Upstream: [openemr/openemr](https://github.com/openemr/openemr) — all original OpenEMR documentation follows below.
 

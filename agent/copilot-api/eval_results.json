@@ -1,6 +1,6 @@
 {
-  "total": 12,
-  "passed": 12,
+  "total": 34,
+  "passed": 34,
   "failed": 0,
   "results": [
     {
@@ -137,6 +137,207 @@
       "rules_fired": [
         "patient_binding"
       ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "free_text_med_dose_supported",
+      "verifier_status": "passed",
+      "accepted_claims": 1,
+      "unsupported_dropped": 0,
+      "rules_fired": [],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "free_text_missing_fill_record",
+      "verifier_status": "passed",
+      "accepted_claims": 0,
+      "unsupported_dropped": 0,
+      "rules_fired": [],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "free_text_treatment_refusal_router",
+      "mode": "router_refusal",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "free_text_other_patient_router",
+      "mode": "router_refusal",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "free_text_abnormal_labs_only_abnormal_accepted",
+      "verifier_status": "passed",
+      "accepted_claims": 1,
+      "unsupported_dropped": 0,
+      "rules_fired": [],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "free_text_question_injection",
+      "verifier_status": "passed_with_drops",
+      "accepted_claims": 1,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "source_attribution"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "value_mismatch_med_dose",
+      "verifier_status": "failed",
+      "accepted_claims": 0,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "source_value_mismatch"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "value_mismatch_lab_result",
+      "verifier_status": "failed",
+      "accepted_claims": 0,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "source_value_mismatch"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "value_mismatch_trend",
+      "verifier_status": "failed",
+      "accepted_claims": 0,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "source_value_mismatch"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "value_mismatch_observed_date",
+      "verifier_status": "failed",
+      "accepted_claims": 0,
+      "unsupported_dropped": 1,
+      "rules_fired": [
+        "source_value_mismatch"
+      ],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "immunization history does not invent absent vaccines",
+      "verifier_status": "passed",
+      "accepted_claims": 1,
+      "unsupported_dropped": 0,
+      "rules_fired": [],
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan pre-room selects full current-patient set",
+      "mode": "tool_plan",
+      "status": "planned",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan medication selects meds and allergies",
+      "mode": "tool_plan",
+      "status": "planned",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan allergy selects allergies and meds",
+      "mode": "tool_plan",
+      "status": "planned",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan labs selects recent labs with bounded args",
+      "mode": "tool_plan",
+      "status": "planned",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan identity selects identity only",
+      "mode": "tool_plan",
+      "status": "planned",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan immunization selects immunization history",
+      "mode": "tool_plan",
+      "status": "planned",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan rejects patient override arguments",
+      "mode": "tool_plan",
+      "status": "schema_rejected",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan rejects unknown tool",
+      "mode": "tool_plan",
+      "status": "schema_rejected",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan empty response falls back to minimum labs map",
+      "mode": "tool_plan",
+      "status": "fallback_required",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "what-changed fallback remains full chart packet set",
+      "mode": "tool_plan",
+      "status": "fallback_required",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "name": "tool plan transport failure fails closed before brief LLM",
+      "mode": "tool_error",
       "elapsed_ms": 0.0,
       "passed": true,
       "failures": []

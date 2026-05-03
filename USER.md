@@ -41,7 +41,7 @@ The architecture should support these roles later, but the MVP should not preten
 
 **8:54 AM** — Previous patient leaves. Dr. Clark has 1–2 minutes.
 **8:55 AM** — Opens the next chart. Schedule says "diabetes follow-up." Chart has years of problems, meds, labs, messages, prior notes.
-**8:56 AM** — Scans problem list, recent labs, meds, allergies, vitals, last note. Under time pressure, may miss a recent abnormal result, a medication change, or an overdue preventive item.
+**8:56 AM** — Scans problem list, recent labs, meds, allergies, vitals, last note. Under time pressure, may miss a recent abnormal result, a medication change, or an old immunization due for follow-up.
 **8:58 AM** — Walks into the room with an incomplete mental model. Has to recover context during the conversation.
 
 ### With the agent
@@ -54,20 +54,20 @@ The architecture should support these roles later, but the MVP should not preten
 > - **BP improved:** today's reading 128/78 (was 142/88 in March). [chart link]
 > - **Active meds:** Metformin 500mg BID, Lisinopril 10mg daily, ASA 81mg. [chart links]
 > - **Allergies:** Penicillin (rash). [chart link]
-> - **Overdue:** Pneumococcal vaccine (last 2019; due now). Mammogram due (last 2022).
+> - **Immunization history:** Pneumococcal recorded 2019; older entries flagged stale. (USPSTF/ACIP guideline-driven preventive logic is a v2 item — v1 surfaces records, not recommendations.)
 > - **Not checked this turn:** specialty notes, imaging.
 >
 > *Sources: 6 records in this patient's chart. Click any claim to verify.*
 >
-> **Suggested actions:** [What changed?] [Recent abnormal results] [Medication check] [Preventive gaps] [Ask a question…]
+> **Suggested actions:** [What changed?] [Recent abnormal results] [Medication check] [Immunization history] [Ask a question…]
 
 **8:56 AM**  Dr. Clark reads. She catches the A1c spike and clicks the *Medication check* suggested action.
 
-**8:57 AM**  Agent responds with active meds + allergy conflicts + last fill dates, all cited. She asks via free-text: *"Did she fill her Metformin refill?"*
+**8:57 AM**  Agent responds with the active medication list, reconciled across `prescriptions` and `lists`, and with any allergy conflicts cited. She asks via free-text: *"Did she fill her Metformin refill?"*
 
-> Last fill 2026-03-10, 90-day supply, ~45 days remaining. [pharmacy record link]
+> *Metformin appears on the active prescription list (Metformin 500 mg BID). No fill or dispense record is present in the packets returned for this turn — pharmacy/dispense data is not yet wired in v1. To confirm adherence, check the pharmacy system directly.*
 
-**9:00 AM**  Dr. Clark walks in knowing the actual clinical question — A1c is up despite presumably adequate medication possession. The visit starts with "how have things been going with the diabetes since March?" instead of "give me a minute to scan your chart."
+**9:00 AM**  Dr. Clark walks in knowing the actual clinical question — A1c is up despite Metformin being on the active prescription list. The visit starts with "how have things been going with the diabetes since March?" instead of "give me a minute to scan your chart."
 
 **9:15 AM**  Visit ends. Dr. Clark documents, adjusts the Metformin dose, orders a repeat A1c in 3 months. **She doesn't use the agent during the encounter.** It's a between-rooms tool, not an in-room tool  by design.
 
@@ -80,7 +80,7 @@ The first screen the physician sees is **not** a blank chat input. A blank chatb
 The MVP interaction model is hybrid:
 
 - **Automatic pre-room brief** rendered on chart open (no user action required).
-- **Suggested action buttons** for the four most common follow-ups: *What changed? · Recent abnormal results · Medication check · Preventive gaps*.
+- **Suggested action buttons** for the four most common follow-ups: *What changed? · Recent abnormal results · Medication check · Immunization history*.
 - **Optional free-text follow-up** for questions the buttons don't cover.
 - **Multi-turn context limited to the currently open patient** and the current chart session.
 - **Source chips** on every claim; clicking opens the underlying record.
@@ -94,13 +94,25 @@ This satisfies the case-study requirement for a conversational agent (free text 
 
 Every agent capability shipped in v1 must trace back to one of these. Each maps to a tool or tool-set described in [Architecture.md](./Architecture.md).
 
+**Implemented v1 use-case surface (7):**
+
+| # | Use case | Gateway/LLM tool-planning shape |
+|---|---|---|
+| 1 | Pre-room briefing | Planner can select all six read-only tools; verifier gates every claim. |
+| 2 | What changed since last visit? | Planner selects recent labs, problems, meds, allergies, and immunizations as needed. |
+| 3 | Medication check | Planner selects identity, active medications, and allergies. |
+| 4 | Allergy check | Planner selects identity, allergies, and active medications to surface conflicts. |
+| 5 | Recent abnormal labs | Planner selects identity, active problems, and recent labs. |
+| 6 | Immunization history | Planner selects identity and immunization history; no guideline recommendations in v1. |
+| 7 | Free-text chart follow-up | Gateway refuses clinical-action/other-patient requests before tool planning; otherwise the LLM planner chooses the needed tools. |
+
 ### Use Case 1: Pre-Room Briefing
 
 **Trigger:** Physician opens a patient chart.
 **User question:** *"What do I need to know before I walk in?"*
-**Agent behavior:** Within 3 seconds, surfaces a 4–6 bullet card with: chief complaint for today's visit, key changes since last visit, active meds + allergies, abnormal recent labs, overdue preventive care.
+**Agent behavior:** Within 3 seconds, surfaces a 4–6 bullet card with: chief complaint for today's visit, key changes since last visit, active meds + allergies, abnormal recent labs, and immunization history.
 **Why an agent and not a dashboard:** Relevance filtering keyed on the reason for today's visit. A dashboard shows everything; the physician already has that and it's the problem, not the solution. Filtering "what matters today, given this is a diabetes follow-up" is a natural-language inference task.
-**Architecture mapping:** Tier-1 tools fired in parallel + verifier + briefing template. Detail in [Architecture §Tool Inventory](./Claude_Architecture_v2.md#tool-inventory-v1).
+**Architecture mapping:** Tier-1 packet builders fired in parallel + verifier + briefing template. Detail in [Architecture.md](./Architecture.md).
 
 **Success criteria:**
 
@@ -115,10 +127,10 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 **Trigger:** Physician asks the question explicitly, or it's part of the briefing for any established patient.
 **User question examples:** *"What changed since her March visit?" · "Anything new since I last saw him?" · "Were there any abnormal labs after the last appointment?"*
-**Agent behavior:** Fetches the most recent prior encounter, then diffs everything that could have changed: labs drawn since, prescription fills, new diagnoses, vitals trend.
-**Example response:** *"Since the 2026-03-15 visit: A1c on 2026-04-20 shows 8.1% (up from 7.4% on 2026-01-15). BP today 128/78 (improved from 142/88). No new meds or diagnoses added. Overdue: pneumococcal vaccine."*
+**Agent behavior:** Fetches recent labs, active medications, problems, allergies, and immunization records and surfaces what shifted since the prior captured packets. v1 does not consume external pharmacy fill/dispense feeds — adherence claims are framed against the prescription list, not days-of-supply.
+**Example response:** *"Since the 2026-03-15 visit: A1c on 2026-04-20 shows 8.1% (up from 7.4% on 2026-01-15). BP today 128/78 (improved from 142/88). No new meds or diagnoses added. Pneumococcal record from 2019 is flagged stale; review immunization history."*
 **Why an agent:** Cross-time, cross-table comparison is the synthesis task that no chart view does well. The physician currently does it by clicking through 4–5 tabs.
-**Architecture mapping:** `get_recent_encounters` + `get_recent_labs` + `get_prescription_fills` + verifier diff logic.
+**Architecture mapping:** `RecentLabsPacketBuilder` + `ActiveMedicationsPacketBuilder` + `ActiveProblemsPacketBuilder` + `ImmunizationsPacketBuilder` + verifier value-grounding rule.
 
 **Success criteria:**
 - Comparison uses the correct previous visit date (verifier check).
@@ -128,22 +140,24 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 3: Medication Adherence / Refill Check (with Allergy-Conflict Surfacing)
+### Use Case 3: Medication List Reconciliation (with Allergy-Conflict Surfacing)
 
-**Trigger:** Physician asks "did she fill her [med]?" or it's surfaced proactively as part of the briefing when an allergy-medication conflict is detected.
-**User question examples:** *"Any medication changes since the last visit?" · "Is there anything in the med list that conflicts with her allergies?" · "Do we have adherence info for Metformin?"*
-**Agent behavior:** Retrieves active meds (reconciled across `prescriptions` and `lists_medication`), allergies and reactions, and last-dispense data. Computes days-of-supply remaining. Flags allergy conflicts.
-**Example response:** *"Metformin 500mg BID — last fill 2026-03-10, 90-day supply, ~45 days remaining. No allergy conflicts on the active list. Note: stopped meds in `lists` not shown; ask if needed."*
-**Why an agent:** Natural-language input ("Metformin"), data-quality disambiguation across free-text drug names, computed field (days remaining), and reconciliation across two source tables. A search box surfaces the prescription but doesn't answer the question.
-**Architecture mapping:** `get_active_medications` (reconciled) + `get_prescription_fills` + `get_allergies` + verifier rule for allergy-conflict detection.
+**Trigger:** Physician asks about active meds, or the briefing surfaces a duplicate between `prescriptions` and `lists` proactively.
+**User question examples:** *"Any medication changes since the last visit?" · "Is there anything in the med list that conflicts with her allergies?" · "What dose of Lisinopril is she on?"*
+**Agent behavior:** Retrieves active meds (reconciled across `prescriptions` and `lists`) and allergies/reactions. Surfaces lists-vs-prescription duplicates as `claim_type=conflict`. Surfaces allergy/medication overlaps when the active medication name matches an allergen on file.
+**Example response:** *"Metformin 500 mg BID is on the active prescription list. Lisinopril 10 mg PO daily appears in BOTH `prescriptions` AND `lists` — reconcile before prescribing. No active medication overlaps the documented Penicillin allergy."*
+**Why an agent:** Natural-language input ("Metformin"), data-quality disambiguation across free-text drug names, and reconciliation across two source tables. A search box surfaces the prescription but doesn't answer the question.
+**Architecture mapping:** `ActiveMedicationsPacketBuilder` (which reads both `prescriptions` and `lists`) + `AllergiesPacketBuilder` + verifier `lists_rx_conflict_unsurfaced` rule.
 
 **Success criteria:**
 - Active and stopped medications are not mixed without explicit labels.
 - Duplicates across `lists` and `prescriptions` are identified, not double-counted.
 - Allergy conflicts are surfaced as safety flags.
-- The agent never declares a medication safe solely because no conflict was found in a partial dataset (the verifier blocks "no interactions" claims when only partial data was retrieved).
+- The agent never declares a medication safe solely because no conflict was found in a partial dataset.
 
-**Limitation called out in architecture:** True drug-drug interaction checking requires an external service (RxNorm/DDI API) and is deferred to v2.
+**Limitations called out in architecture:**
+- Pharmacy fill / dispense / days-of-supply data is **not** consumed by v1. The agent says so explicitly when asked "did she fill her [med]?" rather than guessing.
+- True drug-drug interaction checking requires an external service (RxNorm/DDI API) and is deferred to v2.
 
 ---
 
@@ -164,20 +178,22 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 
 ---
 
-### Use Case 5 : Overdue Preventive Care
+### Use Case 5: Immunization History
 
 **Trigger:** Part of the pre-room briefing for any established patient.
-**User question examples:** *"Anything overdue?" · "Is she due for immunizations?"*
-**Agent behavior:** Compares patient demographics + immunization records + procedure history against age/sex-appropriate guidelines (USPSTF, ACIP) and flags overdue items.
-**Example response:** *"Preventive care gaps: Pneumococcal vaccine (last 2019, age 62 — due now). Mammogram (last 2022 — due 2023, ~1y overdue). Colonoscopy (2017 — due 2027). A1c cadence appropriate."*
-**Why an agent:** Synthesis across immunization records + procedure history + demographics + guidelines. The result is a tailored clinical recommendation, not a filtered list.
-**Architecture mapping:** `get_immunizations` + `get_recent_encounters` + `get_patient_identity` + a preventive-care rules table.
+**User question examples:** *"When was her last tetanus shot?" · "Does she have a pneumococcal on file?"*
+**Agent behavior:** Surfaces immunization records the chart already contains, with date and stale-data caveats when records are older than the freshness threshold. v1 does **not** evaluate USPSTF or ACIP guidelines and does **not** declare anything "overdue" or "due now" — it shows what's on file and flags age/staleness for the physician to interpret.
+**Example response:** *"Pneumococcal polysaccharide PPSV23 recorded 2019-10-12 — flagged stale (>5y). No tetanus or influenza records returned in the immunization packets for this turn."*
+**Why an agent:** The raw immunization table is hard to scan and dates are often inconsistent across sources. The agent normalizes presentation and flags staleness, leaving guideline judgment to the physician.
+**Architecture mapping:** `ImmunizationsPacketBuilder` + verifier `stale_data_uncaveat` rule.
 
 **Success criteria:**
-- Only source-supported gaps are shown.
-- The agent distinguishes "overdue" from "no record found."
-- The agent does not invent guideline compliance when records are missing.
-- The physician can dismiss an irrelevant nudge via the feedback buttons (it shouldn't show again for that patient/visit).
+- Only source-supported records are shown.
+- The agent distinguishes "no record found" from "guideline says not due."
+- The agent does not invent guideline compliance or declare items "overdue" — that requires a guideline engine which is **v2 work**.
+- The physician can dismiss an irrelevant entry via the feedback buttons.
+
+**Limitation called out in architecture:** A USPSTF/ACIP-driven preventive-care recommendation engine (mammogram, colonoscopy, vaccine schedule) requires a vetted guideline rules table and is **not shipped in v1**.
 
 ---
 
@@ -186,7 +202,7 @@ Every agent capability shipped in v1 must trace back to one of these. Each maps 
 **Trigger:** Physician needs a fact during conversation with the patient. *"When was her last tetanus shot?" · "What dose of Lisinopril is she on?" · "Did the cardiologist send a note after her referral?"*
 **Agent behavior:** Answers in <2 seconds with the fact + a citation. If multiple possible answers exist, the agent shows the ambiguity rather than picking one.
 **Why an agent:** This is the *reduce-screen-time* use case. Currently the physician clicks through 3–4 tabs and scrolls. With the agent, she stays present with the patient.
-**Architecture mapping:** Tier-2 tools invoked individually (`get_immunizations`, `get_active_medications`, `get_encounter_notes`) with aggressive cache hits.
+**Architecture mapping:** Single packet builder invoked per question via the gateway router (`ImmunizationsPacketBuilder`, `ActiveMedicationsPacketBuilder`, etc.) with the deterministic verifier as the gate.
 
 **Success criteria:**
 - Single-fact answers return in <2 seconds (p95).
@@ -259,7 +275,7 @@ Dr. Clark can mark each response with one of five inline buttons:
 | **Too slow** | Latency was unacceptable | Latency p95 alert; triggers caching/tier review |
 | **Source unclear** | Citation didn't make sense | Triggers a citation/source-chip improvement |
 
-Click writes to: (a) the Langfuse trace for that turn, (b) a feedback table in the agent's database. The feedback becomes the seed for the next eval-suite expansion — exactly the pattern Ash described.
+Click writes two `trace_id`-keyed feedback events: (a) a Langfuse score on the trace for that turn (`name="clinician_feedback"`), and (b) an OpenEMR `agent_turn` audit row with the verdict in `comments`. v1 does **not** ship a dedicated `clinical_copilot_feedback` SQL table — Langfuse + the audit row already give us the trace_id-pivoted view the eval-suite expansion needs. A dedicated table is a v2 cleanup if/when the score view in Langfuse becomes the bottleneck.
 
 A continuity-care PCP is the right MVP user for this loop *because* she has the ground truth to push these buttons accurately.
 

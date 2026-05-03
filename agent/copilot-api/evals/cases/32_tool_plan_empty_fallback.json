@@ -1,0 +1,20 @@
+{
+  "name": "tool plan empty response falls back to minimum labs map",
+  "mode": "tool_plan",
+  "request": {
+    "trace_id": "tp-32",
+    "use_case": "free_text_followup",
+    "patient_uuid_hash": "hash",
+    "router_family": "labs"
+  },
+  "mocked_tool_plan": {
+    "trace_id": "tp-32",
+    "planner_status": "fallback_required",
+    "tool_calls": []
+  },
+  "expectations": {
+    "planner_status": "fallback_required",
+    "use_fallback_when_empty": true,
+    "expected_fallback_tools": ["get_patient_identity", "get_active_problems", "get_recent_labs"]
+  }
+}

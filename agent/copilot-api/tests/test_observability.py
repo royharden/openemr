@@ -61,6 +61,78 @@ def test_record_brief_metadata_excludes_raw_phi(monkeypatch):
     assert fake.trace_obj.generations[0]["metadata"]["estimated_cost_usd"] == 0.000228
 
 
+def test_record_brief_includes_router_family_when_provided(monkeypatch):
+    fake = FakeLangfuse()
+    monkeypatch.setattr(observability, "_client", fake)
+
+    observability.record_brief(
+        trace_id="trace-123",
+        use_case="free_text_followup",
+        patient_uuid_hash="8865441d74c3",
+        packet_count=4,
+        usage={"input_tokens": 50, "output_tokens": 10, "model": "claude-haiku-4-5-20251001"},
+        verifier_status="passed",
+        unsupported_dropped=0,
+        duration_ms=80.1,
+        router_family="medication",
+    )
+
+    metadata = fake.trace_calls[0]["metadata"]
+    assert metadata["router_family"] == "medication"
+    assert metadata["use_case"] == "free_text_followup"
+
+
+def test_record_brief_includes_planner_metadata_without_values(monkeypatch):
+    fake = FakeLangfuse()
+    monkeypatch.setattr(observability, "_client", fake)
+
+    observability.record_brief(
+        trace_id="trace-123",
+        use_case="immunization_history",
+        patient_uuid_hash="8865441d74c3",
+        packet_count=2,
+        usage={"input_tokens": 50, "output_tokens": 10, "model": "claude-haiku-4-5-20251001"},
+        verifier_status="passed",
+        unsupported_dropped=0,
+        duration_ms=80.1,
+        selected_tools=["get_patient_identity", "get_immunization_history"],
+        planner_status="planned",
+        tool_results_summary=[
+            {"tool": "get_patient_identity", "packet_count": 1, "status": "ok", "value": "hidden"},
+            {"tool": "get_immunization_history", "packet_count": 1, "status": "ok"},
+        ],
+    )
+
+    metadata = fake.trace_calls[0]["metadata"]
+    assert metadata["selected_tools"] == ["get_patient_identity", "get_immunization_history"]
+    assert metadata["planner_status"] == "planned"
+    assert metadata["tool_results_summary"][0] == {
+        "tool": "get_patient_identity",
+        "packet_count": 1,
+        "status": "ok",
+    }
+    assert "value" not in metadata["tool_results_summary"][0]
+
+
+def test_record_brief_omits_router_family_when_none(monkeypatch):
+    fake = FakeLangfuse()
+    monkeypatch.setattr(observability, "_client", fake)
+
+    observability.record_brief(
+        trace_id="trace-456",
+        use_case="pre_room_brief",
+        patient_uuid_hash="8865441d74c3",
+        packet_count=4,
+        usage={"input_tokens": 50, "output_tokens": 10, "model": "claude-haiku-4-5-20251001"},
+        verifier_status="passed",
+        unsupported_dropped=0,
+        duration_ms=80.1,
+    )
+
+    metadata = fake.trace_calls[0]["metadata"]
+    assert "router_family" not in metadata
+
+
 def test_record_feedback_maps_verdict_and_truncates_comment(monkeypatch):
     fake = FakeLangfuse()
     monkeypatch.setattr(observability, "_client", fake)

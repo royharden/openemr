@@ -1,0 +1,21 @@
+{
+  "name": "tool plan identity selects identity only",
+  "mode": "tool_plan",
+  "request": {
+    "trace_id": "tp-28",
+    "use_case": "free_text_followup",
+    "patient_uuid_hash": "hash",
+    "router_family": "identity"
+  },
+  "mocked_tool_plan": {
+    "trace_id": "tp-28",
+    "planner_status": "planned",
+    "tool_calls": [
+      {"name": "get_patient_identity", "arguments": {}}
+    ]
+  },
+  "expectations": {
+    "planner_status": "planned",
+    "expected_tools": ["get_patient_identity"]
+  }
+}

@@ -4,9 +4,13 @@
  * Patient-bound task token (HMAC-signed JWT-like, not a real JWT).
  *
  * The sidecar has no DB access, so the gateway hands it a 15-minute
- * scoped token that asserts: "This request is for patient_uuid X by user Y
- * with read-only scope, expiring at exp." The sidecar trusts the gateway
- * because the shared secret is known only to the two services.
+ * scoped token that asserts: "This request is for patient X (by hash) by
+ * user Y with read-only scope, expiring at exp." The sidecar trusts the
+ * gateway because the shared secret is known only to the two services.
+ *
+ * The payload carries `patient_uuid_hash` (truncated SHA256, matching the
+ * `BriefRequest.patient_uuid_hash` field) so the sidecar can cross-check
+ * token-vs-request-body without ever seeing the raw UUID.
  *
  * @package   OpenEMR
  * @author    Roy Harden <royhardenre@gmail.com>
@@ -19,6 +23,11 @@ namespace OpenEMR\Modules\ClinicalCopilot\Gateway;
 
 final class TaskToken
 {
+    public static function patientUuidHash(string $patientUuid): string
+    {
+        return substr(hash('sha256', $patientUuid), 0, 12);
+    }
+
     public static function mint(
         string $sharedSecret,
         string $patientUuid,
@@ -28,7 +37,7 @@ final class TaskToken
         int $ttlSeconds = 900,
     ): string {
         $payload = [
-            'patient_uuid' => $patientUuid,
+            'patient_uuid_hash' => self::patientUuidHash($patientUuid),
             'user_id' => $userId,
             'encounter_uuid' => $encounterUuid,
             'scope' => 'read-only',

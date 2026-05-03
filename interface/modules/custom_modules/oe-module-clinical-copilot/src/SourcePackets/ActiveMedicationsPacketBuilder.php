@@ -48,15 +48,23 @@ final class ActiveMedicationsPacketBuilder implements PacketBuilder
             );
         }
 
-        $rxSql = "SELECT id, drug, size, unit, dosage, quantity, date_added, active
+        // `date_added` is the row-creation timestamp and is what we'd prefer,
+        // but it's nullable and frequently absent on rows imported from
+        // external sources or seeded by fixtures. Fall back to `start_date`
+        // (the prescribing date) and finally `date_modified` so freshness
+        // calculation is correct against real-world data shapes.
+        $rxSql = "SELECT id, drug, size, unit, dosage, quantity, date_added,
+                         start_date, date_modified, active
                   FROM prescriptions
                   WHERE patient_id = ?
                     AND active = 1
-                  ORDER BY date_added DESC, id DESC
+                  ORDER BY COALESCE(date_added, start_date, date_modified) DESC, id DESC
                   LIMIT 25";
         $rs = sqlStatement($rxSql, [$pid]);
         while ($row = sqlFetchArray($rs)) {
-            $observed = $row['date_added'] ?? null;
+            $observed = $row['date_added']
+                ?: ($row['start_date']
+                    ?: $row['date_modified']);
             $packets[] = new PacketDto(
                 sourceId: 'rx:prescriptions:' . (int)$row['id'],
                 patientUuid: $patientUuid,
