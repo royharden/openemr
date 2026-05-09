@@ -1,3 +1,8 @@
+# Default to LF on checkout for all text files. Required so contributors
+# editing from Windows tools (incl. OneDrive-synced clones on WSL) don't
+# introduce CRLF churn into git status.
+* text=auto eol=lf
+
 # Mark all PHPStan baseline files as generated
 .phpstan/baseline/ linguist-generated=true
 
