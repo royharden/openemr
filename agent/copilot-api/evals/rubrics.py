@@ -109,9 +109,10 @@ def rubric_citation_present(
     response_dict = runner_result.get("verified_response") or runner_result
     claims = response_dict.get("claims", [])
     if not claims:
-        # No claims is OK only if the case expects a refusal.
+        # No accepted claims is OK only when the response explicitly abstains.
         refusals = response_dict.get("refusals", [])
-        return len(refusals) > 0
+        missing_data = response_dict.get("missing_data", [])
+        return len(refusals) > 0 or len(missing_data) > 0
     for claim in claims:
         if not claim.get("source_ids"):
             return False

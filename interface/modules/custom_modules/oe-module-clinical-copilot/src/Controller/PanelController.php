@@ -30,6 +30,8 @@ class PanelController
         $assetBase = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/assets';
         $apiBriefUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/brief.php';
         $apiFeedbackUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/feedback.php';
+        $apiUploadLabUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_lab.php';
+        $apiUploadIntakeUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_intake.php';
 
         ob_start();
         ?>
@@ -46,6 +48,31 @@ class PanelController
                     <i class="fa fa-spinner fa-spin"></i>
                     <?php echo xlt('Co-Pilot loading…'); ?>
                 </div>
+                <form class="copilot-upload-form mb-3" id="copilot-upload-form" enctype="multipart/form-data">
+                    <div class="form-row align-items-center">
+                        <div class="col-auto">
+                            <select class="form-control form-control-sm" id="copilot-upload-doc-type" name="doc_type" aria-label="<?php echo attr(xl('Document type')); ?>">
+                                <option value="lab_pdf"><?php echo xlt('Lab PDF'); ?></option>
+                                <option value="intake_form"><?php echo xlt('Intake form'); ?></option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <input
+                                type="file"
+                                class="form-control-file form-control-sm"
+                                id="copilot-upload-file"
+                                name="document_file"
+                                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                                aria-label="<?php echo attr(xl('Upload clinical document')); ?>">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                <i class="fa fa-upload mr-1"></i><?php echo xlt('Upload'); ?>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="copilot-upload-status text-muted small mt-1" id="copilot-upload-status"></div>
+                </form>
                 <div class="copilot-claims" id="copilot-claims" style="display:none"></div>
                 <div class="copilot-missing" id="copilot-missing" style="display:none"></div>
                 <div class="copilot-followups mt-2" id="copilot-followups" style="display:none">
@@ -111,6 +138,8 @@ class PanelController
             window.OE_COPILOT_CONFIG = {
                 briefUrl: <?php echo js_escape($apiBriefUrl); ?>,
                 feedbackUrl: <?php echo js_escape($apiFeedbackUrl); ?>,
+                uploadLabUrl: <?php echo js_escape($apiUploadLabUrl); ?>,
+                uploadIntakeUrl: <?php echo js_escape($apiUploadIntakeUrl); ?>,
                 csrfToken: <?php echo js_escape($csrfToken); ?>,
                 pid: <?php echo $pid; ?>
             };

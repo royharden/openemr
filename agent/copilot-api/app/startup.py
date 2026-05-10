@@ -52,7 +52,7 @@ class StartupSelfTestError(RuntimeError):
 
 
 def _ping_anthropic() -> None:
-    """One cheap call to confirm the configured model id is accepted."""
+    """Cheap calls to confirm configured Anthropic model ids are accepted."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise StartupSelfTestError("ANTHROPIC_API_KEY not set")
@@ -61,13 +61,18 @@ def _ping_anthropic() -> None:
     except ImportError as e:  # pragma: no cover
         raise StartupSelfTestError(f"anthropic SDK not installed: {e}") from e
     client = anthropic.Anthropic(api_key=api_key)
-    model = os.getenv("COPILOT_MODEL", "claude-haiku-4-5-20251001")
-    # Minimal completion to verify model id is accepted by the API.
-    client.messages.create(
-        model=model,
-        max_tokens=4,
-        messages=[{"role": "user", "content": "ping"}],
-    )
+    models = {
+        os.getenv("COPILOT_MODEL", "claude-haiku-4-5-20251001"),
+        os.getenv("COPILOT_VISION_MODEL", "claude-sonnet-4-6"),
+        os.getenv("COPILOT_SYNTHESIS_MODEL", "claude-sonnet-4-6"),
+    }
+    for model in sorted(m for m in models if m):
+        # Minimal completion to verify the model id is accepted by the API.
+        client.messages.create(
+            model=model,
+            max_tokens=4,
+            messages=[{"role": "user", "content": "ping"}],
+        )
 
 
 def _ping_voyage() -> None:
@@ -132,16 +137,22 @@ def validate_provider_credentials() -> None:
 
 
 def validate_corpus_db() -> None:
-    corpus_path_str = os.getenv("COPILOT_CORPUS_DB", "corpus.db")
+    corpus_path_str = (
+        os.getenv("COPILOT_RAG_CORPUS_PATH")
+        or os.getenv("COPILOT_CORPUS_DB")
+        or "corpus.db"
+    )
     corpus_path = pathlib.Path(corpus_path_str)
     if not corpus_path.is_absolute():
         # Resolve relative to the sidecar root (parent of this file's package).
         corpus_path = (pathlib.Path(__file__).resolve().parent.parent / corpus_path).resolve()
 
     if not corpus_path.exists():
+        if os.getenv("COPILOT_RAG_REQUIRE_CORPUS") == "1":
+            raise StartupSelfTestError(f"corpus.db not found at {corpus_path}")
         logger.warning(
-            "corpus.db not found at %s; Workstream B has not yet built it. "
-            "This is acceptable until W2 RAG lands.",
+            "corpus.db not found at %s; RAG will use deterministic local fallback "
+            "unless COPILOT_RAG_REQUIRE_CORPUS=1.",
             corpus_path,
         )
         return

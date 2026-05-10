@@ -83,6 +83,7 @@ async def extract_lab_pdf(
     File constraints: max 10 pages, max 8 MB. Returns HTTP 413 if exceeded.
     """
     from .extractors.lab_pdf import extract_lab_pdf as _extract
+    from .extractors.normalize import normalize_extracted_document
 
     content = await file.read()
     filename = file.filename or "upload.pdf"
@@ -101,13 +102,21 @@ async def extract_lab_pdf(
             document_sha256=document_sha256,
             filename=filename,
         )
+        result = normalize_extracted_document(
+            result,
+            doc_type="lab_pdf",
+            document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash,
+            filename=filename,
+        )
+        validated = ExtractedDocument.model_validate(result)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Lab PDF extraction failed for %r: %s", filename, exc)
         raise HTTPException(status_code=500, detail="extraction_failed") from exc
 
-    return JSONResponse(content=result)
+    return validated.model_dump(mode="json")
 
 
 @router.post(
@@ -126,6 +135,7 @@ async def extract_intake_form(
     File constraints: max 10 pages (PDFs), max 8 MB.
     """
     from .extractors.intake_form import extract_intake_form as _extract
+    from .extractors.normalize import normalize_extracted_document
 
     content = await file.read()
     filename = file.filename or "upload.pdf"
@@ -144,13 +154,21 @@ async def extract_intake_form(
             document_sha256=document_sha256,
             filename=filename,
         )
+        result = normalize_extracted_document(
+            result,
+            doc_type="intake_form",
+            document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash,
+            filename=filename,
+        )
+        validated = ExtractedDocument.model_validate(result)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Intake form extraction failed for %r: %s", filename, exc)
         raise HTTPException(status_code=500, detail="extraction_failed") from exc
 
-    return JSONResponse(content=result)
+    return validated.model_dump(mode="json")
 
 
 # === Wk2 Workstream C: POST /v1/copilot/answer — LangGraph supervisor ===
@@ -171,6 +189,26 @@ class _CopilotAnswerRequest(BaseModel):
         None,
         description="Pre-fetched SourcePackets from the gateway tool execution layer.",
     )
+
+
+class _RagRetrieveRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=500)
+    top_k: int = Field(5, ge=1, le=20)
+
+
+@router.post(
+    "/v1/rag/retrieve",
+    dependencies=[Depends(require_gateway_secret)],
+    summary="Retrieve guideline chunks from the Week 2 RAG runtime.",
+)
+async def rag_retrieve(body: _RagRetrieveRequest) -> dict[str, Any]:
+    from .rag import retrieve_guidelines
+
+    chunks = retrieve_guidelines(body.query, body.top_k)
+    return {
+        "query": body.query,
+        "chunks": [chunk.model_dump(mode="json") for chunk in chunks],
+    }
 
 
 @router.post(

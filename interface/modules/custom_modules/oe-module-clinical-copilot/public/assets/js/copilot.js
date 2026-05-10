@@ -498,6 +498,7 @@
 
             var formData = new FormData();
             formData.append('file', file, file.name);
+            formData.append('csrf_token_form', cfg.csrfToken || '');
 
             showUploadStatus('Uploading…', false);
             uploadForm.querySelector('button[type="submit"]').disabled = true;

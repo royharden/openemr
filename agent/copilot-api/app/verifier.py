@@ -103,6 +103,14 @@ def patient_uuid_hash(patient_uuid: str) -> str:
     return hashlib.sha256(patient_uuid.encode("utf-8")).hexdigest()[:12]
 
 
+def patient_uuid_hashes(patient_uuid: str) -> set[str]:
+    digest = hashlib.sha256(patient_uuid.encode("utf-8")).hexdigest()
+    accepted = {digest, digest[:12]}
+    if re.fullmatch(r"[a-fA-F0-9]{12}|[a-fA-F0-9]{64}", patient_uuid):
+        accepted.add(patient_uuid)
+    return accepted
+
+
 def verify(
     output: LLMOutput,
     packets: list[SourcePacket],
@@ -216,7 +224,7 @@ def _check_claim(
         cited_packets.append(pkt)
 
     for pkt in cited_packets:
-        if patient_uuid_hash(pkt.patient_uuid) != request_patient_uuid_hash:
+        if request_patient_uuid_hash not in patient_uuid_hashes(pkt.patient_uuid):
             issues.append(VerifierIssue(rule="patient_binding", claim_index=i, detail=f"packet {pkt.source_id} patient_uuid != request hash"))
             return True
 

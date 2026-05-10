@@ -84,7 +84,51 @@ final class SidecarClient
                 'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ]);
             return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
-        } catch (\Throwable $e) {
+        } catch (\Exception $e) {
+            return [
+                '__sidecar_error' => 'request_failed',
+                '__sidecar_message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Execute the Week 2 LangGraph answer endpoint.
+     *
+     * @param array<int, array<string, mixed>> $packets
+     * @return array<string, mixed>
+     */
+    public function callCopilotAnswer(
+        string $traceId,
+        string $useCase,
+        array $packets,
+        string $patientUuidHash,
+        ?string $question = null,
+    ): array {
+        $url = rtrim($this->baseUrl, '/') . '/v1/copilot/answer';
+        $client = new Client([
+            'timeout' => $this->timeoutSeconds,
+            'http_errors' => false,
+        ]);
+        $body = [
+            'trace_id' => $traceId,
+            'use_case' => $useCase,
+            'patient_uuid_hash' => $patientUuidHash,
+            'question' => $question,
+            'packets' => $packets,
+        ];
+
+        try {
+            $resp = $client->post($url, [
+                'headers' => [
+                    'X-Copilot-Gateway-Secret' => $this->sharedSecret,
+                    'X-Copilot-Trace-Id' => $traceId,
+                    'Content-Type' => 'application/json',
+                ],
+                'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
+            ]);
+            return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
+        } catch (\Exception $e) {
             return [
                 '__sidecar_error' => 'request_failed',
                 '__sidecar_message' => $e->getMessage(),
