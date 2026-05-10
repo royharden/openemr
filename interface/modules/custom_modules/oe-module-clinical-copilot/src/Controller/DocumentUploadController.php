@@ -4,7 +4,7 @@
  * Handles document uploads for the Clinical Co-Pilot (Wk2 Workstream A).
  *
  * Responsibilities:
- *  - Validate file size (max 10 pages / 8 MB) before touching the sidecar.
+ *  - Validate file size (max 10 pages / 8 MB) and MIME type before touching the sidecar.
  *  - Compute document SHA-256 for idempotency.
  *  - Forward the file to the sidecar /v1/extract/* endpoint.
  *  - Persist the returned ExtractedDocument via DocumentFactsRepository.
@@ -55,19 +55,22 @@ final class DocumentUploadController
      *
      * @param string $tmpPath       Filesystem path to the uploaded temp file.
      * @param string $originalName  Original filename from the upload.
+     * @param string $mimeType      MIME type declared by the upload (e.g. 'application/pdf').
      * @param string $patientUuid   Raw patient UUID.
      * @param string $documentUuidBin  OpenEMR documents.uuid (binary 16 bytes).
      * @param string $createdBy     OpenEMR user id.
      * @return array<string, mixed>  The ExtractedDocument payload.
-     * @throws \RuntimeException on sidecar failure or size/page violation.
+     * @throws \RuntimeException on sidecar failure or size/page/MIME violation.
      */
     public function uploadLabPdf(
         string $tmpPath,
         string $originalName,
+        string $mimeType,
         string $patientUuid,
         string $documentUuidBin,
         string $createdBy,
     ): array {
+        $this->validateMimeType($mimeType, $originalName);
         $content = $this->readAndValidate($tmpPath, $originalName);
         $sha256  = hash('sha256', $content);
 
@@ -95,19 +98,22 @@ final class DocumentUploadController
      *
      * @param string $tmpPath       Filesystem path to the uploaded temp file.
      * @param string $originalName  Original filename.
+     * @param string $mimeType      MIME type declared by the upload.
      * @param string $patientUuid   Raw patient UUID.
      * @param string $documentUuidBin  OpenEMR documents.uuid (binary 16 bytes).
      * @param string $createdBy     OpenEMR user id.
      * @return array<string, mixed>  The ExtractedDocument payload.
-     * @throws \RuntimeException on sidecar failure or size/page violation.
+     * @throws \RuntimeException on sidecar failure or size/page/MIME violation.
      */
     public function uploadIntakeForm(
         string $tmpPath,
         string $originalName,
+        string $mimeType,
         string $patientUuid,
         string $documentUuidBin,
         string $createdBy,
     ): array {
+        $this->validateMimeType($mimeType, $originalName);
         $content = $this->readAndValidate($tmpPath, $originalName);
         $sha256  = hash('sha256', $content);
 
@@ -128,6 +134,21 @@ final class DocumentUploadController
         ]);
 
         return $payload;
+    }
+
+    /**
+     * Validate that the declared MIME type is in the allowed list.
+     *
+     * @throws \RuntimeException if the MIME type is not permitted.
+     */
+    private function validateMimeType(string $mimeType, string $originalName): void
+    {
+        if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
+            throw new \RuntimeException(
+                "File {$originalName} has unsupported MIME type '{$mimeType}'; "
+                . 'allowed: ' . implode(', ', self::ALLOWED_MIME_TYPES)
+            );
+        }
     }
 
     /**
@@ -175,7 +196,7 @@ final class DocumentUploadController
         // guard-rail to avoid sending monster PDFs to the API at all.
         $matches = [];
         preg_match_all('/\/Type\s*\/Page\b(?!s)/', $content, $matches);
-        $count = count($matches[0] ?? []);
+        $count = count($matches[0]);
 
         if ($count > self::MAX_PAGES) {
             throw new \RuntimeException(
@@ -187,6 +208,7 @@ final class DocumentUploadController
     /**
      * POST the file to a sidecar multipart endpoint and return the decoded JSON.
      *
+     * @return array<string, mixed>
      * @throws \RuntimeException on HTTP error or JSON decode failure.
      */
     private function callSidecar(
@@ -226,7 +248,7 @@ final class DocumentUploadController
         $body   = (string) $response->getBody();
 
         if ($status < 200 || $status >= 300) {
-            $this->logger->errorLogCaller('DocumentUploadController: sidecar error', [
+            $this->logger->error('DocumentUploadController: sidecar error', [
                 'status' => $status,
                 'path'   => $path,
                 'body'   => substr($body, 0, 512),
@@ -235,12 +257,16 @@ final class DocumentUploadController
         }
 
         try {
-            /** @var array<string, mixed> $decoded */
             $decoded = json_decode($body, associative: true, flags: JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
             throw new \RuntimeException("Sidecar response was not valid JSON: {$e->getMessage()}", 0, $e);
         }
 
+        if (!is_array($decoded)) {
+            throw new \RuntimeException("Sidecar response JSON was not an object for {$path}");
+        }
+
+        /** @var array<string, mixed> $decoded */
         return $decoded;
     }
 }

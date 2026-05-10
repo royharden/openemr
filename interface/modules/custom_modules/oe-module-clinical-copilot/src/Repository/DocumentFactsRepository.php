@@ -21,7 +21,6 @@ namespace OpenEMR\Modules\ClinicalCopilot\Repository;
 
 use OpenEMR\Common\Database\QueryUtils;
 use OpenEMR\Common\Logging\SystemLogger;
-use OpenEMR\Common\Utils\OEGlobalsBag;
 
 final class DocumentFactsRepository
 {
@@ -48,23 +47,36 @@ final class DocumentFactsRepository
         string $documentUuidBin,
         string $createdBy,
     ): int {
-        $docSha256 = (string) ($extractedDoc['document_sha256'] ?? '');
-        $docType   = (string) ($extractedDoc['doc_type'] ?? '');
-        $result    = $extractedDoc['result'] ?? [];
+        $docSha256Raw = $extractedDoc['document_sha256'] ?? '';
+        $docTypeRaw   = $extractedDoc['doc_type'] ?? '';
+
+        $docSha256 = is_string($docSha256Raw) ? $docSha256Raw : '';
+        $docType   = is_string($docTypeRaw)   ? $docTypeRaw   : '';
 
         if ($docSha256 === '' || $docType === '') {
-            $this->logger->errorLogCaller('DocumentFactsRepository: missing document_sha256 or doc_type in payload');
+            $this->logger->error('DocumentFactsRepository: missing document_sha256 or doc_type in payload');
             return 0;
         }
 
+        $result = $extractedDoc['result'] ?? [];
+        if (!is_array($result)) {
+            $this->logger->error('DocumentFactsRepository: result field is not an array in payload');
+            return 0;
+        }
+
+        $fieldsRaw = $result['fields'] ?? null;
         /** @var list<array<string, mixed>> $fields */
-        $fields = is_array($result['fields'] ?? null) ? $result['fields'] : [];
+        $fields = is_array($fieldsRaw) ? $fieldsRaw : [];
         if ($fields === []) {
             return 0;
         }
 
-        $extractedBy  = (string) ($result['extracted_by_model'] ?? 'unknown');
-        $extractedAt  = (string) ($result['extracted_at'] ?? date('Y-m-d H:i:s'));
+        $extractedByRaw = $result['extracted_by_model'] ?? 'unknown';
+        $extractedAtRaw = $result['extracted_at'] ?? date('Y-m-d H:i:s');
+
+        $extractedBy = is_string($extractedByRaw) ? $extractedByRaw : 'unknown';
+        $extractedAt = is_string($extractedAtRaw) ? $extractedAtRaw : date('Y-m-d H:i:s');
+
         $patientHash  = hash('sha256', $patientUuid);
         $inserted     = 0;
 
@@ -72,7 +84,8 @@ final class DocumentFactsRepository
             if (!is_array($field)) {
                 continue;
             }
-            $fieldPath = (string) ($field['name'] ?? '');
+            $fieldPathRaw = $field['name'] ?? '';
+            $fieldPath = is_string($fieldPathRaw) ? $fieldPathRaw : '';
             if ($fieldPath === '') {
                 continue;
             }
@@ -88,6 +101,26 @@ final class DocumentFactsRepository
             $quote      = is_array($citation) ? ($citation['quote_or_value'] ?? null) : null;
             $pageSection = is_array($citation) ? ($citation['page_or_section'] ?? null) : null;
             $confidence = is_array($citation) ? ($citation['confidence'] ?? null) : null;
+
+            $confidenceFloat = null;
+            if ($confidence !== null) {
+                if (is_float($confidence)) {
+                    $confidenceFloat = $confidence;
+                } elseif (is_int($confidence)) {
+                    $confidenceFloat = (float) $confidence;
+                } elseif (is_numeric($confidence)) {
+                    $confidenceFloat = (float) $confidence;
+                }
+            }
+
+            $pageIndexInt = null;
+            if ($pageIndex !== null) {
+                if (is_int($pageIndex)) {
+                    $pageIndexInt = $pageIndex;
+                } elseif (is_numeric($pageIndex)) {
+                    $pageIndexInt = (int) $pageIndex;
+                }
+            }
 
             $fieldValueJson = json_encode([
                 'value'           => $field['value'] ?? null,
@@ -105,12 +138,12 @@ final class DocumentFactsRepository
                 $docType,
                 $fieldPath,
                 $fieldValueJson,
-                $confidence !== null ? (float) $confidence : null,
-                $quote,
-                $pageIndex !== null ? (int) $pageIndex : null,
-                $pageSection,
-                $bboxJson,
-                $bboxUnit,
+                $confidenceFloat,
+                is_string($quote) ? $quote : null,
+                $pageIndexInt,
+                is_string($pageSection) ? $pageSection : null,
+                is_string($bboxJson) ? $bboxJson : null,
+                is_string($bboxUnit) ? $bboxUnit : null,
                 $extractedBy,
                 $extractedAt,
                 $createdBy,
@@ -129,11 +162,12 @@ final class DocumentFactsRepository
                     $params,
                 );
                 $inserted += max(0, (int) $affected);
-            } catch (\Throwable $e) {
-                $this->logger->errorLogCaller('DocumentFactsRepository: insert failed', [
+            } catch (\Exception $e) {
+                $this->logger->error('DocumentFactsRepository: insert failed', [
                     'field_path' => $fieldPath,
                     'exception'  => $e,
                 ]);
+                throw $e;
             }
         }
 
@@ -152,20 +186,15 @@ final class DocumentFactsRepository
         string $documentSha256,
     ): array {
         $patientHash = hash('sha256', $patientUuid);
-        $rows = QueryUtils::sqlStatementThrowException(
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = QueryUtils::fetchRecords(
             'SELECT * FROM `' . self::TABLE . '`
               WHERE `patient_uuid_hash` = ? AND `document_sha256` = ?
               ORDER BY `id`',
             [$patientHash, $documentSha256],
         );
 
-        /** @var list<array<string, mixed>> $result */
-        $result = [];
-        while ($row = sqlFetchArray($rows)) {
-            if (is_array($row)) {
-                $result[] = $row;
-            }
-        }
-        return $result;
+        return $rows;
     }
 }
