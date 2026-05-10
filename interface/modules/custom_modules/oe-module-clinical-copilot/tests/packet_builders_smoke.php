@@ -49,7 +49,12 @@ use OpenEMR\Services\BaseService;
 
 $pid = 9001;
 $json = false;
-foreach (array_slice($argv, 1) as $arg) {
+// $argv is only defined when invoked via the PHP CLI SAPI. Guard with
+// null-coalesce so phpstan does not flag this as "Variable $argv might not
+// be defined" — the upstream FatalBaselineCapsIsolatedTest caps that
+// category and refuses growth.
+$cliArgs = $argv ?? [];
+foreach (array_slice($cliArgs, 1) as $arg) {
     if ($arg === '--json') {
         $json = true;
         continue;
