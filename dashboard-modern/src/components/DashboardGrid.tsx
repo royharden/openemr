@@ -5,15 +5,17 @@ import { PrescriptionsCard } from '@/components/cards/PrescriptionsCard'
 import { CareTeamCard } from '@/components/cards/CareTeamCard'
 import { LabResultsCard } from '@/components/cards/LabResultsCard'
 
-export function DashboardGrid() {
+type Props = Readonly<{ patientId: string }>
+
+export function DashboardGrid({ patientId }: Props) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-      <AllergiesCard />
-      <ProblemListCard />
-      <MedicationsCard />
-      <PrescriptionsCard />
-      <CareTeamCard />
-      <LabResultsCard />
+      <AllergiesCard patientId={patientId} />
+      <ProblemListCard patientId={patientId} />
+      <MedicationsCard patientId={patientId} />
+      <PrescriptionsCard patientId={patientId} />
+      <CareTeamCard patientId={patientId} />
+      <LabResultsCard patientId={patientId} />
     </div>
   )
 }

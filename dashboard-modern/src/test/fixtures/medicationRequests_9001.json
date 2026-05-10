@@ -1,0 +1,189 @@
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 5,
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:medreq-9001-lisinopril",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "medreq-9001-lisinopril",
+        "status": "active",
+        "intent": "plan",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "29046",
+              "display": "Lisinopril"
+            }
+          ],
+          "text": "Lisinopril 10 mg"
+        },
+        "authoredOn": "2021-03-15",
+        "dosageInstruction": [
+          {
+            "text": "10 mg once daily",
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 10,
+                  "unit": "mg"
+                }
+              }
+            ],
+            "route": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "26643006",
+                  "display": "Oral"
+                }
+              ],
+              "text": "Oral"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:medreq-9001-metformin",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "medreq-9001-metformin",
+        "status": "active",
+        "intent": "plan",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "860975",
+              "display": "Metformin"
+            }
+          ],
+          "text": "Metformin 500 mg"
+        },
+        "authoredOn": "2021-03-15",
+        "dosageInstruction": [
+          {
+            "text": "500 mg twice daily with meals",
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 500,
+                  "unit": "mg"
+                }
+              }
+            ],
+            "route": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "26643006",
+                  "display": "Oral"
+                }
+              ],
+              "text": "Oral"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:medreq-9001-atorvastatin",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "medreq-9001-atorvastatin",
+        "status": "active",
+        "intent": "plan",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "617310",
+              "display": "Atorvastatin"
+            }
+          ],
+          "text": "Atorvastatin 20 mg"
+        },
+        "authoredOn": "2021-03-15",
+        "dosageInstruction": [
+          {
+            "text": "20 mg once daily at bedtime",
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 20,
+                  "unit": "mg"
+                }
+              }
+            ],
+            "route": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "26643006",
+                  "display": "Oral"
+                }
+              ],
+              "text": "Oral"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:medreq-9001-amoxicillin-completed",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "medreq-9001-amoxicillin-completed",
+        "status": "completed",
+        "intent": "plan",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "723",
+              "display": "Amoxicillin"
+            }
+          ],
+          "text": "Amoxicillin 500 mg (completed)"
+        },
+        "authoredOn": "2023-05-02",
+        "dosageInstruction": [
+          {
+            "text": "500 mg three times daily for 7 days"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:medreq-9001-rx-lisinopril",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "medreq-9001-rx-lisinopril",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "29046",
+              "display": "Lisinopril"
+            }
+          ],
+          "text": "Lisinopril 10 mg (Prescription)"
+        },
+        "authoredOn": "2024-01-10",
+        "dosageInstruction": [
+          {
+            "text": "10 mg once daily"
+          }
+        ],
+        "requester": {
+          "display": "Dr. Smith"
+        }
+      }
+    }
+  ]
+}

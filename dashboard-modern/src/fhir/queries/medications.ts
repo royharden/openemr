@@ -1,19 +1,20 @@
+import { z } from 'zod'
+import { fhirGet } from '@/fhir/client'
+import { FhirBundleSchema } from '@/fhir/schemas/bundle'
+import { MedicationRequestSchema } from '@/fhir/schemas/medicationRequest'
+import { adaptMedications } from '@/models/adapters/medications'
 import type { MedicationDisplay } from '@/models/dashboard'
 
-/**
- * LOCKED SIGNATURE — Workstream B implements the body.
- *
- * Per Phase 0 medication-parity spike outcome
- * (see dashboard-modern/MEDICATION_PARITY_SPIKE.md):
- *   - If the FHIR-only split works, fetch MedicationRequest and filter
- *     in the adapter to the lists-row entries.
- *   - If the spike forces a fallback, the Standard REST endpoint
- *     /api/patient/:pid/medication is consulted (see AgDR-0085).
- *
- * Status filtering ("active" only) happens in the adapter.
- */
-export async function getActiveMedications(
-  _patientId: string,
-): Promise<ReadonlyArray<MedicationDisplay>> {
-  throw new Error('getActiveMedications(): not implemented — Workstream B')
+export async function getActiveMedications(patientId: string): Promise<ReadonlyArray<MedicationDisplay>> {
+  const bundle = await fhirGet(
+    `MedicationRequest?patient=${patientId}`,
+    FhirBundleSchema,
+  )
+  const resources = (bundle.entry ?? [])
+    .map((e) => e.resource)
+    .map((raw) => MedicationRequestSchema.safeParse(raw))
+    .filter((r): r is z.SafeParseSuccess<z.infer<typeof MedicationRequestSchema>> => r.success)
+    .map((r) => r.data)
+
+  return adaptMedications(resources)
 }

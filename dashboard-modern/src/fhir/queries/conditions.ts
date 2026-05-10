@@ -1,12 +1,20 @@
+import { z } from 'zod'
+import { fhirGet } from '@/fhir/client'
+import { FhirBundleSchema } from '@/fhir/schemas/bundle'
+import { ConditionSchema } from '@/fhir/schemas/condition'
+import { adaptProblems } from '@/models/adapters/problems'
 import type { ProblemDisplay } from '@/models/dashboard'
 
-/**
- * LOCKED SIGNATURE — Workstream B implements the body.
- *
- * Fetches Condition?patient={patientId}&category=problem-list-item.
- * `category` is a fundamental selector and OK to keep server-side.
- * `clinical-status` filtering happens in the adapter (NOT server-side).
- */
-export async function getActiveProblems(_patientId: string): Promise<ReadonlyArray<ProblemDisplay>> {
-  throw new Error('getActiveProblems(): not implemented — Workstream B')
+export async function getActiveProblems(patientId: string): Promise<ReadonlyArray<ProblemDisplay>> {
+  const bundle = await fhirGet(
+    `Condition?patient=${patientId}&category=problem-list-item`,
+    FhirBundleSchema,
+  )
+  const resources = (bundle.entry ?? [])
+    .map((e) => e.resource)
+    .map((raw) => ConditionSchema.safeParse(raw))
+    .filter((r): r is z.SafeParseSuccess<z.infer<typeof ConditionSchema>> => r.success)
+    .map((r) => r.data)
+
+  return adaptProblems(resources)
 }
