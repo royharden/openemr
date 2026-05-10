@@ -16,10 +16,13 @@ hsa
 inactivate
 inactivated
 inh
+laba
+lama
 mor
 oint
 pres
 promis
+saba
 socio
 
 # HL7/FHIR/EDI codes and terms
