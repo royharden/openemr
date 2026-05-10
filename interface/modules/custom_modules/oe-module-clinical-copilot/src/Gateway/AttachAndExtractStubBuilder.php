@@ -82,8 +82,10 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
                 'doc_url' => self::documentUrl($pid, self::idStringOrNull($row['document_id'] ?? null)),
             ];
 
+            $rowId = self::idStringOrNull($row['id'] ?? null) ?? md5($patientHash . $fieldPath);
+
             $packets[] = new PacketDto(
-                sourceId: 'document_fact:' . (string) ($row['id'] ?? md5($patientHash . $fieldPath)),
+                sourceId: 'document_fact:' . $rowId,
                 patientUuid: $patientUuid,
                 resourceType: $resourceType,
                 sourceTable: 'copilot_document_facts',

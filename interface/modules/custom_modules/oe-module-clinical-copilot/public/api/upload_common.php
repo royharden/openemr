@@ -99,7 +99,10 @@ function copilot_upload_store_document(
         throw new \RuntimeException('openemr_document_store_failed');
     }
 
-    $documentId = (string) $stored['doc_id'];
+    $documentId = copilot_upload_string($stored['doc_id'] ?? null);
+    if ($documentId === '') {
+        throw new \RuntimeException('openemr_document_id_missing');
+    }
     $documentUuidBin = QueryUtils::fetchSingleValue(
         'SELECT uuid FROM documents WHERE id = ?',
         'uuid',
@@ -168,7 +171,8 @@ function copilot_upload_handle(string $docType): void
         }
         $patientUuid = UuidRegistry::uuidToString($patientUuidBin);
         $userId = copilot_upload_int($session->get('authUserID'));
-        $mimeType = copilot_upload_detect_mime($scratch, $upload->getClientMimeType() ?? 'application/octet-stream');
+        $clientMimeType = $upload->getClientMimeType();
+        $mimeType = copilot_upload_detect_mime($scratch, $clientMimeType !== '' ? $clientMimeType : 'application/octet-stream');
 
         [$documentId, $documentUuidBin] = copilot_upload_store_document(
             $tmpName,
