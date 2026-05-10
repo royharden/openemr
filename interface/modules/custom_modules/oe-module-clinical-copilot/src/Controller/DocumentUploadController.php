@@ -27,8 +27,8 @@ namespace OpenEMR\Modules\ClinicalCopilot\Controller;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
-use OpenEMR\Common\Logging\SystemLogger;
 use OpenEMR\Modules\ClinicalCopilot\Repository\DocumentFactsRepository;
+use Psr\Log\LoggerInterface;
 
 final class DocumentUploadController
 {
@@ -46,7 +46,7 @@ final class DocumentUploadController
         private readonly string $sidecarBaseUrl,
         private readonly string $gatewaySecret,
         private readonly DocumentFactsRepository $repository,
-        private readonly SystemLogger $logger,
+        private readonly LoggerInterface $logger,
         private readonly float $timeoutSeconds = 60.0,
     ) {}
 

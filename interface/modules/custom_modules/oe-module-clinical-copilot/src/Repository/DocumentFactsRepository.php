@@ -20,14 +20,14 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Repository;
 
 use OpenEMR\Common\Database\QueryUtils;
-use OpenEMR\Common\Logging\SystemLogger;
+use Psr\Log\LoggerInterface;
 
 final class DocumentFactsRepository
 {
     private const TABLE = 'copilot_document_facts';
 
     public function __construct(
-        private readonly SystemLogger $logger,
+        private readonly LoggerInterface $logger,
     ) {}
 
     /**
@@ -47,6 +47,8 @@ final class DocumentFactsRepository
         string $documentUuidBin,
         string $createdBy,
     ): int {
+        $this->ensureSchema();
+
         $docSha256Raw = $extractedDoc['document_sha256'] ?? '';
         $docTypeRaw   = $extractedDoc['doc_type'] ?? '';
 
@@ -81,9 +83,6 @@ final class DocumentFactsRepository
         $inserted     = 0;
 
         foreach ($fields as $field) {
-            if (!is_array($field)) {
-                continue;
-            }
             $fieldPathRaw = $field['name'] ?? '';
             $fieldPath = is_string($fieldPathRaw) ? $fieldPathRaw : '';
             if ($fieldPath === '') {
@@ -92,15 +91,20 @@ final class DocumentFactsRepository
 
             $idempotencyKey = hash('sha256', $patientUuid . $docSha256 . $fieldPath);
 
-            $citation   = $field['citation'] ?? [];
-            $pageIndex  = is_array($citation) ? ($citation['page_index'] ?? null) : null;
-            $bboxJson   = is_array($citation) && isset($citation['bbox']) && is_array($citation['bbox'])
-                ? json_encode($citation['bbox'], JSON_THROW_ON_ERROR)
+            $citation = $field['citation'] ?? [];
+            if (!is_array($citation)) {
+                $citation = [];
+            }
+
+            $pageIndex = $citation['page_index'] ?? $field['page_index'] ?? null;
+            $bboxValue = $citation['bbox'] ?? $field['bbox'] ?? null;
+            $bboxJson = is_array($bboxValue)
+                ? json_encode($bboxValue, JSON_THROW_ON_ERROR)
                 : null;
-            $bboxUnit   = is_array($citation) ? ($citation['bbox_unit'] ?? null) : null;
-            $quote      = is_array($citation) ? ($citation['quote_or_value'] ?? null) : null;
-            $pageSection = is_array($citation) ? ($citation['page_or_section'] ?? null) : null;
-            $confidence = is_array($citation) ? ($citation['confidence'] ?? null) : null;
+            $bboxUnit = $citation['bbox_unit'] ?? $field['bbox_unit'] ?? null;
+            $quote = $citation['quote_or_value'] ?? $field['quote_or_value'] ?? $field['value'] ?? null;
+            $pageSection = $citation['page_or_section'] ?? $field['page_or_section'] ?? null;
+            $confidence = $citation['confidence'] ?? $field['confidence'] ?? null;
 
             $confidenceFloat = null;
             if ($confidence !== null) {
@@ -162,7 +166,7 @@ final class DocumentFactsRepository
                     $params,
                 );
                 $inserted += max(0, (int) $affected);
-            } catch (\Exception $e) {
+            } catch (\RuntimeException $e) {
                 $this->logger->error('DocumentFactsRepository: insert failed', [
                     'field_path' => $fieldPath,
                     'exception'  => $e,
@@ -185,6 +189,8 @@ final class DocumentFactsRepository
         string $patientUuid,
         string $documentSha256,
     ): array {
+        $this->ensureSchema();
+
         $patientHash = hash('sha256', $patientUuid);
 
         /** @var list<array<string, mixed>> $rows */
@@ -196,5 +202,24 @@ final class DocumentFactsRepository
         );
 
         return $rows;
+    }
+
+    public function ensureSchema(): void
+    {
+        $migration = dirname(__DIR__, 2) . '/sql/migrations/2026_05_09_copilot_document_facts.sql';
+        $sql = is_file($migration) ? file_get_contents($migration) : false;
+        if (!is_string($sql) || trim($sql) === '') {
+            $this->logger->error('DocumentFactsRepository: migration file missing');
+            return;
+        }
+
+        try {
+            QueryUtils::sqlStatementThrowException($sql);
+        } catch (\RuntimeException $e) {
+            $this->logger->error('DocumentFactsRepository: schema bootstrap failed', [
+                'exception' => $e,
+            ]);
+            throw $e;
+        }
     }
 }

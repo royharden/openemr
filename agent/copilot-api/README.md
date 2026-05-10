@@ -3,7 +3,8 @@
 Python FastAPI service that:
 
 1. Receives source packets + a task token from the OpenEMR gateway.
-2. Calls Claude (Haiku 4.5 by default for demo cost control) with tool-use-forced structured output.
+2. Calls Claude with tool-use-forced structured output; Week 2 document
+   extraction and graph synthesis default to `claude-sonnet-4-6`.
 3. Parses the tool payload through Pydantic (`LLMOutput.model_validate(...)`).
 4. Runs the deterministic verifier (8 rules).
 5. Optionally repairs once.
@@ -20,6 +21,8 @@ pip install -e .
 
 export ANTHROPIC_API_KEY=sk-ant-...
 export COPILOT_OPENEMR_GATEWAY_SHARED_SECRET=$(openssl rand -hex 32)
+export COPILOT_VISION_MODEL=claude-sonnet-4-6
+export COPILOT_SYNTHESIS_MODEL=claude-sonnet-4-6
 # optional
 export LANGFUSE_PUBLIC_KEY=pk-lf-...
 export LANGFUSE_SECRET_KEY=sk-lf-...
@@ -56,23 +59,16 @@ docker build -t copilot-api:0.1.0 .
 docker run --rm -p 8000:8000 \
     -e ANTHROPIC_API_KEY \
     -e COPILOT_OPENEMR_GATEWAY_SHARED_SECRET \
+    -e COPILOT_VISION_MODEL=claude-sonnet-4-6 \
+    -e COPILOT_SYNTHESIS_MODEL=claude-sonnet-4-6 \
     copilot-api:0.1.0
 ```
 
-## Deploy to Railway
+## Deployment Scope
 
-1. Create a new private service `copilot-api` (no public domain).
-2. Point it at the `agent/copilot-api/` Dockerfile.
-3. Env vars:
-   - `ANTHROPIC_API_KEY`
-   - `COPILOT_OPENEMR_GATEWAY_SHARED_SECRET`
-   - `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` (optional)
-   - `COPILOT_MODEL=claude-haiku-4-5-20251001` (override to switch model)
-4. Set on the OpenEMR service:
-   - `COPILOT_API_BASE_URL=http://${{copilot-api.RAILWAY_PRIVATE_DOMAIN}}:8000`
-   - `COPILOT_OPENEMR_GATEWAY_SHARED_SECRET=<same secret>`
-
-The sidecar should have **no public domain** — only the OpenEMR service reaches it over Railway's private network.
+Week 2 is local-Docker only. Railway redeploy/configuration is intentionally out
+of scope for this sprint; run the sidecar beside the Docker OpenEMR stack and
+point OpenEMR at `http://host.docker.internal:8000`.
 
 ## PHI handling
 
@@ -140,13 +136,13 @@ python -c "from sqlite_vec import sqlite_vec; print('sqlite-vec OK')"
 
 ### Corpus Refresh
 
-CDC ACIP corpus is built once and stored in `evals/corpus.db`:
+The RAG corpus is built once and stored at `agent/copilot-api/corpus.db`:
 
 ```bash
 # Wk2: Build corpus (idempotent, ~5 min)
-python scripts/build_corpus.py
+COPILOT_EVAL_MODE=1 python scripts/build_corpus.py --corpus-path corpus.db
 
-# Output: evals/corpus.db (sqlite3, ~50 MB, ~15k chunks)
+# Output: corpus.db (sqlite3; CDC ACIP + openFDA + HMS-LOE chunks)
 # Chunks indexed by source_year, grade, organization for efficient retrieval.
 
 # Future (Wk3): Add refresh cadence
@@ -154,6 +150,12 @@ python scripts/build_corpus.py
 # - openFDA: monthly (new drug approvals)
 # - HMS Library: as-needed
 ```
+
+Runtime behavior:
+- `COPILOT_RAG_CORPUS_PATH` overrides the default `corpus.db` location.
+- If `corpus.db` is present, `/v1/rag/retrieve` uses the SQLite/BM25/vector corpus.
+- If it is absent, local dev falls back to deterministic built-in chunks.
+- Set `COPILOT_RAG_REQUIRE_CORPUS=1` to make startup and retrieval fail fast when the corpus is unavailable.
 
 ### Endpoints (Week 2 New)
 

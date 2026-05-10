@@ -24,7 +24,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _MAX_PAGES = 10
-_MODEL = "claude-sonnet-4-6"
+_MODEL = os.getenv("COPILOT_VISION_MODEL", "claude-sonnet-4-6")
 _BBOX_UNIT = "exact"
 
 _MAGIC_BYTES: dict[bytes, str] = {
@@ -34,7 +34,13 @@ _MAGIC_BYTES: dict[bytes, str] = {
 }
 
 
-def _detect_media_type(content: bytes, filename: str) -> str:
+def _normalize_bbox_value(value: float, axis_max: float) -> float:
+    if abs(value) > 1.0 and axis_max > 0:
+        value = value / axis_max
+    return min(max(value, 0.0), 1.0)
+
+
+def _detect_media_type(content: bytes, filename: str = "upload.pdf") -> str:
     for magic, mime in _MAGIC_BYTES.items():
         if content[: len(magic)] == magic:
             return mime
@@ -74,11 +80,13 @@ def _find_verbatim_bbox(
             y0 = min(b["y0"] for b in matched)
             x1 = max(b["x1"] for b in matched)
             y1 = max(b["y1"] for b in matched)
+            page_width = max(float(matched[0].get("page_width") or 1.0), 1.0)
+            page_height = max(float(matched[0].get("page_height") or 1.0), 1.0)
             return (
-                round(min(max(x0, 0.0), 1.0), 6),
-                round(min(max(y0, 0.0), 1.0), 6),
-                round(min(max(x1, 0.0), 1.0), 6),
-                round(min(max(y1, 0.0), 1.0), 6),
+                round(_normalize_bbox_value(float(x0), page_width), 6),
+                round(_normalize_bbox_value(float(y0), page_height), 6),
+                round(_normalize_bbox_value(float(x1), page_width), 6),
+                round(_normalize_bbox_value(float(y1), page_height), 6),
             )
     return None
 
@@ -93,6 +101,9 @@ def _get_page_count(pdf_bytes: bytes) -> int:
             doc.close()
     except Exception:
         return 1
+
+
+_get_page_count_pdf = _get_page_count
 
 
 def _pdf_page_to_base64_png(pdf_bytes: bytes, page_index: int) -> str:
@@ -219,6 +230,7 @@ def extract_intake_form(
     document_sha256: str | None = None,
     filename: str = "upload.pdf",
 ) -> dict[str, Any]:
+    from app.extractors.normalize import normalize_extracted_document
     from app.extractors._eval_mocks_a import (
         get_intake_mock_fields,
         is_eval_mode,
@@ -250,25 +262,32 @@ def extract_intake_form(
                     f"{patient_uuid_hash}{doc_sha}{field_path}".encode()
                 ).hexdigest(),
             })
-        return {
+        payload = {
             "doc_type": "intake_form",
             "document_sha256": doc_sha,
             "patient_uuid_hash": patient_uuid_hash,
             "filename": filename,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
-            "extracted_by": f"eval-mock/{MOCK_VERSION}",
+            "extracted_by": "eval-mock",
             "extracted_field_count": len(fields),
             "result": {"fields": fields},
         }
+        return normalize_extracted_document(
+            payload,
+            doc_type="intake_form",
+            document_sha256=doc_sha,
+            patient_uuid_hash=patient_uuid_hash,
+            filename=filename,
+        )
 
     # Live mode
     media_type = _detect_media_type(content, filename)
     all_fields: list[dict[str, Any]] = []
 
     if media_type == "application/pdf":
-        page_count = _get_page_count(content)
+        page_count = _get_page_count_pdf(content)
         if page_count > _MAX_PAGES:
-            raise ValueError(f"too_many_pages: {filename!r} has {page_count} pages; limit is {_MAX_PAGES}")
+            raise ValueError(f"too_many_pages: {filename!r} has {page_count} pages; maximum is {_MAX_PAGES}")
         for page_idx in range(page_count):
             try:
                 image_b64 = _pdf_page_to_base64_png(content, page_idx)
@@ -292,7 +311,7 @@ def extract_intake_form(
         except Exception as exc:
             logger.error("Image intake extraction failed for %r: %s", filename, exc)
 
-    return {
+    payload = {
         "doc_type": "intake_form",
         "document_sha256": doc_sha,
         "patient_uuid_hash": patient_uuid_hash,
@@ -302,3 +321,10 @@ def extract_intake_form(
         "extracted_field_count": len(all_fields),
         "result": {"fields": all_fields},
     }
+    return normalize_extracted_document(
+        payload,
+        doc_type="intake_form",
+        document_sha256=doc_sha,
+        patient_uuid_hash=patient_uuid_hash,
+        filename=filename,
+    )

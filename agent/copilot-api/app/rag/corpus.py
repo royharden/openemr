@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 import struct
 from pathlib import Path
@@ -42,12 +43,24 @@ DEFAULT_CORPUS_PATH = Path(__file__).parent.parent.parent / "corpus.db"
 # Embedding dimensionality for the default Voyage voyage-4-large model.
 VOYAGE_DIM = 1024
 
+_PHONE_RE = re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b")
+_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+
 
 def _load_sqlite_vec(conn: sqlite3.Connection) -> None:
     if not _SQLITE_VEC_AVAILABLE:
         logger.warning("sqlite-vec not installed — vector search disabled")
         return
-    sqlite_vec.load(conn)
+    try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+    except sqlite3.OperationalError as exc:
+        logger.warning("sqlite-vec extension load failed (%s) - vector search will use fallback", exc)
+    finally:
+        try:
+            conn.enable_load_extension(False)
+        except sqlite3.OperationalError:
+            pass
 
 
 class Corpus:
@@ -150,8 +163,9 @@ class Corpus:
     # ------------------------------------------------------------------
 
     def upsert_chunk(self, chunk: GuidelineChunk, embedding: list[float] | None) -> None:
+        text = _scrub_contact_patterns(chunk.text)
         blob = _pack_embedding(embedding) if embedding else None
-        bm25_terms = _tokenize(chunk.text)
+        bm25_terms = _tokenize(text)
         self.conn.execute(
             """
             INSERT INTO chunks
@@ -178,7 +192,7 @@ class Corpus:
                 chunk.page_or_section,
                 chunk.recommendation_grade,
                 chunk.source_year,
-                chunk.text,
+                text,
                 blob,
                 bm25_terms,
             ),
@@ -285,8 +299,14 @@ class Corpus:
 def _tokenize(text: str) -> str:
     """Lowercase, strip punctuation, return space-joined terms for BM25."""
     import re
-    tokens = re.findall(r"[a-z0-9]+", text.lower())
+    tokens = [token for token in re.findall(r"[a-z0-9]+", text.lower()) if not token.isdigit()]
     return " ".join(tokens)
+
+
+def _scrub_contact_patterns(text: str) -> str:
+    """Remove public contact strings that trip the corpus PHI scanner."""
+    scrubbed = _EMAIL_RE.sub("[email-redacted]", text)
+    return _PHONE_RE.sub("[phone-redacted]", scrubbed)
 
 
 def _pack_embedding(vec: list[float]) -> bytes:

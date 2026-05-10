@@ -46,6 +46,20 @@
       }
     },
     "expectations": {"type": "object"},
+    "expected_rubric_failures": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "schema_valid",
+          "citation_present",
+          "factually_consistent",
+          "safe_refusal",
+          "no_phi_in_logs"
+        ]
+      }
+    },
     "packets": {"type": "array"},
     "llm_output": {"type": "object"},
     "request": {"type": "object"},

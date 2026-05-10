@@ -144,4 +144,14 @@ def resolve_intake_fixture_key(document_sha256: str, filename: str) -> str | Non
 def get_intake_mock_fields(fixture_key: str | None) -> list[dict[str, Any]]:
     if fixture_key is None:
         return []
-    return list(_INTAKE_FIXTURES.get(fixture_key, []))
+    fields: list[dict[str, Any]] = []
+    for field in _INTAKE_FIXTURES.get(fixture_key, []):
+        next_field = dict(field)
+        if fixture_key == "whitaker-intake" and next_field.get("name") == "social_history.smoking_status":
+            next_field["name"] = "smoking_status"
+        if fixture_key == "kowalski-intake" and next_field.get("name") == "vitals.blood_pressure":
+            fields.append({**next_field, "name": "vitals.bp_systolic", "value": 138})
+            fields.append({**next_field, "name": "vitals.bp_diastolic", "value": 88})
+            continue
+        fields.append(next_field)
+    return fields

@@ -28,10 +28,13 @@ Writes ./eval_results.json and prints a summary table.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import pathlib
+import re
 import sys
 import time
+import os
 from typing import Any
 
 from app.router_logic import classify, normalize
@@ -266,9 +269,8 @@ def _build_runner_result_from_case(case: dict[str, Any]) -> dict[str, Any]:
     if mode in ("extractor_only", "extraction") or category == "extraction":
         return _build_extraction_runner_result(case)
 
-    # --- rag_only cases (RAG pipeline not wired to runner) ---
     if mode == "rag_only":
-        return _build_rag_mock_runner_result(case)
+        return _build_rag_runner_result(case)
 
     # --- default: use pre-built packets + llm_output from the case file ---
     return {
@@ -435,6 +437,72 @@ def _build_extraction_runner_result(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _build_rag_runner_result(case: dict[str, Any]) -> dict[str, Any]:
+    """Build runner_result for rag_only cases through the real retriever."""
+
+    from app.rag import retrieve_guidelines
+
+    request = case.get("request", {}) if isinstance(case.get("request"), dict) else {}
+    query = str(request.get("query") or case.get("query") or case.get("description") or "adult immunization abnormal labs")
+    patient_uuid_hash = str(request.get("patient_uuid_hash") or "eval-patient-hash")
+    chunks = retrieve_guidelines(query, int(request.get("top_k") or 5))
+
+    packets: list[dict[str, Any]] = []
+    claims: list[dict[str, Any]] = []
+    for chunk in chunks:
+        data = chunk.model_dump(mode="json")
+        source_id = str(data.get("chunk_id") or data.get("source_id"))
+        packet = {
+            "source_id": source_id,
+            "patient_uuid": patient_uuid_hash,
+            "resource_type": "Guideline",
+            "source_table": "rag_corpus",
+            "source_uuid": None,
+            "field": "guideline.text",
+            "label": data.get("source_name") or "Guideline evidence",
+            "value": data.get("text") or "",
+            "unit": None,
+            "observed_at": None,
+            "last_updated": None,
+            "freshness": "unknown",
+            "status": None,
+            "sensitive": False,
+            "source_type": "guideline_chunk",
+            "field_or_chunk_id": source_id,
+            "quote_or_value": data.get("text") or "",
+            "page_or_section": data.get("page_or_section"),
+            "recommendation_grade": data.get("recommendation_grade"),
+            "source_year": data.get("source_year"),
+            "source_organization": data.get("source_organization"),
+        }
+        packets.append(packet)
+        claims.append({
+            "text": str(data.get("text") or "")[:180],
+            "claim_type": "fact",
+            "source_ids": [source_id],
+            "caveat": None,
+        })
+
+    verified_response: dict[str, Any] = {
+        "answer_type": "pre_room_brief",
+        "claims": claims,
+        "missing_data": [],
+        "refusals": [] if claims else ["No guideline chunks retrieved."],
+        "suggested_followups": [],
+        "verifier_status": "passed",
+        "unsupported_dropped": 0,
+        "verifier_issues": [],
+        "trace_id": "eval-rag",
+        "selected_tools": [],
+    }
+
+    return {
+        "packets": packets,
+        "verified_response": verified_response,
+        "chunks": [chunk.model_dump(mode="json") for chunk in chunks],
+    }
+
+
 def _build_rag_mock_runner_result(case: dict[str, Any]) -> dict[str, Any]:
     """Build runner_result for rag_only cases.
 
@@ -475,9 +543,9 @@ def _check_rubric_mode(case: dict[str, Any], mode: str) -> tuple[bool, list[str]
     from evals.rubrics import evaluate_case
 
     runner_result = _build_runner_result_from_case(case)
-    rubric_results = evaluate_case(case, runner_result, log_text="")
+    raw_rubric_results = evaluate_case(case, runner_result, log_text="")
+    rubric_results, failures = _apply_expected_rubric_failures(case, raw_rubric_results)
 
-    failures: list[str] = []
     for rubric, passed in rubric_results.items():
         if not passed:
             failures.append(f"rubric/{rubric}: FAIL")
@@ -492,6 +560,90 @@ def _check_rubric_mode(case: dict[str, Any], mode: str) -> tuple[bool, list[str]
             )
 
     return (len(failures) == 0, failures, rubric_results)
+
+
+def _apply_expected_rubric_failures(
+    case: dict[str, Any],
+    rubric_results: dict[str, bool],
+) -> tuple[dict[str, bool], list[str]]:
+    """Convert declared negative-control rubric failures into pass/fail signals.
+
+    Some eval cases intentionally plant a bad claim to prove a rubric catches it.
+    Those cases should fail if the rubric unexpectedly passes, but they should
+    not count as below-floor product regressions when the rubric fails as
+    intended.
+    """
+    expected = case.get("expectations", {}).get("expected_rubric_failures", [])
+    expected_failures = {str(item) for item in expected if isinstance(item, str)}
+    adjusted = dict(rubric_results)
+    failures: list[str] = []
+
+    for rubric in sorted(expected_failures):
+        if rubric not in rubric_results:
+            failures.append(f"rubric/{rubric}: expected failure for inactive rubric")
+            continue
+        if rubric_results[rubric]:
+            adjusted[rubric] = False
+            failures.append(f"rubric/{rubric}: expected FAIL but passed")
+        else:
+            adjusted[rubric] = True
+
+    return adjusted, failures
+
+
+def _check_graph_full(case: dict[str, Any]) -> tuple[bool, list[str], dict[str, bool], dict[str, Any]]:
+    """Run one case through the LangGraph endpoint internals in eval mode."""
+
+    async def _run() -> dict[str, Any]:
+        os.environ["COPILOT_EVAL_MODE"] = "1"
+        from app.graph.build import get_compiled_graph
+        from app.graph.state import CopilotState
+
+        request = case.get("request", {}) if isinstance(case.get("request"), dict) else {}
+        packets = case.get("packets", [])
+        patient_uuid_hash = str(request.get("patient_uuid_hash") or case.get("patient_uuid_hash") or "eval-patient-hash")
+        state: CopilotState = {
+            "patient_uuid_hash": patient_uuid_hash,
+            "question": str(request.get("question") or "Summarize this patient evidence."),
+            "trace_id": str(request.get("trace_id") or "eval-graph-full"),
+            "documents": request.get("documents", []),
+            "intake_status": "pending" if request.get("documents") else "skipped",
+            "lab_status": "pending",
+            "extracted_packets": packets,
+            "retrieval_status": "pending",
+            "guideline_packets": [],
+            "synthesis_status": "pending",
+            "llm_output": None,
+            "verifier_status": "pending",
+            "verified_response": None,
+            "current_node": "start",
+            "graph_path": [],
+            "worker_handoffs": [],
+            "decision_reason": "",
+            "error_message": None,
+            "low_confidence_count": 0,
+            "eval_mode": True,
+            "langfuse_trace_id": str(request.get("trace_id") or "eval-graph-full"),
+        }
+        return await get_compiled_graph().ainvoke(state)
+
+    final_state = asyncio.run(_run())
+    runner_result = {
+        "packets": list(case.get("packets", [])) + list(final_state.get("guideline_packets", [])),
+        "verified_response": final_state.get("verified_response") or {},
+        "graph_path": final_state.get("graph_path", []),
+    }
+
+    from evals.rubrics import evaluate_case
+
+    raw_rubric_results = evaluate_case(case, runner_result, log_text="")
+    rubric_results, failures = _apply_expected_rubric_failures(case, raw_rubric_results)
+    failures.extend(f"rubric/{name}: FAIL" for name, ok in rubric_results.items() if not ok)
+    if final_state.get("verified_response") is None:
+        failures.append("graph_full: verifier produced no response")
+    if "verifier" not in final_state.get("graph_path", []):
+        failures.append("graph_full: verifier node not reached")
+    return (len(failures) == 0, failures, rubric_results, runner_result)
 
 
 def _load_floors() -> dict[str, float]:
@@ -659,6 +811,29 @@ def main() -> int:
             })
             continue
 
+        if mode == "graph_full":
+            started = time.monotonic()
+            passed, failures, rubric_results, runner_result = _check_graph_full(case)
+            elapsed_ms = (time.monotonic() - started) * 1000
+            status_label = "graph_full"
+            if passed:
+                pass_count += 1
+            flag = "PASS" if passed else "FAIL"
+            print(f"{i:<3}{display_name[:38]:<40}{status_label:<22}{flag:<6}")
+            if not passed:
+                for f in failures:
+                    print(f"      - {f}")
+            results.append({
+                "name": display_name,
+                "mode": mode,
+                "elapsed_ms": round(elapsed_ms, 3),
+                "passed": passed,
+                "failures": failures,
+                "rubric_results": rubric_results,
+                "graph_path": runner_result.get("graph_path", []),
+            })
+            continue
+
         # Wk2 rubric modes: extraction, rag_retrieval, citation, extractor_only
         # Also: any case with a `rubrics` field but no `llm_output` runs in rubric mode
         # regardless of declared mode (handles Team C's refusal/regression cases that
@@ -705,8 +880,6 @@ def main() -> int:
         result = verify(llm_output, packets, request_uuid_hash, trace_id=f"eval-{i}")
         elapsed_ms = (time.monotonic() - started) * 1000
         passed, failures = _check(case, result, elapsed_ms)
-        if passed:
-            pass_count += 1
 
         # Also run rubrics if declared
         rubric_results: dict[str, bool] = {}
@@ -727,7 +900,16 @@ def main() -> int:
                     "selected_tools": [],
                 },
             }
-            rubric_results = evaluate_case(case, runner_result, log_text="")
+            raw_rubric_results = evaluate_case(case, runner_result, log_text="")
+            rubric_results, expected_failures = _apply_expected_rubric_failures(case, raw_rubric_results)
+            failures.extend(expected_failures)
+            for rubric, rubric_passed in rubric_results.items():
+                if not rubric_passed:
+                    failures.append(f"rubric/{rubric}: FAIL")
+                    passed = False
+
+        if passed:
+            pass_count += 1
 
         flag = "PASS" if passed else "FAIL"
         print(f"{i:<3}{display_name[:38]:<40}{result.verifier_status:<22}{flag:<6}")
@@ -758,10 +940,11 @@ def main() -> int:
     print("-" * 71)
     print(f"\n{pass_count}/{len(cases)} passed.  Results: {RESULTS_PATH}")
 
-    if args.rubric_report:
-        _print_rubric_report(results)
+    rubric_rc = _print_rubric_report(results) if args.rubric_report else 0
 
-    return 0 if pass_count == len(cases) else 1
+    if pass_count != len(cases):
+        return 1
+    return rubric_rc
 
 
 FLOOR_PATH = pathlib.Path(__file__).parent / "floor.json"
@@ -807,6 +990,46 @@ def _print_rubric_report(results: list[dict[str, Any]]) -> int:
     return 1 if any_fail else 0
 
 
+_PHI_PATTERNS = {
+    "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+    "phone": re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b"),
+    "email": re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE),
+    "dob_label": re.compile(r"\b(?:DOB|date of birth)\s*[:=]\s*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", re.IGNORECASE),
+    "mrn_label": re.compile(r"\b(?:MRN|medical record)\s*[:=]\s*[A-Z0-9-]{4,}\b", re.IGNORECASE),
+}
+
+
+def _scan_text_for_phi(text: str) -> list[str]:
+    return [name for name, pattern in _PHI_PATTERNS.items() if pattern.search(text)]
+
+
+def _scan_paths_for_phi(paths: list[pathlib.Path]) -> int:
+    failures: list[str] = []
+    for path in paths:
+        if not path.exists():
+            continue
+        candidates = [path]
+        if path.is_dir():
+            candidates = [p for p in path.rglob("*") if p.is_file() and p.suffix.lower() in {".json", ".jsonl", ".txt", ".md", ".log"}]
+        for candidate in candidates:
+            try:
+                text = candidate.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            matches = _scan_text_for_phi(text)
+            if matches:
+                failures.append(f"{candidate}: {', '.join(matches)}")
+
+    if failures:
+        print("PHI scan failed:")
+        for failure in failures:
+            print(f"  - {failure}")
+        return 1
+
+    print("PHI scan passed.")
+    return 0
+
+
 def main_with_args(argv: list[str] | None = None) -> int:
     """Argparse entry point for Team C eval modes."""
     import argparse
@@ -814,19 +1037,34 @@ def main_with_args(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Copilot eval runner")
     parser.add_argument(
         "--mode",
-        choices=["verifier", "extraction", "rag_retrieval", "citation", "refusal", "regression", "all"],
+        choices=["verifier", "extraction", "rag_retrieval", "rag_only", "citation", "refusal", "regression", "graph_full", "all"],
         default="all",
         help="Which case category to run",
     )
     parser.add_argument("--case", help="Run a single case by case_id")
     parser.add_argument("--smoke", action="store_true", help="Run live smoke cases only (<30s)")
     parser.add_argument("--rubric-report", action="store_true", help="Print per-rubric pass rates vs floors")
+    parser.add_argument("--check-corpus-phi", action="store_true", help="Scan bundled RAG corpus artifacts for obvious PHI patterns")
+    parser.add_argument("--check-trace-phi", action="store_true", help="Scan eval result/trace artifacts for obvious PHI patterns")
     parser.add_argument(
         "--validate-schema-only",
         action="store_true",
         help="Validate every case against case_schema.json and exit (CI eval-gate uses this).",
     )
     args = parser.parse_args(argv)
+
+    if args.check_corpus_phi:
+        return _scan_paths_for_phi([
+            pathlib.Path(__file__).parent.parent / "corpus.db",
+            pathlib.Path(__file__).parent.parent / "app" / "rag" / "ingestion",
+        ])
+
+    if args.check_trace_phi:
+        return _scan_paths_for_phi([
+            RESULTS_PATH,
+            pathlib.Path(__file__).parent.parent / "traces",
+            pathlib.Path(__file__).parent.parent / "logs",
+        ])
 
     # --validate-schema-only short-circuit (CI eval-gate "Validate eval case schema" step).
     # _load_cases() already invokes _validate_case() on every file; if it raises,

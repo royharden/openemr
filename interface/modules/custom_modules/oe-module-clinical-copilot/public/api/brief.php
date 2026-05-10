@@ -140,13 +140,33 @@ function copilot_packets_summary(array $packets): array
 {
     $summary = [];
     foreach ($packets as $p) {
-        $summary[] = [
+        $item = [
             'source_id' => $p['source_id'] ?? '',
             'source_table' => $p['source_table'] ?? '',
             'label' => $p['label'] ?? '',
             'observed_at' => $p['observed_at'] ?? null,
             'freshness' => $p['freshness'] ?? 'unknown',
         ];
+        foreach ([
+            'source_type',
+            'field_or_chunk_id',
+            'quote_or_value',
+            'bbox',
+            'bbox_unit',
+            'page_index',
+            'page_or_section',
+            'confidence',
+            'document_name',
+            'doc_url',
+            'recommendation_grade',
+            'source_year',
+            'source_organization',
+        ] as $key) {
+            if (array_key_exists($key, $p)) {
+                $item[$key] = $p[$key];
+            }
+        }
+        $summary[] = $item;
     }
     return $summary;
 }
@@ -376,18 +396,12 @@ try {
             }
         }
 
-        $sidecarResponse = $client->callBrief(
+        $sidecarResponse = $client->callCopilotAnswer(
             traceId: $traceId,
-            taskToken: $taskToken,
             useCase: $useCase,
             packets: $packets,
             patientUuidHash: $patientUuidHash,
             question: $useCase === 'free_text_followup' ? $normalizedQuestion : null,
-            priorTurnSourceIds: $priorIds !== [] ? $priorIds : null,
-            routerFamily: $routerFamily,
-            selectedTools: $selectedTools,
-            plannerStatus: $plannerStatus,
-            toolResultsSummary: $toolResultsSummary,
         );
         if (isset($sidecarResponse['__sidecar_error'])) {
             $verifierStatus = 'sidecar_failed';

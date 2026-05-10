@@ -1,0 +1,41 @@
+{
+  "case_id": "graph_full/graph_full_01_week2_answer",
+  "description": "Runs the Week 2 LangGraph supervisor with gateway-provided source packets and requires a cited verified answer.",
+  "mode": "graph_full",
+  "category": "citation",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent", "safe_refusal", "no_phi_in_logs"],
+  "what_bug_this_catches": "The eval gate must exercise LangGraph instead of only extractor/verifier mocks.",
+  "request": {
+    "trace_id": "eval-graph-full-01",
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "question": "What lab result should I notice?"
+  },
+  "packets": [
+    {
+      "source_id": "eval-doc-ldl",
+      "patient_uuid": "eval-patient",
+      "resource_type": "Observation",
+      "source_table": "copilot_document_facts",
+      "source_uuid": null,
+      "field": "lab.ldl",
+      "label": "LDL",
+      "value": "178",
+      "unit": "mg/dL",
+      "observed_at": "2026-05-09T12:00:00Z",
+      "last_updated": "2026-05-09T12:00:00Z",
+      "freshness": "recent",
+      "status": "H",
+      "sensitive": false,
+      "source_type": "document_extract",
+      "field_or_chunk_id": "lab.ldl",
+      "quote_or_value": "LDL 178 mg/dL",
+      "bbox": [0.1, 0.2, 0.4, 0.24],
+      "bbox_unit": "exact",
+      "confidence": 0.95,
+      "page_index": 0
+    }
+  ],
+  "expectations": {
+    "min_accepted_claims": 1
+  }
+}
