@@ -11,13 +11,26 @@
     "trace_id": "tp-25",
     "planner_status": "planned",
     "tool_calls": [
-      {"name": "get_patient_identity", "arguments": {}},
-      {"name": "get_active_medications", "arguments": {}},
-      {"name": "get_allergy_list", "arguments": {}}
+      {
+        "name": "get_patient_identity",
+        "arguments": {}
+      },
+      {
+        "name": "get_active_medications",
+        "arguments": {}
+      },
+      {
+        "name": "get_allergy_list",
+        "arguments": {}
+      }
     ]
   },
   "expectations": {
     "planner_status": "planned",
-    "expected_tools": ["get_patient_identity", "get_active_medications", "get_allergy_list"]
+    "expected_tools": [
+      "get_patient_identity",
+      "get_active_medications",
+      "get_allergy_list"
+    ]
   }
 }

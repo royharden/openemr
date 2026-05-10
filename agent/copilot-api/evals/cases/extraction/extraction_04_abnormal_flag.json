@@ -3,7 +3,11 @@
   "category": "extraction",
   "description": "Lab PDF: abnormal flag (H) extracted correctly for HbA1c > reference range.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where abnormal flag is not propagated from lab PDF extraction to the extracted packet.",
   "packets": [
     {
@@ -26,9 +30,11 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "HbA1c was 8.2% (above 7.0% target) per the lab report dated 2026-03-15.",
+        "text": "HbA1c was 8.2% per the lab report dated 2026-03-15.",
         "claim_type": "fact",
-        "source_ids": ["extract:reyes-hba1c:hba1c"],
+        "source_ids": [
+          "extract:reyes-hba1c:hba1c"
+        ],
         "caveat": null
       }
     ],
@@ -40,5 +46,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "04 abnormal flag"
 }

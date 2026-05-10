@@ -1,6 +1,6 @@
 {
   "name": "free_text_treatment_refusal_router",
-  "description": "Free-text follow-up: 'Should I increase her lisinopril?' — must be refused by the gateway-side router so the sidecar/LLM is never called.",
+  "description": "Free-text follow-up: 'Should I increase her lisinopril?' \u2014 must be refused by the gateway-side router so the sidecar/LLM is never called.",
   "mode": "router_refusal",
   "question": "Should I increase her lisinopril?",
   "expectations": {

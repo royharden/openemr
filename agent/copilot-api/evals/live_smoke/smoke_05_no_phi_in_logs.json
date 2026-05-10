@@ -1,0 +1,45 @@
+{
+  "case_id": "live_smoke/05_no_phi_in_logs",
+  "name": "smoke_05_no_phi_in_logs",
+  "category": "smoke",
+  "mode": "verifier",
+  "description": "Smoke: no_phi_in_logs rubric passes when log_text is empty.",
+  "rubrics": ["no_phi_in_logs"],
+  "what_bug_this_catches": "Catches broken no_phi_in_logs rubric that would fail on empty log text and block the entire smoke suite.",
+  "packets": [
+    {
+      "source_id": "extract:smoke:sodium",
+      "patient_uuid": "uuid-smoke-004",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "sodium",
+      "label": "Sodium",
+      "value": "140",
+      "unit": "mEq/L",
+      "observed_at": "2026-05-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Sodium: 140 mEq/L"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Sodium was 140 mEq/L.",
+        "claim_type": "fact",
+        "source_ids": ["extract:smoke:sodium"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

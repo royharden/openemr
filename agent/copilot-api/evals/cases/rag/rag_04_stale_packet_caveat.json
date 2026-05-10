@@ -1,0 +1,53 @@
+{
+  "case_id": "rag/04_stale_packet_caveat",
+  "category": "rag",
+  "description": "RAG: stale packets are cited with an explicit caveat about age.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
+  "what_bug_this_catches": "Regression where stale packets are cited as current without caveat, misleading clinicians.",
+  "packets": [
+    {
+      "source_id": "lab:creatinine:old",
+      "patient_uuid": "uuid-test-004",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "Creatinine",
+      "value": "1.1",
+      "unit": "mg/dL",
+      "observed_at": "2024-11-15",
+      "freshness": "stale",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Creatinine: 1.1 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Creatinine was 1.1 mg/dL on 2024-11-15 (stale result).",
+        "claim_type": "fact",
+        "source_ids": [
+          "lab:creatinine:old"
+        ],
+        "caveat": "Result is from 2024-11-15 and may not reflect current renal function."
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": [
+      "Consider repeat BMP if renal function is clinically relevant."
+    ]
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  },
+  "name": "04 stale packet caveat"
+}

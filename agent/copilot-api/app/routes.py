@@ -15,8 +15,9 @@ File-size limits (AgDR plan §6 / hard rules):
 from __future__ import annotations
 
 import hashlib
-import io
 import logging
+import os
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -47,7 +48,6 @@ def _validate_upload_size(content: bytes, filename: str) -> None:
 
 
 def _validate_pdf_page_count(content: bytes, filename: str) -> None:
-    """Reject PDFs with more than 10 pages."""
     try:
         import pypdfium2 as pdfium  # type: ignore[import-untyped]
         doc = pdfium.PdfDocument(content)
@@ -79,9 +79,6 @@ async def extract_lab_pdf(
     """Extract structured lab results from a PDF using Anthropic Vision + pdfplumber.
 
     Returns an ``ExtractedDocument`` with ``LabResult`` payload.
-    The PHP gateway is responsible for persisting the results to
-    ``copilot_document_facts`` via ``DocumentFactsRepository``.
-
     File constraints: max 10 pages, max 8 MB. Returns HTTP 413 if exceeded.
     """
     from .extractors.lab_pdf import extract_lab_pdf as _extract
@@ -125,9 +122,6 @@ async def extract_intake_form(
     """Extract structured fields from an intake form (typed PDF, scanned PNG/JPEG).
 
     Returns an ``ExtractedDocument`` with ``IntakeFields`` payload.
-    For image-only forms, bbox is omitted; verbatim quotes may be null for
-    handwritten fields.
-
     File constraints: max 10 pages (PDFs), max 8 MB.
     """
     from .extractors.intake_form import extract_intake_form as _extract
@@ -158,7 +152,7 @@ async def extract_intake_form(
     return JSONResponse(content=result)
 
 
-# === Wk2 Workstream C: POST /v1/copilot/answer — LangGraph supervisor entrypoint ===
+# === Wk2 Workstream C: POST /v1/copilot/answer — LangGraph supervisor ===
 
 
 class _CopilotAnswerRequest(BaseModel):
@@ -188,15 +182,12 @@ async def copilot_answer(body: _CopilotAnswerRequest) -> JSONResponse:
     """Execute the CopilotState LangGraph graph.
 
     Accepts a clinical question + optional document refs + pre-fetched packets.
-    Runs through intake_extractor → evidence_retriever → synthesizer → verifier
+    Runs through intake_extractor -> evidence_retriever -> synthesizer -> verifier
     (some nodes may be skipped by the deterministic supervisor routing).
 
-    Returns a ``VerifiedResponse``-shaped JSON payload. Always returns 200 on
+    Returns a VerifiedResponse-shaped JSON payload. Always returns 200 on
     logical completion; verifier_status reflects clinical quality, not HTTP status.
     """
-    import os
-    import uuid
-
     from .graph.build import get_compiled_graph
     from .graph.state import CopilotState
 
@@ -219,7 +210,7 @@ async def copilot_answer(body: _CopilotAnswerRequest) -> JSONResponse:
         "verified_response": None,
         "current_node": "start",
         "graph_path": [],
-        "worker_handoffs": 0,
+        "worker_handoffs": [],
         "decision_reason": "",
         "error_message": None,
         "low_confidence_count": 0,
@@ -227,7 +218,6 @@ async def copilot_answer(body: _CopilotAnswerRequest) -> JSONResponse:
         "langfuse_trace_id": run_id,
     }
 
-    # Inject pre-fetched gateway packets into extracted_packets
     if body.packets:
         from .schemas import SourcePacket
 

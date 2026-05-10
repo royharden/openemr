@@ -1,0 +1,45 @@
+{
+  "case_id": "live_smoke/01_verifier_passes",
+  "name": "smoke_01_verifier_passes",
+  "category": "smoke",
+  "mode": "verifier",
+  "description": "Smoke: verifier accepts a well-formed claim with a valid source_id.",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Catches broken verifier import or schema regression that would make the runner crash on startup.",
+  "packets": [
+    {
+      "source_id": "extract:smoke:ldl",
+      "patient_uuid": "uuid-smoke-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "ldl",
+      "label": "LDL",
+      "value": "130",
+      "unit": "mg/dL",
+      "observed_at": "2026-05-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "LDL: 130 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "LDL was 130 mg/dL per recent labs.",
+        "claim_type": "fact",
+        "source_ids": ["extract:smoke:ldl"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "case_id": "citation/08_multiple_citations",
+  "category": "citation",
+  "description": "Citation present: trend claim cites two valid packets with matching values.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
+  "what_bug_this_catches": "Regression where trend claims with multiple citations are incorrectly rejected.",
+  "packets": [
+    {
+      "source_id": "lab:ldl:jan",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "LDL",
+      "value": "130",
+      "unit": "mg/dL",
+      "observed_at": "2026-01-15",
+      "freshness": "recent",
+      "status": "final"
+    },
+    {
+      "source_id": "lab:ldl:apr",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "LDL",
+      "value": "122",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "LDL improved from 130 mg/dL in January to 122 mg/dL in April.",
+        "claim_type": "trend",
+        "source_ids": [
+          "lab:ldl:jan",
+          "lab:ldl:apr"
+        ],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  },
+  "name": "08 multiple citations"
+}

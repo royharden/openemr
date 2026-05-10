@@ -10,13 +10,29 @@
     "trace_id": "tp-27",
     "planner_status": "planned",
     "tool_calls": [
-      {"name": "get_patient_identity", "arguments": {}},
-      {"name": "get_active_problems", "arguments": {}},
-      {"name": "get_recent_labs", "arguments": {"months": 6, "limit": 10}}
+      {
+        "name": "get_patient_identity",
+        "arguments": {}
+      },
+      {
+        "name": "get_active_problems",
+        "arguments": {}
+      },
+      {
+        "name": "get_recent_labs",
+        "arguments": {
+          "months": 6,
+          "limit": 10
+        }
+      }
     ]
   },
   "expectations": {
     "planner_status": "planned",
-    "expected_tools": ["get_patient_identity", "get_active_problems", "get_recent_labs"]
+    "expected_tools": [
+      "get_patient_identity",
+      "get_active_problems",
+      "get_recent_labs"
+    ]
   }
 }

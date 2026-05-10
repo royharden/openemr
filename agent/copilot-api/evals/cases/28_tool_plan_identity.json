@@ -11,11 +11,16 @@
     "trace_id": "tp-28",
     "planner_status": "planned",
     "tool_calls": [
-      {"name": "get_patient_identity", "arguments": {}}
+      {
+        "name": "get_patient_identity",
+        "arguments": {}
+      }
     ]
   },
   "expectations": {
     "planner_status": "planned",
-    "expected_tools": ["get_patient_identity"]
+    "expected_tools": [
+      "get_patient_identity"
+    ]
   }
 }

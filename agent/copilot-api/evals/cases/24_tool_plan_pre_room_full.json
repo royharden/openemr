@@ -10,12 +10,33 @@
     "trace_id": "tp-24",
     "planner_status": "planned",
     "tool_calls": [
-      {"name": "get_patient_identity", "arguments": {}},
-      {"name": "get_active_problems", "arguments": {}},
-      {"name": "get_active_medications", "arguments": {}},
-      {"name": "get_allergy_list", "arguments": {}},
-      {"name": "get_recent_labs", "arguments": {"months": 6, "limit": 20}},
-      {"name": "get_immunization_history", "arguments": {}}
+      {
+        "name": "get_patient_identity",
+        "arguments": {}
+      },
+      {
+        "name": "get_active_problems",
+        "arguments": {}
+      },
+      {
+        "name": "get_active_medications",
+        "arguments": {}
+      },
+      {
+        "name": "get_allergy_list",
+        "arguments": {}
+      },
+      {
+        "name": "get_recent_labs",
+        "arguments": {
+          "months": 6,
+          "limit": 20
+        }
+      },
+      {
+        "name": "get_immunization_history",
+        "arguments": {}
+      }
     ]
   },
   "expectations": {

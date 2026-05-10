@@ -2,13 +2,45 @@
   "name": "a1c_trend_two_sources",
   "description": "Trend claim must cite >=2 source_ids with comparable values.",
   "packets": [
-    {"source_id": "lab:a1c:jan", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "result", "label": "A1c", "value": "7.4", "unit": "%", "observed_at": "2026-01-15", "freshness": "recent", "status": "final"},
-    {"source_id": "lab:a1c:apr", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "result", "label": "A1c", "value": "8.1", "unit": "%", "observed_at": "2026-04-20", "freshness": "recent", "status": "final"}
+    {
+      "source_id": "lab:a1c:jan",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "7.4",
+      "unit": "%",
+      "observed_at": "2026-01-15",
+      "freshness": "recent",
+      "status": "final"
+    },
+    {
+      "source_id": "lab:a1c:apr",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "8.1",
+      "unit": "%",
+      "observed_at": "2026-04-20",
+      "freshness": "recent",
+      "status": "final"
+    }
   ],
   "llm_output": {
     "answer_type": "pre_room_brief",
     "claims": [
-      {"text": "A1c rose from 7.4% (Jan) to 8.1% (Apr).", "claim_type": "trend", "source_ids": ["lab:a1c:jan", "lab:a1c:apr"], "caveat": null}
+      {
+        "text": "A1c rose from 7.4% (Jan) to 8.1% (Apr).",
+        "claim_type": "trend",
+        "source_ids": [
+          "lab:a1c:jan",
+          "lab:a1c:apr"
+        ],
+        "caveat": null
+      }
     ],
     "missing_data": [],
     "refusals": [],

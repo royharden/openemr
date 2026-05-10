@@ -1,0 +1,66 @@
+{
+  "case_id": "rag/01_relevant_packet_ranked_first",
+  "category": "rag",
+  "description": "RAG: the most relevant packet for the question ranks first in retrieval.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
+  "what_bug_this_catches": "Regression where reranker returns packets in insertion order regardless of query relevance.",
+  "packets": [
+    {
+      "source_id": "lab:hba1c:001",
+      "patient_uuid": "uuid-test-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "HbA1c",
+      "value": "8.2",
+      "unit": "%",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "HbA1c: 8.2%"
+    },
+    {
+      "source_id": "med:metformin:001",
+      "patient_uuid": "uuid-test-001",
+      "resource_type": "MedicationRequest",
+      "source_table": "prescriptions",
+      "field": "drug",
+      "label": "Metformin",
+      "value": "500mg twice daily",
+      "unit": null,
+      "observed_at": "2026-03-15",
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "document_extract",
+      "quote_or_value": "Metformin 500mg BID"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "HbA1c was 8.2% on 2026-04-01.",
+        "claim_type": "fact",
+        "source_ids": [
+          "lab:hba1c:001"
+        ],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  },
+  "name": "01 relevant packet ranked first"
+}

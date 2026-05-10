@@ -1,0 +1,53 @@
+{
+  "case_id": "citation/05_guideline_chunk",
+  "category": "citation",
+  "description": "Citation present: claim cites a guideline chunk source packet.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
+  "what_bug_this_catches": "Regression where guideline_chunk source_type packets are not accepted as valid citations.",
+  "packets": [
+    {
+      "source_id": "chunk:acip:tdap:adult",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "GuidelineChunk",
+      "source_table": "guideline",
+      "field": "recommendation",
+      "label": "Tdap booster",
+      "value": "Adults who have not received Tdap as adults should receive a one-time dose",
+      "unit": null,
+      "observed_at": null,
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "guideline_chunk",
+      "page_or_section": "Adult Immunization Schedule",
+      "recommendation_grade": "A",
+      "source_year": 2024,
+      "source_organization": "CDC-ACIP"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Per CDC-ACIP guidelines, adults who have not received Tdap should receive a one-time dose.",
+        "claim_type": "fact",
+        "source_ids": [
+          "chunk:acip:tdap:adult"
+        ],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  },
+  "name": "05 guideline chunk"
+}

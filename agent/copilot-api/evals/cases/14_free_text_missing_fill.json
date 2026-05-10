@@ -1,20 +1,45 @@
 {
   "name": "free_text_missing_fill_record",
-  "description": "Free-text follow-up: 'Did she fill her Metformin?' with no fill record packet — verifier must surface a missing_data line and drop any unsupported claim.",
-  "request": {"use_case": "free_text_followup"},
+  "description": "Free-text follow-up: 'Did she fill her Metformin?' with no fill record packet \u2014 verifier must surface a missing_data line and drop any unsupported claim.",
+  "request": {
+    "use_case": "free_text_followup"
+  },
   "packets": [
-    {"source_id": "id:patient_data:42", "patient_uuid": "uuid-A", "resource_type": "Patient", "source_table": "patient_data", "field": "name", "label": "Patient", "value": "Maria G., 58F", "freshness": "recent"},
-    {"source_id": "rx:prescriptions:202", "patient_uuid": "uuid-A", "resource_type": "MedicationRequest", "source_table": "prescriptions", "field": "drug", "label": "Active medication", "value": "Metformin 500 mg PO BID", "freshness": "recent", "status": "active"}
+    {
+      "source_id": "id:patient_data:42",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Patient",
+      "source_table": "patient_data",
+      "field": "name",
+      "label": "Patient",
+      "value": "Maria G., 58F",
+      "freshness": "recent"
+    },
+    {
+      "source_id": "rx:prescriptions:202",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationRequest",
+      "source_table": "prescriptions",
+      "field": "drug",
+      "label": "Active medication",
+      "value": "Metformin 500 mg PO BID",
+      "freshness": "recent",
+      "status": "active"
+    }
   ],
   "llm_output": {
     "answer_type": "follow_up",
     "claims": [],
-    "missing_data": ["No medication-fill records available to confirm Metformin adherence."],
+    "missing_data": [
+      "No medication-fill records available to confirm Metformin adherence."
+    ],
     "refusals": [],
     "suggested_followups": []
   },
   "expectations": {
     "verifier_status": "passed",
-    "must_state_missing": ["fill"]
+    "must_state_missing": [
+      "fill"
+    ]
   }
 }

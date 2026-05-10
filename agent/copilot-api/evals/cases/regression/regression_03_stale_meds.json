@@ -1,0 +1,73 @@
+{
+  "case_id": "regression/03_stale_meds",
+  "category": "regression",
+  "description": "Wk1 regression: stale_data_uncaveat \u2014 stale medication claim must include staleness caveat.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
+  "what_bug_this_catches": "Wk1 regression: stale_data_uncaveat rule \u2014 claims citing stale packets without a staleness caveat are dropped.",
+  "regression_marker": "wk1:06_stale_meds.json",
+  "packets": [
+    {
+      "source_id": "med:lists:5",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationStatement",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Active medication (problem list)",
+      "value": "Lisinopril 10mg daily",
+      "observed_at": "2024-08-01",
+      "last_updated": "2024-08-01",
+      "freshness": "stale",
+      "status": "active"
+    },
+    {
+      "source_id": "rx:prescriptions:11",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationRequest",
+      "source_table": "prescriptions",
+      "field": "drug",
+      "label": "Active prescription",
+      "value": "Atorvastatin",
+      "observed_at": "2026-04-15",
+      "last_updated": "2026-04-15",
+      "freshness": "recent",
+      "status": "active"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Currently on Lisinopril 10mg daily.",
+        "claim_type": "fact",
+        "source_ids": [
+          "med:lists:5"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "Currently on Atorvastatin.",
+        "claim_type": "fact",
+        "source_ids": [
+          "rx:prescriptions:11"
+        ],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed_with_drops",
+    "min_accepted_claims": 1,
+    "min_dropped": 1,
+    "rules_must_fire": [
+      "stale_data_uncaveat"
+    ]
+  },
+  "name": "03 stale meds"
+}

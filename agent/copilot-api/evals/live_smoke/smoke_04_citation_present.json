@@ -1,0 +1,44 @@
+{
+  "case_id": "live_smoke/04_citation_present",
+  "name": "smoke_04_citation_present",
+  "category": "smoke",
+  "mode": "citation",
+  "description": "Smoke: citation rubric verifies all claims have non-empty source_ids.",
+  "rubrics": ["citation_present"],
+  "what_bug_this_catches": "Catches broken citation_present rubric registration or citation mode in runner.",
+  "packets": [
+    {
+      "source_id": "extract:smoke:glucose",
+      "patient_uuid": "uuid-smoke-003",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "glucose",
+      "label": "Glucose",
+      "value": "98",
+      "unit": "mg/dL",
+      "observed_at": "2026-05-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Glucose: 98 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Glucose was 98 mg/dL per recent labs.",
+        "claim_type": "fact",
+        "source_ids": ["extract:smoke:glucose"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1
+  }
+}

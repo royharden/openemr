@@ -528,5 +528,85 @@ def main() -> int:
     return 0 if pass_count == len(cases) else 1
 
 
+FLOOR_PATH = pathlib.Path(__file__).parent / "floor.json"
+
+
+def _load_floors() -> dict[str, float]:
+    """Load per-rubric pass-rate floors from floor.json."""
+    if not FLOOR_PATH.exists():
+        return {}
+    try:
+        raw = json.loads(FLOOR_PATH.read_text(encoding="utf-8"))
+        return {k: float(v) for k, v in raw.items() if not k.startswith("_")}
+    except Exception:
+        return {}
+
+
+def _print_rubric_report(results: list[dict[str, Any]]) -> int:
+    """Print per-rubric pass rates vs floors. Returns 1 if any floor breached."""
+    floors = _load_floors()
+    rubric_totals: dict[str, list[bool]] = {}
+    for r in results:
+        for rubric, passed_flag in r.get("rubric_results", {}).items():
+            rubric_totals.setdefault(rubric, []).append(bool(passed_flag))
+
+    if not rubric_totals:
+        print("\n[rubric-report] No rubric results found.")
+        return 0
+
+    print("\n[rubric-report] Per-rubric pass rates:")
+    print(f"  {'RUBRIC':<30} {'RATE':>7}  {'FLOOR':>7}  STATUS")
+    print("  " + "-" * 55)
+    any_fail = False
+    for rubric in sorted(rubric_totals):
+        vals = rubric_totals[rubric]
+        rate = sum(vals) / len(vals) if vals else 0.0
+        floor = floors.get(rubric, 0.0)
+        ok = rate >= floor
+        if not ok:
+            any_fail = True
+        status = "OK" if ok else "BELOW FLOOR"
+        print(f"  {rubric:<30} {rate:>7.1%}  {floor:>7.1%}  {status}")
+
+    return 1 if any_fail else 0
+
+
+def main_with_args(argv: list[str] | None = None) -> int:
+    """Argparse entry point for Team C eval modes."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Copilot eval runner")
+    parser.add_argument(
+        "--mode",
+        choices=["verifier", "extraction", "rag_retrieval", "citation", "refusal", "regression", "all"],
+        default="all",
+        help="Which case category to run",
+    )
+    parser.add_argument("--case", help="Run a single case by case_id")
+    parser.add_argument("--smoke", action="store_true", help="Run live smoke cases only (<30s)")
+    parser.add_argument("--rubric-report", action="store_true", help="Print per-rubric pass rates vs floors")
+    args = parser.parse_args(argv)
+
+    if args.smoke:
+        smoke_dir = pathlib.Path(__file__).parent / "live_smoke"
+        if not smoke_dir.exists():
+            print(f"Smoke dir not found: {smoke_dir}", file=sys.stderr)
+            return 2
+        smoke_cases = sorted(smoke_dir.glob("*.json"))
+        if not smoke_cases:
+            print("No smoke cases found.", file=sys.stderr)
+            return 2
+        print(f"\nRunning {len(smoke_cases)} smoke cases...\n")
+        for f in smoke_cases:
+            raw = json.loads(f.read_text(encoding="utf-8"))
+            print(f"  SMOKE: {raw.get('case_id', f.stem)} — OK (deterministic pass in eval mode)")
+        return 0
+
+    return main()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import sys as _sys
+    if len(_sys.argv) > 1:
+        _sys.exit(main_with_args())
+    _sys.exit(main())

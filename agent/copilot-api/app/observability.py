@@ -1,12 +1,29 @@
-"""Langfuse instrumentation - PHI-safe metadata only.
-
-Wk1 functions are preserved. Wk2 (Workstream C) adds graph-span helpers below.
-"""
+"""Langfuse instrumentation - PHI-safe metadata only."""
 
 from __future__ import annotations
 
 import os
+import re as _re
 from typing import Any
+
+# ---------------------------------------------------------------------------
+# PHI scrubbing (AgDR-0055)
+# ---------------------------------------------------------------------------
+
+_PHI_PATTERNS = [
+    _re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),               # SSN
+    _re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),                # ISO date
+    _re.compile(r"\b\d{3}[.\-\s]\d{3}[.\-\s]\d{4}\b"),   # phone
+    _re.compile(r"\bMRN[:\s]\s*\S+", _re.IGNORECASE),     # MRN
+    _re.compile(r"\bpatient[_\s]?name[:\s]\s*\S+", _re.IGNORECASE),
+]
+
+
+def scrub_phi(text: str) -> str:
+    """Replace PHI-like patterns with [REDACTED] before Langfuse emission."""
+    for pattern in _PHI_PATTERNS:
+        text = pattern.sub("[REDACTED]", text)
+    return text
 
 try:
     from langfuse import Langfuse
@@ -205,30 +222,6 @@ def record_brief(
         pass
 
 
-# =============================================================================
-# Wk2 Workstream C: graph span helpers
-# PHI scrubber runs before any span emission (AgDR-0055).
-# =============================================================================
-
-import re as _re
-
-# Patterns that MUST NOT appear in any span metadata.
-_PHI_PATTERNS = [
-    _re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),               # SSN
-    _re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),                # ISO date (DOB risk)
-    _re.compile(r"\b\d{3}[.\-\s]\d{3}[.\-\s]\d{4}\b"),   # phone
-    _re.compile(r"\bMRN[:\s]\s*\S+", _re.IGNORECASE),     # MRN (with optional space)
-    _re.compile(r"\bpatient[_\s]?name[:\s]\s*\S+", _re.IGNORECASE),  # patient name
-]
-
-
-def scrub_phi(text: str) -> str:
-    """Replace PHI-like patterns with [REDACTED] before emitting to Langfuse."""
-    for pattern in _PHI_PATTERNS:
-        text = pattern.sub("[REDACTED]", text)
-    return text
-
-
 def record_graph_span(
     trace_id: str,
     node_name: str,
@@ -236,25 +229,22 @@ def record_graph_span(
     worker_handoffs: list[dict[str, Any]],
     decision_reason: str,
     duration_ms: float,
-    extra: dict[str, Any] | None = None,
 ) -> None:
-    """Emit a Langfuse span for one graph node. PHI scrubbed before emit."""
+    """Emit a Langfuse span for a LangGraph node transition. PHI-scrubbed. Best-effort."""
     client = _get_client()
     if client is None:
         return
     try:
-        safe_reason = scrub_phi(decision_reason or "")
-        metadata: dict[str, Any] = {
-            "graph_node": node_name,
-            "graph_path": graph_path,
-            "worker_handoffs": worker_handoffs,
-            "decision_reason": safe_reason,
-            "duration_ms": duration_ms,
-        }
-        if extra:
-            for k, v in extra.items():
-                metadata[scrub_phi(str(k))] = scrub_phi(str(v)) if isinstance(v, str) else v
+        safe_reason = scrub_phi(decision_reason)
         trace = client.trace(id=trace_id, name="clinical_copilot.graph")
-        trace.span(name=f"graph.{node_name}", metadata=metadata)
+        trace.span(
+            name=f"graph.{node_name}",
+            metadata={
+                "graph_path": graph_path,
+                "worker_handoffs": worker_handoffs,
+                "decision_reason": safe_reason,
+                "duration_ms": duration_ms,
+            },
+        )
     except Exception:
         pass

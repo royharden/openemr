@@ -10,7 +10,10 @@
     "trace_id": "tp-31",
     "planner_status": "planned",
     "tool_calls": [
-      {"name": "read_arbitrary_table", "arguments": {}}
+      {
+        "name": "read_arbitrary_table",
+        "arguments": {}
+      }
     ]
   },
   "expectations": {

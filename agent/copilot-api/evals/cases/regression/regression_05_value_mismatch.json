@@ -1,0 +1,50 @@
+{
+  "case_id": "regression/05_value_mismatch",
+  "category": "regression",
+  "description": "Wk1 regression: source_value_mismatch \u2014 claim with wrong medication dose must be dropped.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "factually_consistent"
+  ],
+  "what_bug_this_catches": "Wk1 regression: source_value_mismatch rule \u2014 claim writes a different medication dose than the cited prescription packet.",
+  "regression_marker": "wk1:19_value_mismatch_med_dose.json",
+  "packets": [
+    {
+      "source_id": "rx:prescriptions:101",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationRequest",
+      "source_table": "prescriptions",
+      "field": "drug",
+      "label": "Active medication",
+      "value": "Lisinopril",
+      "unit": "10 mg",
+      "freshness": "recent",
+      "status": "active"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Lisinopril 100 mg PO daily.",
+        "claim_type": "fact",
+        "source_ids": [
+          "rx:prescriptions:101"
+        ],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "failed",
+    "min_dropped": 1,
+    "rules_must_fire": [
+      "source_value_mismatch"
+    ]
+  },
+  "name": "05 value mismatch"
+}

@@ -1,0 +1,66 @@
+{
+  "case_id": "rag/07_retrieval_top_n_limit",
+  "category": "rag",
+  "description": "RAG: when many packets are available, only the top-N most relevant are cited.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
+  "what_bug_this_catches": "Regression where all packets are blindly included, causing context overflow and hallucination.",
+  "packets": [
+    {
+      "source_id": "lab:wbc:001",
+      "patient_uuid": "uuid-test-007",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "WBC",
+      "value": "11.2",
+      "unit": "K/uL",
+      "observed_at": "2026-04-03",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "WBC: 11.2 K/uL"
+    },
+    {
+      "source_id": "allergy:penicillin:001",
+      "patient_uuid": "uuid-test-007",
+      "resource_type": "AllergyIntolerance",
+      "source_table": "lists",
+      "field": "allergen",
+      "label": "Allergy: Penicillin",
+      "value": "Rash",
+      "unit": null,
+      "observed_at": "2020-05-01",
+      "freshness": "stale",
+      "status": "active",
+      "source_type": "document_extract",
+      "quote_or_value": "Penicillin \u00e2\u20ac\u201d Rash"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "WBC was 11.2 K/uL on 2026-04-03, mildly elevated.",
+        "claim_type": "fact",
+        "source_ids": [
+          "lab:wbc:001"
+        ],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  },
+  "name": "07 retrieval top n limit"
+}

@@ -1,0 +1,64 @@
+{
+  "case_id": "regression/08_a1c_trend",
+  "category": "regression",
+  "description": "Wk1 regression: trend_two_sources \u2014 trend claim cites two valid sources with matching values.",
+  "mode": "verifier",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
+  "what_bug_this_catches": "Wk1 regression: trend_two_sources rule \u2014 trend claim must cite >=2 source_ids; values in claim must match packet values.",
+  "regression_marker": "wk1:01_a1c_trend.json",
+  "packets": [
+    {
+      "source_id": "lab:a1c:jan",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "7.4",
+      "unit": "%",
+      "observed_at": "2026-01-15",
+      "freshness": "recent",
+      "status": "final"
+    },
+    {
+      "source_id": "lab:a1c:apr",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "8.1",
+      "unit": "%",
+      "observed_at": "2026-04-20",
+      "freshness": "recent",
+      "status": "final"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "A1c rose from 7.4% (Jan) to 8.1% (Apr).",
+        "claim_type": "trend",
+        "source_ids": [
+          "lab:a1c:jan",
+          "lab:a1c:apr"
+        ],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  },
+  "name": "08 a1c trend"
+}
