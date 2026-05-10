@@ -29,7 +29,7 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "CDC-ACIP 2024 recommends PCV21 for adults 65 or older not previously vaccinated with a pneumococcal conjugate vaccine.",
+        "text": "CDC-ACIP recommends PCV21 for adults 65 or older not previously vaccinated with a pneumococcal conjugate vaccine.",
         "claim_type": "fact",
         "source_ids": ["chunk:acip:pneumococcal:2024"],
         "caveat": null

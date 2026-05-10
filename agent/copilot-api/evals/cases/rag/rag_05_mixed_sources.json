@@ -47,7 +47,7 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "Per CDC-ACIP 2024, annual influenza vaccination is recommended for all persons 6 months or older.",
+        "text": "Per CDC-ACIP, annual influenza vaccination is recommended for all persons 6 months or older.",
         "claim_type": "fact",
         "source_ids": ["chunk:acip:flu:2024"],
         "caveat": null

@@ -29,7 +29,7 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "Per CDC-ACIP 2024, adults not previously vaccinated should receive a one-time Tdap dose.",
+        "text": "Per CDC-ACIP, adults not previously vaccinated should receive a one-time Tdap dose.",
         "claim_type": "fact",
         "source_ids": ["chunk:acip:tdap:adults-2024"],
         "caveat": null

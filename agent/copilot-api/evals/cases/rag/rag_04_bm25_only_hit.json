@@ -29,7 +29,7 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "Per CDC-ACIP 2023, RZV is recommended for adults 50 years or older.",
+        "text": "Per CDC-ACIP, RZV is recommended for adults 50 years or older.",
         "claim_type": "fact",
         "source_ids": ["chunk:acip:zoster:adults-2023"],
         "caveat": null

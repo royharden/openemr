@@ -32,7 +32,7 @@
         "caveat": null
       }
     ],
-    "missing_data": ["TSH not present in submitted lab PDF."],
+    "missing_data": ["Thyroid panel not present in submitted lab PDF."],
     "refusals": [],
     "suggested_followups": []
   },

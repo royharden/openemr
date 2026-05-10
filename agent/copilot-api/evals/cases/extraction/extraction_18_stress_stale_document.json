@@ -26,7 +26,7 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "Most recent available LDL was 162 mg/dL dated 2024-11-05 (over 1 year ago); consider ordering a current lipid panel.",
+        "text": "Most recent available LDL was 162 mg/dL dated 2024-11-05.",
         "claim_type": "fact",
         "source_ids": ["extract:chen-lipid-2024:ldl"],
         "caveat": "Data is over 1 year old and may not reflect current status."

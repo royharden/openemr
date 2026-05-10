@@ -29,7 +29,7 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "Per CDC-ACIP (2015), two MMR doses are recommended for adults without evidence of immunity.",
+        "text": "Per CDC-ACIP, two MMR doses are recommended for adults who have not previously demonstrated immunity.",
         "claim_type": "fact",
         "source_ids": ["chunk:acip:measles:2015"],
         "caveat": "This recommendation is from 2015; verify against the current schedule."
