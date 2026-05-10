@@ -111,7 +111,10 @@ case "${MODE}" in
         RUNNER_ARGS+=(--smoke)
         ;;
     full)
-        RUNNER_ARGS+=(--full)
+        # Default runner behavior is "all cases". --full was an internal alias
+        # never wired into the runner's argparse; passing it caused
+        # "unrecognized arguments: --full" on every CI run.
+        :
         ;;
     *)
         echo "run_eval_gate.sh: internal error: unhandled MODE=${MODE}" >&2
