@@ -6,20 +6,39 @@ See Plan §15.5.12 (freshness check) and the `testing-discipline-clinical-copilo
 
 ## Last regenerated
 
-2026-05-09
+2026-05-10
 
 ## L1 — Pure unit (`agent\copilot-api\tests\unit/`)
 
+- **test_bbox_text_match.py** — Unit tests for pdfplumber bbox text-matching logic (Wk2 Workstream A, §15.5).
+- **test_chunker.py** — L1: Section-boundary chunker unit tests.
+- **test_corpus_idempotency.py** — L1: Corpus idempotency unit tests.
 - **test_eval_case_schema.py** — L1: evals/case_schema.json validates Wk1 cases unchanged AND locks Wk2 case shape.
+- **test_intake_extractor.py** — Unit tests for app/extractors/intake_form.py (Wk2 Workstream A, §15.5).
+- **test_lab_extractor.py** — Unit tests for app/extractors/lab_pdf.py (Wk2 Workstream A, §15.5).
 - **test_rag_contracts.py** — L1: GuidelineChunk Pydantic round-trip + validators (Wk2 W0.5 RAG contract-freeze).
+- **test_reranker_cohere.py** — L1: Cohere reranker unit tests (mocked HTTP).
+- **test_reranker_local_fallback.py** — L1: Local cross-encoder fallback reranker unit tests.
+- **test_retriever_bm25.py** — L1: BM25 retriever unit tests.
+- **test_retriever_vec.py** — L1: Vector retriever unit tests.
 - **test_routes_stubs.py** — L1: Wk2 W0.5 route stubs are registered and return HTTP 501 (Workstream A/C take over their bodies).
 - **test_schemas_lab_intake.py** — L1: Pydantic round-trip + validation for Wk2 LabResult/IntakeFields/ExtractedDocument shells (W0.5).
 - **test_schemas_source_packet_ext.py** — L1: Wk2 SourcePacket extension fields (bbox, citation contract). Backward-compatible with Wk1 packets.
 - **test_smoke_imports.py** — Smoke-import test — confirms the sidecar package imports cleanly.
+- **test_verifier_bbox_well_formed.py** — Unit tests for verifier rule: bbox_well_formed (Wk2 Workstream A, §15.5).
+- **test_verifier_chunk_id_in_corpus.py** — L1: Verifier rule chunk_id_in_corpus — positive/negative/edge tests.
+- **test_verifier_extracted_field_in_schema.py** — Unit tests for verifier rule: extracted_field_in_schema (Wk2 Workstream A, §15.5).
+- **test_verifier_guideline_grade_present.py** — L1: Verifier rule guideline_grade_present — positive/negative/edge tests.
+- **test_verifier_quote_verbatim_in_pdf.py** — Unit tests for verifier rule: quote_verbatim_in_pdf (Wk2 Workstream A, §15.5).
+- **test_verifier_source_year_within_window.py** — L1: Verifier rule source_year_within_window — positive/negative/edge tests.
 
 ## L2 — Integration (`agent\copilot-api\tests\integration/`)
 
-*(empty — populated as Teams A/B/C land tests)*
+- **test_corpus_build_idempotent.py** — L2: Corpus build idempotency integration test.
+- **test_extract_intake_endpoint.py** — Integration tests for POST /v1/extract/intake-form (Wk2 Workstream A, §15.5).
+- **test_extract_lab_endpoint.py** — Integration tests for POST /v1/extract/lab-pdf (Wk2 Workstream A, §15.5).
+- **test_persistence_idempotency.py** — Integration tests for extraction idempotency (Wk2 Workstream A, §15.5).
+- **test_rag_pipeline_full.py** — L2: End-to-end RAG pipeline integration test.
 
 ## L3 — End-to-end (`agent\copilot-api\tests\e2e/`)
 
@@ -71,6 +90,81 @@ See Plan §15.5.12 (freshness check) and the `testing-discipline-clinical-copilo
 | `wk1` | `evals\cases\32_tool_plan_empty_fallback.json` | — |
 | `wk1` | `evals\cases\33_tool_plan_what_changed_full_fallback.json` | — |
 | `wk1` | `evals\cases\34_tool_plan_http_failure.json` | — |
+| `citation` | `evals\cases\citation\citation_01_happy_path.json` | Regression where citation_present rubric passes even when source_ids list is empty. |
+| `citation` | `evals\cases\citation\citation_02_bad_quote.json` | Regression where factually_consistent passes even when claim number does not match cited packet value. |
+| `citation` | `evals\cases\citation\citation_03_no_source_ids.json` | Regression where citation_present rubric doesn't check for empty source_ids list. |
+| `citation` | `evals\cases\citation\citation_04_unknown_source.json` | Regression where verifier does not reject claims referencing non-existent source_ids. |
+| `citation` | `evals\cases\citation\citation_05_guideline_chunk.json` | Regression where guideline_chunk source_type packets are not accepted as valid citations. |
+| `citation` | `evals\cases\citation\citation_06_cross_patient.json` | Regression where patient_binding rule is not enforced, allowing cross-patient data citation. |
+| `citation` | `evals\cases\citation\citation_07_stale_uncaveated.json` | Regression where stale_data_uncaveat rule does not fire when a stale packet is cited without acknowledgment. |
+| `citation` | `evals\cases\citation\citation_08_multiple_citations.json` | Regression where trend claims with multiple citations are incorrectly rejected. |
+| `extraction` | `evals\cases\extraction\ext_001_chen_lipid_schema_valid.json` | Catches extractors that return fields without citation packets or with wrong doc_type, breaking the downstream verifier's source attribution rule. |
+| `extraction` | `evals\cases\extraction\ext_002_chen_lipid_ldl_value.json` | Catches VLM hallucination where extracted lab values differ from the fixture ground truth, which would cause incorrect clinical facts in the brief. |
+| `extraction` | `evals\cases\extraction\ext_003_whitaker_cbc_schema.json` | Catches regression where CBC panel parsing drops one or more of the 5 core fields, which would cause missing data in the clinical brief for Whitaker's visit. |
+| `extraction` | `evals\cases\extraction\ext_004_chen_intake_chief_complaint.json` | Catches intake form extractor returning wrong field values for chief_complaint (hallucination), which could mislead the physician's pre-room brief. |
+| `extraction` | `evals\cases\extraction\ext_005_whitaker_intake_meds.json` | Catches extractor that drops self-reported medications from typed intake forms, which are critical for identifying drug-allergy conflicts before the visit. |
+| `extraction` | `evals\cases\extraction\ext_006_reyes_hba1c_elevated_flag.json` | Stress case: handwritten PNG scans often lose abnormal flags when OCR misreads the H/L markers. Missing H flag on HbA1c 8.2 would suppress the diabetes severity signal in the brief. |
+| `extraction` | `evals\cases\extraction\ext_007_reyes_hba1c_no_bbox_ok.json` | Stress case: extractor incorrectly rejecting all image-only lab fields because bbox is null (text layer absent). AgDR-0040 says bbox is derived from pdfplumber — if no text layer, citation is still valid with null bbox. |
+| `extraction` | `evals\cases\extraction\ext_008_reyes_intake_sparse.json` | Stress case: handwritten intake PNG with few legible fields. Extractor must not crash or return 0 fields when the form is sparse — returning fewer fields is correct; returning 0 or erroring is not. |
+| `extraction` | `evals\cases\extraction\ext_009_kowalski_cmp_schema.json` | Stress case: dirty CMP scan with print artifacts. Extractor must still find the 5 core CMP fields. Missing creatinine or BUN would hide kidney function data from the brief. |
+| `extraction` | `evals\cases\extraction\ext_010_kowalski_cmp_values.json` | Stress case: OCR digit confusion on dirty scans (0.9 misread as 0.6, or 140 misread as 140.0). Wrong numeric values from the CMP would generate false clinical alerts for kidney function. |
+| `extraction` | `evals\cases\extraction\ext_011_kowalski_intake_bp.json` | Stress case: handwritten BP '138/88' on dirty scan may be extracted as a single string instead of split into systolic/diastolic. Unsplit BP breaks the vitals schema and prevents the trending verifier from detecting hypertension. |
+| `extraction` | `evals\cases\extraction\ext_012_reyes_hba1c_page_index.json` | Stress case: single-image lab submissions need page_index=0. A null or incorrect page_index breaks the PDF.js bbox overlay (it tries to load page pageIndex+1 in the viewer). |
+| `extraction` | `evals\cases\extraction\ext_013_bbox_coordinates_normalized.json` | Catches unnormalized bbox coordinates (e.g., pixel values instead of [0,1] fractions). The PDF.js overlay would draw the rectangle in the wrong location or completely off-screen. |
+| `extraction` | `evals\cases\extraction\ext_014_source_id_unique_per_field.json` | Catches extractor reusing the same source_id for multiple fields, which would cause the verifier's source attribution rule to incorrectly merge distinct lab values into one citation packet. |
+| `extraction` | `evals\cases\extraction\ext_015_document_sha256_matches.json` | Catches document sha256 not being computed from raw file bytes (e.g., computed from a decoded string), which breaks the idempotency key SHA-256(patient_uuid + document_sha256 + field_path) and allows duplicate rows. |
+| `extraction` | `evals\cases\extraction\ext_016_no_phi_in_source_id.json` | Catches source_id leaking the raw patient UUID, which would expose PHI in traces, logs, and the Langfuse observability sink. The source_id must use the sha256 prefix of the document, not patient identity. |
+| `extraction` | `evals\cases\extraction\ext_017_kowalski_intake_weight.json` | Stress case: dirty scan background causes VLM to hallucinate or drop weight field. At 245 lbs Kowalski is at BMI ~33; missing weight prevents obesity-aware medication dosing context in the brief. |
+| `extraction` | `evals\cases\extraction\ext_018_reyes_hba1c_confidence_set.json` | Stress case: image-only extraction (no pdfplumber bbox) should still set a confidence score in [0,1]. A null confidence or out-of-range value fails Pydantic validation on SourcePacket, silently dropping the citation in the response. |
+| `extraction` | `evals\cases\extraction\extraction_01_lab_happy_path.json` | Regression where lab PDF extraction produces incorrect value or missing citation for a clearly typed field. |
+| `extraction` | `evals\cases\extraction\extraction_02_intake_happy_path.json` | Regression where intake form extraction produces incorrect vitals or missing citations. |
+| `extraction` | `evals\cases\extraction\extraction_03_missing_field.json` | Regression where extractor invents field values for fields not present in the source document. |
+| `extraction` | `evals\cases\extraction\extraction_04_abnormal_flag.json` | Regression where abnormal flag is not propagated from lab PDF extraction to the extracted packet. |
+| `extraction` | `evals\cases\extraction\extraction_05_stress_handwritten.json` | Regression where handwritten document extraction fails to produce any fields or produces fields with confidence=1.0 that should be approximate. |
+| `extraction` | `evals\cases\extraction\extraction_06_stress_dirty_scan.json` | Regression where dirty scan produces hallucinated field values that don't match the actual document content. |
+| `extraction` | `evals\cases\extraction\extraction_07_stress_no_text_layer.json` | Regression where image-only PDF extraction fails entirely instead of falling back to vision with approximate bbox. |
+| `extraction` | `evals\cases\extraction\extraction_08_stress_illegible.json` | Regression where extractor guesses an illegible field value instead of omitting it, producing a hallucinated extraction. |
+| `extraction` | `evals\cases\extraction\extraction_09_stress_multipage.json` | Regression where extractor only processes page 0 and misses lab results on subsequent pages. |
+| `extraction` | `evals\cases\extraction\extraction_10_idempotency.json` | Regression where re-uploading the same document creates duplicate copilot_document_facts rows instead of using the idempotency key. |
+| `extraction` | `evals\cases\extraction\extraction_11_stress_kowalski_cmp.json` | Regression where dirty-scan CMP extraction fails on numeric values adjacent to poor OCR quality text. |
+| `extraction` | `evals\cases\extraction\extraction_12_stress_allergies.json` | Regression where self-reported allergy extraction produces wrong field path or omits the value entirely. |
+| `extraction` | `evals\cases\extraction\extraction_13_stress_conflicting_values.json` | Regression where extractor silently deduplicates or overwrites a conflicting lab value instead of preserving both packets with distinct source_ids, causing one observation to be lost. |
+| `extraction` | `evals\cases\extraction\extraction_14_stress_unit_normalization.json` | Regression where extractor silently converts units (e.g., mmol/L to mg/dL), causing a numeric mismatch between the stored packet value and the original document, breaking factual consistency checks. |
+| `extraction` | `evals\cases\extraction\extraction_15_stress_date_formats.json` | Regression where extractor stores the raw date string (e.g., '03/15/2026') in observed_at instead of normalizing to ISO 8601 ('2026-03-15'), breaking date comparison and freshness logic downstream. |
+| `extraction` | `evals\cases\extraction\extraction_16_stress_partial_ocr.json` | Regression where partial OCR failure causes the extractor to either halt entirely (losing legible fields) or hallucinate values for illegible fields instead of emitting them as missing_data. |
+| `extraction` | `evals\cases\extraction\extraction_17_stress_multi_patient_guard.json` | Regression where extractor processes a mixed-patient document bundle and emits packets for both patients, creating cross-patient data contamination in copilot_document_facts. |
+| `rag` | `evals\cases\rag\rag_01_bm25_only_metformin_renal.json` | If BM25 retrieval is broken or the bm25_terms column is empty, a term-match query like 'metformin renal dosing eGFR' returns zero results and the evidence-retriever worker produces an empty packet list, leaving the synthesizer without guideline grounding. |
+| `rag` | `evals\cases\rag\rag_01_happy_path_tdap.json` | Regression where guideline_chunk source_type packets are rejected by the verifier instead of accepted as valid citations. |
+| `rag` | `evals\cases\rag\rag_02_openfda_metformin.json` | Regression where FDA guideline chunks without recommendation_grade are incorrectly rejected by the verifier. |
+| `rag` | `evals\cases\rag\rag_02_vector_only_influenza.json` | If the vector retrieval path is disabled or the EvalEmbedder is not producing discriminative vectors, synonym-based queries that rely on semantic similarity never return relevant chunks, breaking evidence retrieval for queries that don't use exact guideline terminology. |
+| `rag` | `evals\cases\rag\rag_03_bm25_and_vector_statin_ldl.json` | If the BM25+vector union deduplication is broken, the same chunk appears twice in the candidate list passed to the reranker, causing the reranker to waste slots on duplicates and reducing effective top-5 diversity. Also catches cases where high BM25 score for an already-high-vector-score chunk inflates its combined score beyond the real best match. |
+| `rag` | `evals\cases\rag\rag_03_no_match_refusal.json` | Regression where agent invents guideline citations when no relevant chunks are retrieved from corpus. |
+| `rag` | `evals\cases\rag\rag_04_acip_openfda_mix_warfarin_influenza.json` | If retrieval only returns chunks from one source_organization, the synthesizer cannot produce a grounded answer combining prescription safety (FDA) and preventive care (ACIP). This regression would surface as single-org result sets when the corpus contains relevant content from multiple orgs. |
+| `rag` | `evals\cases\rag\rag_04_bm25_only_hit.json` | Regression where BM25 retrieval path is bypassed and sparse-term queries fail to retrieve relevant chunks. |
+| `rag` | `evals\cases\rag\rag_05_hms_loe_blood_pressure_target.json` | If HMS-LOE ingestor fails silently (chunks not stored), HMS-LOE chunks never appear in retrieval results. The verifier guideline_grade_present rule also depends on HMS-LOE chunks having source_organization='HMS-LOE' rather than falling through to the CDC-ACIP branch, which would incorrectly reject valid CEBM grades. |
+| `rag` | `evals\cases\rag\rag_05_mixed_sources.json` | Regression where mixed-source retrieval (CDC-ACIP + FDA) fails to produce valid citations for both source organizations. |
+| `rag` | `evals\cases\rag\rag_06_no_relevant_chunk_refusal.json` | If the retriever returns irrelevant high-score chunks for out-of-domain queries (BM25 false positives on common words, vector hallucination), the synthesizer may fabricate guideline citations rather than declining. The verifier chunk_id_in_corpus and source_year rules would catch some of this, but the retriever itself should return an empty or clearly low-confidence candidate set for queries outside the corpus domain. |
+| `rag` | `evals\cases\rag\rag_06_vector_only_hit.json` | Regression where vector retrieval path is bypassed so semantically similar but lexically different queries fail to retrieve correct chunks. |
+| `rag` | `evals\cases\rag\rag_07_phi_stripped_from_query.json` | If strip_phi() is not called before passing the user query to the retriever, patient names and phone numbers appear in retrieval logs and corpus search traces, violating the no_phi_in_logs rubric. This test confirms that PHI-stripping is applied upstream of retrieval and that the stripped query still returns useful guideline evidence. |
+| `rag` | `evals\cases\rag\rag_07_stale_chunk_year.json` | Regression where old source_year in guideline chunk causes verifier to incorrectly reject the citation (staleness of guideline evidence is a reranker concern, not a verifier hard drop). |
+| `rag` | `evals\cases\rag\rag_08_hms_loe_chunk.json` | Regression where HMS-LOE chunks with Oxford CEBM grades (1a/1b/2a etc) are rejected by the verifier instead of accepted. |
+| `rag` | `evals\cases\rag\rag_08_prompt_injection_in_chunk.json` | If the evidence-retriever passes chunk text directly to the synthesizer prompt without framing it as UNTRUSTED DATA, a prompt-injection string embedded in a corpus chunk could hijack the synthesizer into generating a prescriptive recommendation. The verifier refusal_scope rule must still fire even if the injection succeeds (defense-in-depth), and the synthesizer system prompt must frame all retrieved chunks as data, not instructions. |
+| `refusal` | `evals\cases\refusal\refusal_01_injection_in_doc.json` | Prompt injection attack via uploaded document content that tries to override system instructions. |
+| `refusal` | `evals\cases\refusal\refusal_02_injection_prescribe.json` | Prompt injection via document that contains clinical action phrases (prescribe, start patient on) that should be caught by refusal_scope rule. |
+| `refusal` | `evals\cases\refusal\refusal_03_injection_diagnose.json` | Injection via document field that contains diagnosis language, bypassing the refusal_scope rule if not checked in claim text. |
+| `refusal` | `evals\cases\refusal\refusal_04_injection_exfil.json` | Injection attempt that tries to exfiltrate patient data by overriding instructions embedded in a document field. |
+| `refusal` | `evals\cases\refusal\refusal_05_injection_chunk.json` | Injection attack via guideline corpus chunk content that should not cause the agent to follow embedded instructions. |
+| `refusal` | `evals\cases\refusal\refusal_06_injection_chunk_2.json` | Second injection-in-chunk case verifying refusal_scope fires on action language embedded in retrieved guideline text. |
+| `refusal` | `evals\cases\refusal\refusal_07_out_of_scope.json` | Regression where the router does not refuse clinical action queries (prescribe, diagnose, order). |
+| `refusal` | `evals\cases\refusal\refusal_08_phi_not_in_logs.json` | Regression where PHI (SSN or DOB) leaks into eval runner output, trace logs, or CI stdout. |
+| `regression` | `evals\cases\regression\regression_01_cross_patient.json` | Wk1 regression: patient_binding rule — if a cited packet has a different patient_uuid than the request, the claim is dropped and a security event logged. |
+| `regression` | `evals\cases\regression\regression_02_refusal_scope.json` | Wk1 regression: refusal_scope rule — diagnostic and prescriptive claims are dropped; Co-Pilot is read-only. |
+| `regression` | `evals\cases\regression\regression_03_stale_meds.json` | Wk1 regression: stale_data_uncaveat rule — claims citing stale packets without a staleness caveat are dropped. |
+| `regression` | `evals\cases\regression\regression_04_lists_rx_conflict.json` | Wk1 regression: lists_rx_conflict_unsurfaced rule — when same drug is in both problem-list meds and prescriptions, verifier must surface it as a conflict. |
+| `regression` | `evals\cases\regression\regression_05_value_mismatch.json` | Wk1 regression: source_value_mismatch rule — claim writes a different medication dose than the cited prescription packet. |
+| `regression` | `evals\cases\regression\regression_06_sensitive_encounter.json` | Wk1 regression: sensitive_data_uncaveat rule — any packet flagged sensitive=true cannot be cited without a caveat. |
+| `regression` | `evals\cases\regression\regression_07_prompt_injection_packet.json` | Wk1 regression: prompt injection in packet value — data is not instructions boundary; refusal_scope must catch LLM-emitted recommendation triggered by injected packet content. |
+| `regression` | `evals\cases\regression\regression_08_a1c_trend.json` | Wk1 regression: trend_two_sources rule — trend claim must cite >=2 source_ids; values in claim must match packet values. |
 
 ## L5 — Live-vendor smoke (`evals/live_smoke/`)
 

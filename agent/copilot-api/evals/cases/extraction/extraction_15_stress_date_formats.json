@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/15_stress_date_formats",
+  "category": "extraction",
+  "description": "Stress test: handwritten form uses non-ISO date format (MM/DD/YYYY) — extractor must normalize to ISO 8601.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "what_bug_this_catches": "Regression where extractor stores the raw date string (e.g., '03/15/2026') in observed_at instead of normalizing to ISO 8601 ('2026-03-15'), breaking date comparison and freshness logic downstream.",
+  "packets": [
+    {
+      "source_id": "extract:chen-intake:dob",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Patient",
+      "source_table": "procedure_result",
+      "field": "demographics.date_of_birth",
+      "label": "Date of Birth",
+      "value": "1978-07-22",
+      "unit": null,
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "DOB: 07/22/1978"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Patient date of birth is 1978-07-22 per the intake form.",
+        "claim_type": "fact",
+        "source_ids": ["extract:chen-intake:dob"],
+        "caveat": "Self-reported on intake form."
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

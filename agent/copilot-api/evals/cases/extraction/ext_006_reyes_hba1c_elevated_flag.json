@@ -1,0 +1,24 @@
+{
+  "case_id": "ext_006_reyes_hba1c_elevated_flag",
+  "description": "STRESS: Reyes handwritten HbA1c PNG — elevated flag H must be captured",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "ghi789reyes",
+    "documents": [
+      {"path": "evals/fixtures/documents/p03-reyes-hba1c.png", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "fields_present": ["hba1c"],
+    "field_assertions": [
+      {"name": "hba1c", "value": 8.2, "flag": "H"},
+      {"name": "glucose_fasting", "value": 162.0, "flag": "H"}
+    ]
+  },
+  "what_bug_this_catches": "Stress case: handwritten PNG scans often lose abnormal flags when OCR misreads the H/L markers. Missing H flag on HbA1c 8.2 would suppress the diabetes severity signal in the brief.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

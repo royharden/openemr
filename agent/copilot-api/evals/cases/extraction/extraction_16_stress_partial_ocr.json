@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/16_stress_partial_ocr",
+  "category": "extraction",
+  "description": "Stress test: lab PDF has partial OCR failure — only legible fields extracted; illegible fields omitted with missing_data entry.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where partial OCR failure causes the extractor to either halt entirely (losing legible fields) or hallucinate values for illegible fields instead of emitting them as missing_data.",
+  "packets": [
+    {
+      "source_id": "extract:whitaker-cbc-partial:wbc",
+      "patient_uuid": "uuid-whitaker-002",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "wbc",
+      "label": "WBC",
+      "value": "7.2",
+      "unit": "K/uL",
+      "observed_at": "2026-03-28",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "WBC: 7.2 K/uL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "WBC was 7.2 K/uL per the CBC report dated 2026-03-28.",
+        "claim_type": "fact",
+        "source_ids": ["extract:whitaker-cbc-partial:wbc"],
+        "caveat": null
+      }
+    ],
+    "missing_data": ["Platelet count field was illegible due to ink smear on page 1 and was omitted."],
+    "refusals": [],
+    "suggested_followups": ["Review original CBC document for platelet count."]
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

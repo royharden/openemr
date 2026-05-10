@@ -1,0 +1,45 @@
+{
+  "case_id": "extraction/11_stress_kowalski_cmp",
+  "category": "extraction",
+  "description": "Stress test: Kowalski CMP dirty scan — multiple lab fields extracted correctly from poor-quality scan.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "what_bug_this_catches": "Regression where dirty-scan CMP extraction fails on numeric values adjacent to poor OCR quality text.",
+  "packets": [
+    {
+      "source_id": "extract:kowalski-cmp:sodium",
+      "patient_uuid": "uuid-kowalski-004",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "sodium",
+      "label": "Sodium",
+      "value": "140",
+      "unit": "mEq/L",
+      "observed_at": "2026-02-20",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Sodium: 140 mEq/L",
+      "confidence": 0.90
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Sodium was 140 mEq/L per the CMP.",
+        "claim_type": "fact",
+        "source_ids": ["extract:kowalski-cmp:sodium"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "case_id": "ext_005_whitaker_intake_meds",
+  "description": "Whitaker intake form — self-reported medication atenolol captured",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "def456patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p02-whitaker-intake.pdf", "doc_type": "intake_form"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "intake_form",
+    "fields_present": ["medications.self_reported", "chief_complaint"],
+    "field_assertions": [
+      {"name": "chief_complaint", "value_contains": "tightness"}
+    ]
+  },
+  "what_bug_this_catches": "Catches extractor that drops self-reported medications from typed intake forms, which are critical for identifying drug-allergy conflicts before the visit.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

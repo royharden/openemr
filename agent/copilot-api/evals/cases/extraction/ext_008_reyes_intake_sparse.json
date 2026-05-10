@@ -1,0 +1,21 @@
+{
+  "case_id": "ext_008_reyes_intake_sparse",
+  "description": "STRESS: Reyes handwritten intake PNG — sparse extraction, no bbox, still returns valid schema",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid"],
+  "input": {
+    "patient_uuid_hash": "ghi789reyes",
+    "documents": [
+      {"path": "evals/fixtures/documents/p03-reyes-intake.png", "doc_type": "intake_form"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "intake_form",
+    "min_field_count": 1,
+    "bbox_may_be_null": true
+  },
+  "what_bug_this_catches": "Stress case: handwritten intake PNG with few legible fields. Extractor must not crash or return 0 fields when the form is sparse — returning fewer fields is correct; returning 0 or erroring is not.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

@@ -1,0 +1,21 @@
+{
+  "case_id": "ext_013_bbox_coordinates_normalized",
+  "description": "Chen lipid panel — all bboxes must be normalized [0,1] with x0<x1 and y0<y1",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "input": {
+    "patient_uuid_hash": "abc123patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "all_bboxes_normalized": true,
+    "bbox_invariant": "x0<x1 and y0<y1 for every non-null bbox"
+  },
+  "what_bug_this_catches": "Catches unnormalized bbox coordinates (e.g., pixel values instead of [0,1] fractions). The PDF.js overlay would draw the rectangle in the wrong location or completely off-screen.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

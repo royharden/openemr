@@ -1,0 +1,46 @@
+{
+  "case_id": "extraction/07_stress_no_text_layer",
+  "category": "extraction",
+  "description": "Stress test: image-only PDF (no text layer) — extractor uses vision with approximate bbox.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where image-only PDF extraction fails entirely instead of falling back to vision with approximate bbox.",
+  "packets": [
+    {
+      "source_id": "extract:reyes-hba1c:glucose",
+      "patient_uuid": "uuid-reyes-003",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "glucose_fasting",
+      "label": "Fasting Glucose",
+      "value": "162",
+      "unit": "mg/dL",
+      "observed_at": "2026-03-15",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Fasting Glucose: 162 mg/dL",
+      "bbox_unit": "approximate",
+      "confidence": 0.80
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Fasting glucose was 162 mg/dL per the lab image.",
+        "claim_type": "fact",
+        "source_ids": ["extract:reyes-hba1c:glucose"],
+        "caveat": "Extracted from image without text layer; confidence 0.80."
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "case_id": "ext_011_kowalski_intake_bp",
+  "description": "STRESS: Kowalski handwritten intake PNG — blood pressure split into systolic/diastolic",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "jkl012kowalski",
+    "documents": [
+      {"path": "evals/fixtures/documents/p04-kowalski-intake.png", "doc_type": "intake_form"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "intake_form",
+    "fields_present": ["vitals.bp_systolic", "vitals.bp_diastolic"],
+    "field_assertions": [
+      {"name": "vitals.bp_systolic", "value": 138},
+      {"name": "vitals.bp_diastolic", "value": 88}
+    ]
+  },
+  "what_bug_this_catches": "Stress case: handwritten BP '138/88' on dirty scan may be extracted as a single string instead of split into systolic/diastolic. Unsplit BP breaks the vitals schema and prevents the trending verifier from detecting hypertension.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

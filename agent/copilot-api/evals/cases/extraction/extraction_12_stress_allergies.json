@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/12_stress_allergies",
+  "category": "extraction",
+  "description": "Stress test: self-reported allergies on intake form — extracted with correct allergy field path.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where self-reported allergy extraction produces wrong field path or omits the value entirely.",
+  "packets": [
+    {
+      "source_id": "extract:chen-intake:allergy",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "AllergyIntolerance",
+      "source_table": "procedure_result",
+      "field": "allergies.self_reported",
+      "label": "Self-reported allergy",
+      "value": "Penicillin - rash",
+      "unit": null,
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "document_extract",
+      "quote_or_value": "Allergies: Penicillin - rash"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Patient reports allergy to Penicillin (rash) per intake form.",
+        "claim_type": "fact",
+        "source_ids": ["extract:chen-intake:allergy"],
+        "caveat": "Self-reported on intake form; not yet verified against chart."
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

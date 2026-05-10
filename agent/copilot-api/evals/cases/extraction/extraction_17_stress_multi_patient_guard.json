@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/17_stress_multi_patient_guard",
+  "category": "extraction",
+  "description": "Stress test: document bundle accidentally contains pages from two different patients — extractor must only emit packets matching the requested patient_uuid.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "what_bug_this_catches": "Regression where extractor processes a mixed-patient document bundle and emits packets for both patients, creating cross-patient data contamination in copilot_document_facts.",
+  "packets": [
+    {
+      "source_id": "extract:chen-cbc-mixed:hemoglobin",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "hemoglobin",
+      "label": "Hemoglobin",
+      "value": "14.1",
+      "unit": "g/dL",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Hemoglobin: 14.1 g/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Hemoglobin was 14.1 g/dL per the CBC report dated 2026-04-01.",
+        "claim_type": "fact",
+        "source_ids": ["extract:chen-cbc-mixed:hemoglobin"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

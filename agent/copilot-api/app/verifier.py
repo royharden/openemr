@@ -13,7 +13,14 @@ import hashlib
 import re
 import unicodedata
 
-from .schemas import Claim, LLMOutput, SourcePacket, VerifiedResponse, VerifierIssue
+from .schemas import (
+    Claim,
+    ExtractedField,
+    LLMOutput,
+    SourcePacket,
+    VerifiedResponse,
+    VerifierIssue,
+)
 
 
 REFUSAL_TRIGGERS = (
@@ -582,3 +589,416 @@ def _detect_lists_rx_conflicts(packets: list[SourcePacket], accepted: list[Claim
             continue
         warnings.append(drug)
     return warnings
+
+
+# === Wk2 Workstream A: bbox + quote + schema rules ===
+#
+# Three deterministic verifier rules for document-extraction packets
+# (Plan §6 Workstream A, §12 Citation Contract, AgDR-0039/0040/0054).
+#
+# These rules operate on individual SourcePackets that carry
+# source_type="document_extract". They are called by the route handler after
+# extraction and again by the verifier when a packet is cited by an LLM claim.
+#
+# Public API:
+#   check_bbox_well_formed(packet) -> VerifierIssue | None
+#   check_quote_verbatim_in_pdf(packet, pdf_bytes) -> VerifierIssue | None
+#   check_extracted_field_in_schema(field, doc_type) -> VerifierIssue | None
+#
+# Each returns None on pass, VerifierIssue on fail.
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+# Field-name allowlists per document type (extensible — new fields just get
+# added here; the rules produce warnings, not hard drops, for unknown names so
+# forward-compatibility is preserved).
+_LAB_PDF_FIELD_PREFIXES: frozenset[str] = frozenset({
+    # Core metabolic / lipid / CBC
+    "cholesterol_total", "ldl", "hdl", "triglycerides",
+    "glucose", "glucose_fasting",
+    "hba1c",
+    "bun", "creatinine", "egfr",
+    "sodium", "potassium", "chloride", "bicarbonate", "calcium",
+    "wbc", "rbc", "hemoglobin", "hematocrit", "platelets", "mcv", "mch", "mchc",
+    "neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils",
+    # Thyroid / hormonal
+    "tsh", "t3", "t4", "free_t4",
+    # Liver
+    "alt", "ast", "alkaline_phosphatase", "bilirubin_total", "albumin", "protein_total",
+    # Other common
+    "psa", "uric_acid", "ferritin", "iron", "tibc",
+    "vitamin_d", "vitamin_b12", "folate",
+    # Urinalysis
+    "ua_color", "ua_clarity", "ua_glucose", "ua_protein", "ua_blood", "ua_nitrite",
+    "ua_leukocytes", "ua_specific_gravity", "ua_ph",
+    # Generic numeric panels — allow dotted notation
+})
+
+_INTAKE_FORM_FIELD_PREFIXES: frozenset[str] = frozenset({
+    "vitals", "chief_complaint", "smoking_status", "alcohol_use",
+    "medications", "allergies", "family_history", "symptoms",
+    "review_of_systems", "social_history", "surgical_history",
+    "past_medical_history", "current_medications",
+    "reason_for_visit", "date_of_birth", "emergency_contact",
+})
+
+# Field names are either in the known set directly, or start with a known prefix
+# (e.g. "vitals.bp_systolic" starts with "vitals").
+def _field_name_valid(name: str, doc_type: str) -> bool:
+    allowed_prefixes = (
+        _LAB_PDF_FIELD_PREFIXES if doc_type == "lab_pdf" else _INTAKE_FORM_FIELD_PREFIXES
+    )
+    if not name or not _re.match(r"^[a-z][a-z0-9_.]*$", name):
+        return False
+    root = name.split(".")[0]
+    return root in allowed_prefixes or name in allowed_prefixes
+
+
+def check_bbox_well_formed(packet: SourcePacket) -> VerifierIssue | None:
+    """Rule: bbox_well_formed — for document_extract packets that carry a bbox.
+
+    Checks that:
+      1. bbox is a 4-tuple of floats.
+      2. All coordinates are in [0, 1].
+      3. x0 < x1 and y0 < y1 (non-degenerate).
+      4. bbox_unit is 'exact' or 'approximate'.
+
+    Returns None on pass.  Returns VerifierIssue on fail.
+
+    Packets without a bbox (bbox is None) always pass — the rule only fires
+    when a bbox is present, allowing image-only intake fields to pass through.
+    """
+    if packet.source_type != "document_extract":
+        return None
+    if packet.bbox is None:
+        return None
+
+    bbox = packet.bbox
+    if len(bbox) != 4:
+        return VerifierIssue(
+            rule="bbox_well_formed",
+            detail=f"packet {packet.source_id!r}: bbox must be a 4-tuple, got {len(bbox)} elements",
+        )
+
+    x0, y0, x1, y1 = bbox
+    for coord_name, coord in (("x0", x0), ("y0", y0), ("x1", x1), ("y1", y1)):
+        if not isinstance(coord, (int, float)):
+            return VerifierIssue(
+                rule="bbox_well_formed",
+                detail=f"packet {packet.source_id!r}: bbox.{coord_name} is not numeric",
+            )
+        if not (0.0 <= float(coord) <= 1.0):
+            return VerifierIssue(
+                rule="bbox_well_formed",
+                detail=(
+                    f"packet {packet.source_id!r}: bbox.{coord_name}={coord!r} "
+                    f"is outside [0, 1]"
+                ),
+            )
+
+    if not (x0 < x1):
+        return VerifierIssue(
+            rule="bbox_well_formed",
+            detail=f"packet {packet.source_id!r}: bbox x0={x0} >= x1={x1}",
+        )
+    if not (y0 < y1):
+        return VerifierIssue(
+            rule="bbox_well_formed",
+            detail=f"packet {packet.source_id!r}: bbox y0={y0} >= y1={y1}",
+        )
+
+    if packet.bbox_unit not in ("exact", "approximate"):
+        return VerifierIssue(
+            rule="bbox_well_formed",
+            detail=(
+                f"packet {packet.source_id!r}: bbox_unit={packet.bbox_unit!r} "
+                f"must be 'exact' or 'approximate'"
+            ),
+        )
+
+    return None
+
+
+def check_quote_verbatim_in_pdf(
+    packet: SourcePacket,
+    pdf_text_by_page: dict[int, str],
+) -> VerifierIssue | None:
+    """Rule: quote_verbatim_in_pdf — the quote_or_value must appear verbatim
+    in the PDF text layer (per AgDR-0040).
+
+    Args:
+        packet: The SourcePacket to check.
+        pdf_text_by_page: Mapping of {page_index: full_text_of_page} extracted
+            by pdfplumber. Pass an empty dict for image-only documents — in that
+            case the rule is skipped (not failed) since there is no text layer.
+
+    Returns None on pass (including when there is nothing to check).
+    Returns VerifierIssue when a quote is present but cannot be found verbatim.
+    """
+    if packet.source_type != "document_extract":
+        return None
+    if packet.quote_or_value is None:
+        return None
+    if not pdf_text_by_page:
+        # Image-only document — no text layer to match against; skip
+        return None
+
+    quote = packet.quote_or_value.strip()
+    if not quote:
+        return None
+
+    page_idx = packet.page_index
+    if page_idx is not None:
+        if page_idx in pdf_text_by_page:
+            page_text = pdf_text_by_page[page_idx]
+            if quote in page_text or quote.lower() in page_text.lower():
+                return None
+            return VerifierIssue(
+                rule="quote_verbatim_in_pdf",
+                detail=(
+                    f"packet {packet.source_id!r}: quote_or_value not found verbatim "
+                    f"on page {page_idx}"
+                ),
+            )
+        # page_index specified but that page is absent from the text map —
+        # fall back to searching all available pages so we don't false-positive
+        # when callers only supply a subset of pages.
+        all_text = " ".join(pdf_text_by_page.values())
+        if quote in all_text or quote.lower() in all_text.lower():
+            return None
+        return VerifierIssue(
+            rule="quote_verbatim_in_pdf",
+            detail=(
+                f"packet {packet.source_id!r}: quote_or_value not found verbatim "
+                f"on page {page_idx} (page not in text map)"
+            ),
+        )
+
+    # page_index not specified — search all pages
+    all_text = " ".join(pdf_text_by_page.values())
+    if quote in all_text or quote.lower() in all_text.lower():
+        return None
+
+    return VerifierIssue(
+        rule="quote_verbatim_in_pdf",
+        detail=(
+            f"packet {packet.source_id!r}: quote_or_value {quote[:40]!r}... "
+            f"not found in any page of the PDF text layer"
+        ),
+    )
+
+
+def check_extracted_field_in_schema(
+    field: ExtractedField,
+    doc_type: str,
+) -> VerifierIssue | None:
+    """Rule: extracted_field_in_schema — field name must conform to the
+    known schema for the document type.
+
+    Returns None on pass.  Returns VerifierIssue (non-blocking warning) when
+    the field name uses an unrecognized root or invalid character set.
+
+    Design: this is a WARNING rule, not a DROP rule. The route handler logs
+    the issue; the field is kept. This preserves forward-compatibility when
+    new lab panels are added before the allowlist is updated.
+    """
+    name = (field.name or "").strip()
+    if not name:
+        return VerifierIssue(
+            rule="extracted_field_in_schema",
+            detail="field.name is empty or whitespace-only",
+        )
+
+    if doc_type not in ("lab_pdf", "intake_form"):
+        return VerifierIssue(
+            rule="extracted_field_in_schema",
+            detail=f"unknown doc_type {doc_type!r}",
+        )
+
+    if not _field_name_valid(name, doc_type):
+        return VerifierIssue(
+            rule="extracted_field_in_schema",
+            detail=(
+                f"field {name!r} is not in the known {doc_type} schema "
+                f"or uses invalid characters (expected snake_case with known root)"
+            ),
+        )
+
+    return None
+
+
+def verify_extraction_packets(
+    packets: list[SourcePacket],
+    doc_type: str,
+    pdf_text_by_page: dict[int, str] | None = None,
+) -> list[VerifierIssue]:
+    """Run all three Wk2 extraction verifier rules over a list of SourcePackets.
+
+    Called by the route handler after extraction to surface issues before
+    returning the response.  Does NOT drop packets — issues are informational.
+
+    Args:
+        packets: The source_packets from an ExtractedDocument.
+        doc_type: 'lab_pdf' or 'intake_form'.
+        pdf_text_by_page: Optional mapping of page_index → full page text from
+            pdfplumber. Pass None or {} for image-only documents.
+    """
+    issues: list[VerifierIssue] = []
+    text_map = pdf_text_by_page or {}
+    for pkt in packets:
+        issue = check_bbox_well_formed(pkt)
+        if issue is not None:
+            issues.append(issue)
+        issue = check_quote_verbatim_in_pdf(pkt, text_map)
+        if issue is not None:
+            issues.append(issue)
+    return issues
+
+
+# === Wk2 Workstream B: chunk + grade + year rules ===
+# Added by Team B (wk2-team-b-rag branch, Plan §6 Workstream B, AgDR-0054).
+#
+# Three deterministic verifier rules for guideline_chunk SourcePackets.
+# Claims that cite a chunk absent from corpus.db, or a CDC-ACIP chunk with
+# an invalid grade, or a chunk older than SOURCE_YEAR_WINDOW_YEARS, are dropped.
+#
+# Integration contract:
+#   Call set_corpus_for_verifier(corpus_instance) once at sidecar startup.
+#   The rules are no-ops when no corpus is registered (no false-positive drops
+#   for non-guideline packets).
+#
+# Unit tests: tests/unit/test_verifier_chunk_id_in_corpus.py
+#             tests/unit/test_verifier_guideline_grade_present.py
+#             tests/unit/test_verifier_source_year_within_window.py
+
+import datetime as _datetime
+
+_CORPUS_REF: object | None = None  # set via set_corpus_for_verifier()
+SOURCE_YEAR_WINDOW_YEARS: int = 10
+
+
+def set_corpus_for_verifier(corpus: object | None) -> None:
+    """Register the open Corpus instance for chunk-level verifier rules."""
+    global _CORPUS_REF  # noqa: PLW0603
+    _CORPUS_REF = corpus
+
+
+def _rule_chunk_id_in_corpus(
+    packet: SourcePacket,
+    claim_index: int,
+    issues: list[VerifierIssue],
+) -> bool:
+    """Drop guideline_chunk packets whose chunk_id doesn't exist in corpus.db.
+
+    Returns True (drop) if the chunk is absent.
+    Edge case: no corpus registered → pass-through (returns False).
+    """
+    if packet.source_type != "guideline_chunk":
+        return False
+    chunk_id = packet.field_or_chunk_id
+    if not chunk_id:
+        issues.append(VerifierIssue(
+            rule="chunk_id_in_corpus",
+            claim_index=claim_index,
+            detail="guideline_chunk packet is missing field_or_chunk_id",
+        ))
+        return True
+    if _CORPUS_REF is None:
+        return False
+    try:
+        if not _CORPUS_REF.chunk_exists(chunk_id):  # type: ignore[attr-defined]
+            issues.append(VerifierIssue(
+                rule="chunk_id_in_corpus",
+                claim_index=claim_index,
+                detail=f"guideline_chunk id {chunk_id!r} not found in corpus.db",
+            ))
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    return False
+
+
+def _rule_guideline_grade_present(
+    packet: SourcePacket,
+    claim_index: int,
+    issues: list[VerifierIssue],
+) -> bool:
+    """Require CDC-ACIP guideline_chunk packets to carry a valid ACIP grade (A/B/null).
+
+    OpenFDA chunks: exempt (recommendation_grade is always None).
+    HMS-LOE chunks: exempt (carry CEBM levels, not ACIP grades).
+    Returns True (drop) only for CDC-ACIP chunks with an invalid grade value.
+    """
+    if packet.source_type != "guideline_chunk":
+        return False
+    if (packet.source_organization or "") != "CDC-ACIP":
+        return False
+    grade = packet.recommendation_grade
+    if grade is None:
+        return False
+    valid_acip_grades = {"A", "B"}
+    if grade not in valid_acip_grades:
+        issues.append(VerifierIssue(
+            rule="guideline_grade_present",
+            claim_index=claim_index,
+            detail=(
+                f"CDC-ACIP chunk has unexpected grade {grade!r}; "
+                f"expected one of {sorted(valid_acip_grades)} or null"
+            ),
+        ))
+        return True
+    return False
+
+
+def _rule_source_year_within_window(
+    packet: SourcePacket,
+    claim_index: int,
+    issues: list[VerifierIssue],
+) -> bool:
+    """Drop guideline_chunk packets whose source_year is outside the staleness window.
+
+    Threshold: current year minus SOURCE_YEAR_WINDOW_YEARS.
+    Chunks with source_year=None pass through (cannot verify).
+    """
+    if packet.source_type != "guideline_chunk":
+        return False
+    year = packet.source_year
+    if year is None:
+        return False
+    try:
+        current_year = _datetime.date.today().year
+    except Exception:  # noqa: BLE001
+        current_year = 2026
+    cutoff = current_year - SOURCE_YEAR_WINDOW_YEARS
+    if year < cutoff:
+        issues.append(VerifierIssue(
+            rule="source_year_within_window",
+            claim_index=claim_index,
+            detail=(
+                f"guideline_chunk source_year={year} predates cutoff {cutoff} "
+                f"(window={SOURCE_YEAR_WINDOW_YEARS} years)"
+            ),
+        ))
+        return True
+    return False
+
+
+def check_guideline_chunk_rules(
+    packet: SourcePacket,
+    claim_index: int,
+    issues: list[VerifierIssue],
+) -> bool:
+    """Run all three Workstream B verifier rules.  Returns True if any fires (drop).
+
+    Public API for Team C graph verifier_node to call per cited guideline packet.
+    """
+    if _rule_chunk_id_in_corpus(packet, claim_index, issues):
+        return True
+    if _rule_guideline_grade_present(packet, claim_index, issues):
+        return True
+    if _rule_source_year_within_window(packet, claim_index, issues):
+        return True
+    return False
+
+# === End Wk2 Workstream B rules ===

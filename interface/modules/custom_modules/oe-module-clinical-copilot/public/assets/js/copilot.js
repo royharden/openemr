@@ -363,4 +363,164 @@
     }
 
     fetchBrief('pre_room_brief');
+
+    // -----------------------------------------------------------------------
+    // Wk2 Workstream A: PDF.js bbox overlay (Plan §6, AgDR-0039/0040)
+    //
+    // When the user clicks a source chip whose packet carries bbox + page_index
+    // data, this overlay renders the PDF page and draws a highlight rectangle
+    // over the cited region.
+    //
+    // OE_COPILOT_CONFIG.pdfWorkerSrc must point to pdf.worker.min.js.
+    // The overlay is destroyed on the next chip click or outside click.
+    // -----------------------------------------------------------------------
+
+    var bboxOverlayEl = null;
+
+    function destroyBboxOverlay() {
+        if (bboxOverlayEl && bboxOverlayEl.parentNode) {
+            bboxOverlayEl.parentNode.removeChild(bboxOverlayEl);
+        }
+        bboxOverlayEl = null;
+    }
+
+    function showBboxOverlay(pdfUrl, pageIndex, bbox) {
+        destroyBboxOverlay();
+
+        if (!window.pdfjsLib) {
+            return;
+        }
+        if (cfg.pdfWorkerSrc) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = cfg.pdfWorkerSrc;
+        }
+
+        var overlay = document.createElement('div');
+        overlay.className = 'copilot-bbox-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-label', 'Citation location in document');
+
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'copilot-bbox-close';
+        closeBtn.textContent = '×';
+        closeBtn.setAttribute('aria-label', 'Close citation overlay');
+        closeBtn.addEventListener('click', destroyBboxOverlay);
+        overlay.appendChild(closeBtn);
+
+        var canvasWrapper = document.createElement('div');
+        canvasWrapper.className = 'copilot-bbox-canvas-wrapper';
+        var canvas = document.createElement('canvas');
+        canvasWrapper.appendChild(canvas);
+        overlay.appendChild(canvasWrapper);
+
+        document.body.appendChild(overlay);
+        bboxOverlayEl = overlay;
+
+        var loadingTask = window.pdfjsLib.getDocument(pdfUrl);
+        loadingTask.promise.then(function (pdfDoc) {
+            return pdfDoc.getPage(pageIndex + 1);
+        }).then(function (page) {
+            var viewport = page.getViewport({ scale: 1.5 });
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            var ctx = canvas.getContext('2d');
+            page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
+                if (!bbox || bbox.length !== 4) {
+                    return;
+                }
+                var x0 = bbox[0], y0 = bbox[1], x1 = bbox[2], y1 = bbox[3];
+                var rx = x0 * viewport.width;
+                var ry = y0 * viewport.height;
+                var rw = (x1 - x0) * viewport.width;
+                var rh = (y1 - y0) * viewport.height;
+
+                ctx.save();
+                ctx.strokeStyle = '#e05c00';
+                ctx.lineWidth = 2;
+                ctx.fillStyle = 'rgba(224, 92, 0, 0.15)';
+                ctx.fillRect(rx, ry, rw, rh);
+                ctx.strokeRect(rx, ry, rw, rh);
+                ctx.restore();
+            });
+        }).catch(function () {
+            destroyBboxOverlay();
+        });
+
+        overlay.addEventListener('click', function (ev) {
+            if (ev.target === overlay) {
+                destroyBboxOverlay();
+            }
+        });
+    }
+
+    // Augment source chip clicks: if the packet has bbox + page_index,
+    // show the overlay in addition to the popover.
+    var _origShowPopover = showPopover;
+    showPopover = function (chipEl, sourceId) {
+        _origShowPopover(chipEl, sourceId);
+        var meta = (lastPacketsSummary || []).find(function (s) { return s.source_id === sourceId; });
+        if (
+            meta &&
+            meta.bbox && meta.bbox.length === 4 &&
+            meta.page_index !== undefined && meta.page_index !== null &&
+            meta.doc_url && cfg.showBboxOverlay !== false
+        ) {
+            showBboxOverlay(meta.doc_url, meta.page_index, meta.bbox);
+        }
+    };
+
+    // -----------------------------------------------------------------------
+    // Wk2 Workstream A: document upload form handling
+    // -----------------------------------------------------------------------
+
+    var uploadForm = document.getElementById('copilot-upload-form');
+    var uploadStatus = document.getElementById('copilot-upload-status');
+
+    function showUploadStatus(msg, isError) {
+        if (!uploadStatus) { return; }
+        uploadStatus.textContent = msg;
+        uploadStatus.className = 'copilot-upload-status' + (isError ? ' copilot-upload-error' : '');
+        uploadStatus.style.display = 'block';
+    }
+
+    if (uploadForm && cfg.uploadLabUrl && cfg.uploadIntakeUrl) {
+        uploadForm.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            var fileInput = uploadForm.querySelector('input[type="file"]');
+            var docTypeSelect = uploadForm.querySelector('select[name="doc_type"]');
+            if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                showUploadStatus('Please select a file.', true);
+                return;
+            }
+            var file = fileInput.files[0];
+            var docType = docTypeSelect ? docTypeSelect.value : 'lab_pdf';
+            var url = docType === 'intake_form' ? cfg.uploadIntakeUrl : cfg.uploadLabUrl;
+
+            var formData = new FormData();
+            formData.append('file', file, file.name);
+
+            showUploadStatus('Uploading…', false);
+            uploadForm.querySelector('button[type="submit"]').disabled = true;
+
+            fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData,
+            }).then(function (res) {
+                return res.json().then(function (json) { return { status: res.status, body: json }; });
+            }).then(function (resp) {
+                uploadForm.querySelector('button[type="submit"]').disabled = false;
+                if (resp.status >= 400) {
+                    showUploadStatus('Upload failed: ' + escapeHtml(JSON.stringify(resp.body.detail || resp.body)), true);
+                    return;
+                }
+                var count = (resp.body && resp.body.extracted_field_count) || 0;
+                showUploadStatus('Extracted ' + count + ' field(s). Refreshing brief…', false);
+                setTimeout(function () { fetchBrief('pre_room_brief'); }, 1200);
+            }).catch(function () {
+                uploadForm.querySelector('button[type="submit"]').disabled = false;
+                showUploadStatus('Upload failed (network error).', true);
+            });
+        });
+    }
 })();

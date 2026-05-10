@@ -1,0 +1,24 @@
+{
+  "case_id": "ext_004_chen_intake_chief_complaint",
+  "description": "Chen typed intake form — chief_complaint and vitals extracted correctly",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "abc123patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p01-chen-intake-typed.pdf", "doc_type": "intake_form"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "intake_form",
+    "fields_present": ["chief_complaint", "smoking_status"],
+    "field_assertions": [
+      {"name": "chief_complaint", "value": "Annual physical"},
+      {"name": "smoking_status", "value": "Never"}
+    ]
+  },
+  "what_bug_this_catches": "Catches intake form extractor returning wrong field values for chief_complaint (hallucination), which could mislead the physician's pre-room brief.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

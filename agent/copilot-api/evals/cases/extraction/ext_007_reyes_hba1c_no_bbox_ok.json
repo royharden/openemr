@@ -1,0 +1,22 @@
+{
+  "case_id": "ext_007_reyes_hba1c_no_bbox_ok",
+  "description": "STRESS: Reyes handwritten PNG — bbox may be null (no text layer), extraction still valid",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "input": {
+    "patient_uuid_hash": "ghi789reyes",
+    "documents": [
+      {"path": "evals/fixtures/documents/p03-reyes-hba1c.png", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "bbox_may_be_null": true,
+    "min_field_count": 1,
+    "all_fields_have_citation": true
+  },
+  "what_bug_this_catches": "Stress case: extractor incorrectly rejecting all image-only lab fields because bbox is null (text layer absent). AgDR-0040 says bbox is derived from pdfplumber — if no text layer, citation is still valid with null bbox.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

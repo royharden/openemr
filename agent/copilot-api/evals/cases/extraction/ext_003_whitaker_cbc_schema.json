@@ -1,0 +1,22 @@
+{
+  "case_id": "ext_003_whitaker_cbc_schema",
+  "description": "Whitaker CBC PDF extraction — all 5 CBC fields present with citations",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "input": {
+    "patient_uuid_hash": "def456patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p02-whitaker-cbc.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "fields_present": ["wbc", "rbc", "hemoglobin", "hematocrit", "platelets"],
+    "min_field_count": 5,
+    "all_fields_have_citation": true
+  },
+  "what_bug_this_catches": "Catches regression where CBC panel parsing drops one or more of the 5 core fields, which would cause missing data in the clinical brief for Whitaker's visit.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

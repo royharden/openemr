@@ -1,0 +1,23 @@
+{
+  "case_id": "ext_017_kowalski_intake_weight",
+  "description": "STRESS: Kowalski handwritten intake — weight field extracted despite dirty background",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "jkl012kowalski",
+    "documents": [
+      {"path": "evals/fixtures/documents/p04-kowalski-intake.png", "doc_type": "intake_form"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "intake_form",
+    "fields_present": ["vitals.weight"],
+    "field_assertions": [
+      {"name": "vitals.weight", "value": "245 lbs"}
+    ]
+  },
+  "what_bug_this_catches": "Stress case: dirty scan background causes VLM to hallucinate or drop weight field. At 245 lbs Kowalski is at BMI ~33; missing weight prevents obesity-aware medication dosing context in the brief.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/03_missing_field",
+  "category": "extraction",
+  "description": "Lab PDF extraction: field is blank/absent in source document — extractor should omit, not hallucinate.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "what_bug_this_catches": "Regression where extractor invents field values for fields not present in the source document.",
+  "packets": [
+    {
+      "source_id": "extract:chen-lipid:cholesterol",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "cholesterol_total",
+      "label": "Total Cholesterol",
+      "value": "198",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Total Cholesterol: 198 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Total cholesterol was 198 mg/dL.",
+        "claim_type": "fact",
+        "source_ids": ["extract:chen-lipid:cholesterol"],
+        "caveat": null
+      }
+    ],
+    "missing_data": ["TSH not present in submitted lab PDF."],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

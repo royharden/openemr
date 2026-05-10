@@ -1,0 +1,20 @@
+{
+  "case_id": "extraction/08_stress_illegible",
+  "category": "extraction",
+  "description": "Stress test: illegible field in handwritten form — extractor must omit, not guess.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where extractor guesses an illegible field value instead of omitting it, producing a hallucinated extraction.",
+  "packets": [],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [],
+    "missing_data": ["Chief complaint field was illegible in the handwritten intake form and was omitted."],
+    "refusals": [],
+    "suggested_followups": ["Ask patient to confirm chief complaint verbally."]
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "max_dropped": 0
+  }
+}

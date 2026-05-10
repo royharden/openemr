@@ -1,0 +1,23 @@
+{
+  "case_id": "ext_001_chen_lipid_schema_valid",
+  "description": "Chen lipid panel PDF extraction — schema validation and citation presence",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "input": {
+    "patient_uuid_hash": "abc123patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "fields_present": ["ldl", "hdl", "cholesterol_total", "triglycerides"],
+    "min_field_count": 4,
+    "all_fields_have_citation": true,
+    "all_citations_have_source_type": "document_extract"
+  },
+  "what_bug_this_catches": "Catches extractors that return fields without citation packets or with wrong doc_type, breaking the downstream verifier's source attribution rule.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

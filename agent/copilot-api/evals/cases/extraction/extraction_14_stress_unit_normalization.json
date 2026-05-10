@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/14_stress_unit_normalization",
+  "category": "extraction",
+  "description": "Stress test: lab result with non-standard unit abbreviation (mmol/L vs mg/dL) — extractor must preserve original unit, not convert.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "what_bug_this_catches": "Regression where extractor silently converts units (e.g., mmol/L to mg/dL), causing a numeric mismatch between the stored packet value and the original document, breaking factual consistency checks.",
+  "packets": [
+    {
+      "source_id": "extract:kowalski-glucose:glucose",
+      "patient_uuid": "uuid-kowalski-004",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "glucose",
+      "label": "Glucose",
+      "value": "6.1",
+      "unit": "mmol/L",
+      "observed_at": "2026-02-20",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Glucose: 6.1 mmol/L"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Glucose was 6.1 mmol/L per the CMP report.",
+        "claim_type": "fact",
+        "source_ids": ["extract:kowalski-glucose:glucose"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}
