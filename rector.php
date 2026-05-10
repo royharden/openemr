@@ -73,6 +73,15 @@ return RectorConfig::configure()
     // A removes a path from below as it migrates each file. The whole
     // carve-out should be deleted before Wk3 starts.
     ->withSkip([
+        // Rector wants \Exception → \Throwable (modernization), but the
+        // OpenEMR custom phpstan rule ForbiddenCatchTypeRule rejects
+        // catch(\Throwable) in repository/controller layers because it
+        // would suppress \Error. Stick with \Exception in this module
+        // (with re-throw to preserve propagation) until the phpstan rule
+        // and Rector rule are reconciled — see PR #2 review notes.
+        OpenEMR\Rector\Rules\CatchExceptionToThrowableRector::class => [
+            __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
+        ],
         \Rector\Php80\Rector\Catch_\RemoveUnusedVariableInCatchRector::class => [
             __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
         ],

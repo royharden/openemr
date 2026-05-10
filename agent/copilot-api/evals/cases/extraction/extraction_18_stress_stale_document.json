@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/18_stress_stale_document",
+  "category": "extraction",
+  "description": "Stress test: lab document dated > 1 year ago — extractor must tag freshness as 'stale' and surfaced in verifier.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where extractor always tags freshness as 'recent' regardless of observed_at date, preventing the verifier from flagging stale evidence and causing the synthesizer to treat year-old labs as current.",
+  "packets": [
+    {
+      "source_id": "extract:chen-lipid-2024:ldl",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "ldl",
+      "label": "LDL",
+      "value": "162",
+      "unit": "mg/dL",
+      "observed_at": "2024-11-05",
+      "freshness": "stale",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "LDL: 162 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Most recent available LDL was 162 mg/dL dated 2024-11-05 (over 1 year ago); consider ordering a current lipid panel.",
+        "claim_type": "fact",
+        "source_ids": ["extract:chen-lipid-2024:ldl"],
+        "caveat": "Data is over 1 year old and may not reflect current status."
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": ["Order current lipid panel to confirm LDL trend."]
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

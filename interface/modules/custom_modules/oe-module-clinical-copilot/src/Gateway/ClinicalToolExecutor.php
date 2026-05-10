@@ -24,6 +24,13 @@ use OpenEMR\Modules\ClinicalCopilot\SourcePackets\ImmunizationsPacketBuilder;
 use OpenEMR\Modules\ClinicalCopilot\SourcePackets\PacketBuilder;
 use OpenEMR\Modules\ClinicalCopilot\SourcePackets\RecentLabsPacketBuilder;
 
+// Wk2 Workstream A — document extraction tool (AgDR-0044, Plan §6)
+// attach_and_extract is allowlisted here so the sidecar planner can emit it.
+// The actual extraction is performed by DocumentUploadController → SidecarClient
+// calling /v1/extract/lab-pdf or /v1/extract/intake-form. The executor handles
+// it as a no-op (returns empty packets) because the caller resolves the route
+// directly — the planner only needs the allowlist to route the graph edge.
+
 final class ClinicalToolExecutor
 {
     private const PACKET_CAP = 50;
@@ -51,6 +58,11 @@ final class ClinicalToolExecutor
             'get_allergy_list' => new AllergiesPacketBuilder(),
             'get_recent_labs' => new RecentLabsPacketBuilder(),
             'get_immunization_history' => new ImmunizationsPacketBuilder(),
+            // Wk2: attach_and_extract is allowlisted so the sidecar planner
+            // may emit it. Actual extraction happens via DocumentUploadController
+            // → SidecarClient → /v1/extract/*, so this builder returns empty
+            // packets (the document facts are pre-persisted by the controller).
+            'attach_and_extract' => new \OpenEMR\Modules\ClinicalCopilot\Gateway\AttachAndExtractStubBuilder(),
         ];
     }
 

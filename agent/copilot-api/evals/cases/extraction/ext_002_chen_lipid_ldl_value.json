@@ -1,0 +1,24 @@
+{
+  "case_id": "ext_002_chen_lipid_ldl_value",
+  "description": "Chen lipid panel — LDL value must be 122 mg/dL (factual consistency)",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "abc123patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "field_assertions": [
+      {"name": "ldl", "value": 122.0, "unit": "mg/dL", "flag": "N"},
+      {"name": "hdl", "value": 58.0, "unit": "mg/dL"},
+      {"name": "cholesterol_total", "value": 198.0}
+    ]
+  },
+  "what_bug_this_catches": "Catches VLM hallucination where extracted lab values differ from the fixture ground truth, which would cause incorrect clinical facts in the brief.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

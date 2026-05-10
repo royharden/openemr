@@ -1,0 +1,65 @@
+{
+  "case_id": "extraction/13_stress_conflicting_values",
+  "category": "extraction",
+  "description": "Stress test: two documents for same patient have conflicting lab values — extractor surfaces both with distinct source_ids.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "what_bug_this_catches": "Regression where extractor silently deduplicates or overwrites a conflicting lab value instead of preserving both packets with distinct source_ids, causing one observation to be lost.",
+  "packets": [
+    {
+      "source_id": "extract:reyes-lipid-apr:ldl",
+      "patient_uuid": "uuid-reyes-003",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "ldl",
+      "label": "LDL",
+      "value": "142",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-10",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "LDL: 142 mg/dL"
+    },
+    {
+      "source_id": "extract:reyes-lipid-mar:ldl",
+      "patient_uuid": "uuid-reyes-003",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "ldl",
+      "label": "LDL",
+      "value": "155",
+      "unit": "mg/dL",
+      "observed_at": "2026-03-05",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "LDL: 155 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "LDL was 142 mg/dL on 2026-04-10 per the April lipid panel.",
+        "claim_type": "fact",
+        "source_ids": ["extract:reyes-lipid-apr:ldl"],
+        "caveat": null
+      },
+      {
+        "text": "Prior LDL was 155 mg/dL on 2026-03-05 per the March lipid panel.",
+        "claim_type": "fact",
+        "source_ids": ["extract:reyes-lipid-mar:ldl"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 2,
+    "max_dropped": 0
+  }
+}

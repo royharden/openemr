@@ -1,0 +1,21 @@
+{
+  "case_id": "ext_012_reyes_hba1c_page_index",
+  "description": "STRESS: Reyes HbA1c — citation packet must have page_index=0 (single-page image)",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["citation_present", "schema_valid"],
+  "input": {
+    "patient_uuid_hash": "ghi789reyes",
+    "documents": [
+      {"path": "evals/fixtures/documents/p03-reyes-hba1c.png", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "all_citations_have_page_index": true,
+    "expected_page_index": 0
+  },
+  "what_bug_this_catches": "Stress case: single-image lab submissions need page_index=0. A null or incorrect page_index breaks the PDF.js bbox overlay (it tries to load page pageIndex+1 in the viewer).",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

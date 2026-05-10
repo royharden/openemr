@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/02_intake_happy_path",
+  "category": "extraction",
+  "description": "Intake form extraction happy path: BP and weight extracted correctly.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "what_bug_this_catches": "Regression where intake form extraction produces incorrect vitals or missing citations.",
+  "packets": [
+    {
+      "source_id": "extract:chen-intake:bp_systolic",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "vitals.bp_systolic",
+      "label": "BP Systolic",
+      "value": "128",
+      "unit": "mmHg",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "BP: 128/82"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Blood pressure was 128 mmHg systolic per the intake form.",
+        "claim_type": "fact",
+        "source_ids": ["extract:chen-intake:bp_systolic"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

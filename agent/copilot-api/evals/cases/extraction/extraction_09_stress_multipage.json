@@ -1,0 +1,45 @@
+{
+  "case_id": "extraction/09_stress_multipage",
+  "category": "extraction",
+  "description": "Stress test: multi-panel lab PDF — results on page 2 are also extracted with correct page_index.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where extractor only processes page 0 and misses lab results on subsequent pages.",
+  "packets": [
+    {
+      "source_id": "extract:whitaker-cbc:hemoglobin",
+      "patient_uuid": "uuid-whitaker-002",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "hemoglobin",
+      "label": "Hemoglobin",
+      "value": "13.8",
+      "unit": "g/dL",
+      "observed_at": "2026-03-28",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Hemoglobin: 13.8 g/dL",
+      "page_index": 1
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Hemoglobin was 13.8 g/dL per the CBC report.",
+        "claim_type": "fact",
+        "source_ids": ["extract:whitaker-cbc:hemoglobin"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

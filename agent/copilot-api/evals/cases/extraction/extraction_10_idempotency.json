@@ -1,0 +1,44 @@
+{
+  "case_id": "extraction/10_idempotency",
+  "category": "extraction",
+  "description": "Extraction idempotency: re-uploading the same document must not produce duplicate records (SHA-256 dedup).",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where re-uploading the same document creates duplicate copilot_document_facts rows instead of using the idempotency key.",
+  "packets": [
+    {
+      "source_id": "extract:chen-lipid:hdl",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "hdl",
+      "label": "HDL",
+      "value": "58",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "HDL: 58 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "HDL was 58 mg/dL per the lipid panel.",
+        "claim_type": "fact",
+        "source_ids": ["extract:chen-lipid:hdl"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

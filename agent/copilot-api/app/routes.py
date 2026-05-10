@@ -1,72 +1,164 @@
-"""Wk2 sidecar routes — contract-freeze stubs (Plan §5 step 7, §6).
+"""Wk2 sidecar routes — Workstream A implementation (Plan §5 step 7, §6).
 
-This module locks the URL surface for parallel teams:
+Endpoints implemented here:
   - ``POST /v1/extract/lab-pdf``      — Workstream A (lab PDF extractor)
   - ``POST /v1/extract/intake-form``  — Workstream A (intake-form extractor)
   - ``POST /v1/copilot/answer``       — Workstream C (LangGraph supervisor)
 
-Routes go through the shared ``require_gateway_secret`` dependency so the
-auth contract is identical to the existing /v1/brief and /v1/tool-plan
-endpoints — gateway-secret + (optional) task-token.
+File-size limits (AgDR plan §6 / hard rules):
+  - Maximum 10 pages; maximum 8 MB.
+  - Validated at route entry before calling the extractor.
 
 (AgDR-0044: contract-freeze artifact for Wk2 parallel teams.)
 """
 
 from __future__ import annotations
 
+import hashlib
+import io
 import logging
-import os
-import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .auth import require_gateway_secret
+from .schemas import ExtractedDocument
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
+_MAX_PAGES = 10
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _validate_upload_size(content: bytes, filename: str) -> None:
+    if len(content) > _MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"file_too_large: {filename!r} exceeds 8 MB limit",
+        )
+
+
+def _validate_pdf_page_count(content: bytes, filename: str) -> None:
+    """Reject PDFs with more than 10 pages."""
+    try:
+        import pypdfium2 as pdfium  # type: ignore[import-untyped]
+        doc = pdfium.PdfDocument(content)
+        try:
+            count = len(doc)
+        finally:
+            doc.close()
+        if count > _MAX_PAGES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"too_many_pages: {filename!r} has {count} pages; limit is {_MAX_PAGES}",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Could not count pages in %r: %s", filename, exc)
+
 
 @router.post(
     "/v1/extract/lab-pdf",
     dependencies=[Depends(require_gateway_secret)],
-    status_code=501,
-    summary="[W0.5 stub] Extract structured fields from a lab PDF.",
+    summary="Extract structured fields from a lab PDF.",
+    response_model=ExtractedDocument,
 )
-def extract_lab_pdf() -> dict[str, str]:
-    """Workstream A deliverable. Returns ``ExtractedDocument`` with ``LabResult``.
+async def extract_lab_pdf(
+    file: UploadFile = File(..., description="Lab PDF file (max 10 pages, 8 MB)"),
+    patient_uuid_hash: str = Form(..., description="SHA-256 of patient UUID"),
+) -> Any:
+    """Extract structured lab results from a PDF using Anthropic Vision + pdfplumber.
 
-    Stub at W0.5 — the body is implemented in the Workstream A PR.
+    Returns an ``ExtractedDocument`` with ``LabResult`` payload.
+    The PHP gateway is responsible for persisting the results to
+    ``copilot_document_facts`` via ``DocumentFactsRepository``.
+
+    File constraints: max 10 pages, max 8 MB. Returns HTTP 413 if exceeded.
     """
+    from .extractors.lab_pdf import extract_lab_pdf as _extract
 
-    raise HTTPException(
-        status_code=501,
-        detail="not_implemented_workstream_a",
-    )
+    content = await file.read()
+    filename = file.filename or "upload.pdf"
+
+    _validate_upload_size(content, filename)
+
+    if content[:4] == b"%PDF":
+        _validate_pdf_page_count(content, filename)
+
+    document_sha256 = _sha256_bytes(content)
+
+    try:
+        result = _extract(
+            pdf_bytes=content,
+            patient_uuid_hash=patient_uuid_hash,
+            document_sha256=document_sha256,
+            filename=filename,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Lab PDF extraction failed for %r: %s", filename, exc)
+        raise HTTPException(status_code=500, detail="extraction_failed") from exc
+
+    return JSONResponse(content=result)
 
 
 @router.post(
     "/v1/extract/intake-form",
     dependencies=[Depends(require_gateway_secret)],
-    status_code=501,
-    summary="[W0.5 stub] Extract structured fields from an intake form.",
+    summary="Extract structured fields from an intake form.",
+    response_model=ExtractedDocument,
 )
-def extract_intake_form() -> dict[str, str]:
-    """Workstream A deliverable. Returns ``ExtractedDocument`` with ``IntakeFields``.
+async def extract_intake_form(
+    file: UploadFile = File(..., description="Intake form (PDF, PNG, or JPEG; max 10 pages, 8 MB)"),
+    patient_uuid_hash: str = Form(..., description="SHA-256 of patient UUID"),
+) -> Any:
+    """Extract structured fields from an intake form (typed PDF, scanned PNG/JPEG).
 
-    Stub at W0.5 — the body is implemented in the Workstream A PR.
+    Returns an ``ExtractedDocument`` with ``IntakeFields`` payload.
+    For image-only forms, bbox is omitted; verbatim quotes may be null for
+    handwritten fields.
+
+    File constraints: max 10 pages (PDFs), max 8 MB.
     """
+    from .extractors.intake_form import extract_intake_form as _extract
 
-    raise HTTPException(
-        status_code=501,
-        detail="not_implemented_workstream_a",
-    )
+    content = await file.read()
+    filename = file.filename or "upload.pdf"
+
+    _validate_upload_size(content, filename)
+
+    if content[:4] == b"%PDF":
+        _validate_pdf_page_count(content, filename)
+
+    document_sha256 = _sha256_bytes(content)
+
+    try:
+        result = _extract(
+            content=content,
+            patient_uuid_hash=patient_uuid_hash,
+            document_sha256=document_sha256,
+            filename=filename,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Intake form extraction failed for %r: %s", filename, exc)
+        raise HTTPException(status_code=500, detail="extraction_failed") from exc
+
+    return JSONResponse(content=result)
 
 
-# === Wk2 Workstream C: POST /v1/copilot/answer — LangGraph supervisor ===
+# === Wk2 Workstream C: POST /v1/copilot/answer — LangGraph supervisor entrypoint ===
 
 
 class _CopilotAnswerRequest(BaseModel):
@@ -96,12 +188,15 @@ async def copilot_answer(body: _CopilotAnswerRequest) -> JSONResponse:
     """Execute the CopilotState LangGraph graph.
 
     Accepts a clinical question + optional document refs + pre-fetched packets.
-    Runs through intake_extractor -> evidence_retriever -> synthesizer -> verifier
+    Runs through intake_extractor → evidence_retriever → synthesizer → verifier
     (some nodes may be skipped by the deterministic supervisor routing).
 
-    Returns a VerifiedResponse-shaped JSON payload. Always returns 200 on
+    Returns a ``VerifiedResponse``-shaped JSON payload. Always returns 200 on
     logical completion; verifier_status reflects clinical quality, not HTTP status.
     """
+    import os
+    import uuid
+
     from .graph.build import get_compiled_graph
     from .graph.state import CopilotState
 
@@ -124,7 +219,7 @@ async def copilot_answer(body: _CopilotAnswerRequest) -> JSONResponse:
         "verified_response": None,
         "current_node": "start",
         "graph_path": [],
-        "worker_handoffs": [],
+        "worker_handoffs": 0,
         "decision_reason": "",
         "error_message": None,
         "low_confidence_count": 0,
@@ -132,6 +227,7 @@ async def copilot_answer(body: _CopilotAnswerRequest) -> JSONResponse:
         "langfuse_trace_id": run_id,
     }
 
+    # Inject pre-fetched gateway packets into extracted_packets
     if body.packets:
         from .schemas import SourcePacket
 

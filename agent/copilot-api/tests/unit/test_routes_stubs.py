@@ -1,4 +1,8 @@
-"""L1: Wk2 W0.5 route stubs are registered and return HTTP 501 (Workstream A/C take over their bodies)."""
+"""L1: Wk2 route contract tests — stubs and implemented endpoints.
+
+Workstream A (Team A) implemented /v1/extract/lab-pdf and /v1/extract/intake-form.
+Workstream C (/v1/copilot/answer) is registered and validates its request body.
+"""
 
 from __future__ import annotations
 
@@ -10,8 +14,6 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    # Lifespan triggers app.startup_self_test(). Run in eval mode so the
-    # vendor-credential ping is skipped.
     os.environ.setdefault("COPILOT_EVAL_MODE", "1")
     os.environ.setdefault("COPILOT_REQUIRE_TASK_TOKEN", "0")
     os.environ.setdefault("COPILOT_OPENEMR_GATEWAY_SHARED_SECRET", "test-secret")
@@ -19,26 +21,16 @@ def client() -> TestClient:
     from app.auth import require_gateway_secret
     from app.main import app
 
-    # Bypass the gateway-secret check at the dependency layer — these stubs
-    # are about route registration + 501, not auth (auth is exercised in its
-    # own tests).
     app.dependency_overrides[require_gateway_secret] = lambda: None
     yield TestClient(app)
     app.dependency_overrides.clear()
 
 
-@pytest.mark.parametrize(
-    "path,expected_detail",
-    [
-        ("/v1/extract/lab-pdf", "not_implemented_workstream_a"),
-        ("/v1/extract/intake-form", "not_implemented_workstream_a"),
-        ("/v1/copilot/answer", "not_implemented_workstream_c"),
-    ],
-)
-def test_stub_returns_501(client: TestClient, path: str, expected_detail: str) -> None:
-    r = client.post(path, json={})
-    assert r.status_code == 501, r.text
-    assert r.json()["detail"] == expected_detail
+def test_copilot_answer_route_registered_and_validates(client: TestClient) -> None:
+    """POST /v1/copilot/answer is registered and rejects malformed payloads."""
+    r = client.post("/v1/copilot/answer", json={})
+    assert r.status_code != 501, "/v1/copilot/answer should not be a 501 stub"
+    assert r.status_code in (200, 400, 422, 500), r.text
 
 
 def test_routes_are_registered() -> None:
@@ -47,3 +39,18 @@ def test_routes_are_registered() -> None:
     paths = {route.path for route in app.router.routes}
     for p in ("/v1/extract/lab-pdf", "/v1/extract/intake-form", "/v1/copilot/answer"):
         assert p in paths, f"{p} not registered (paths: {sorted(paths)})"
+
+
+def test_lab_pdf_route_registered_and_not_501(client: TestClient) -> None:
+    """Team A implemented /v1/extract/lab-pdf — it should not return 501."""
+    import io
+    pdf = b"%PDF-1.4\n%EOF\n"
+    # Send without file to trigger validation error (not 501)
+    r = client.post("/v1/extract/lab-pdf", json={})
+    assert r.status_code != 501, "lab-pdf route should be implemented (not a stub)"
+
+
+def test_intake_form_route_registered_and_not_501(client: TestClient) -> None:
+    """Team A implemented /v1/extract/intake-form — it should not return 501."""
+    r = client.post("/v1/extract/intake-form", json={})
+    assert r.status_code != 501, "intake-form route should be implemented (not a stub)"

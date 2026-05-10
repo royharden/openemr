@@ -1,0 +1,22 @@
+{
+  "case_id": "ext_009_kowalski_cmp_schema",
+  "description": "STRESS: Kowalski dirty CMP PDF — all metabolic fields extracted despite scan noise",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "jkl012kowalski",
+    "documents": [
+      {"path": "evals/fixtures/documents/p04-kowalski-cmp.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "fields_present": ["glucose", "bun", "creatinine", "sodium", "potassium"],
+    "min_field_count": 5,
+    "all_fields_have_citation": true
+  },
+  "what_bug_this_catches": "Stress case: dirty CMP scan with print artifacts. Extractor must still find the 5 core CMP fields. Missing creatinine or BUN would hide kidney function data from the brief.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

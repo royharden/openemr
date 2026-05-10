@@ -1,0 +1,20 @@
+{
+  "case_id": "ext_014_source_id_unique_per_field",
+  "description": "Whitaker CBC — every extracted field must have a unique source_id in its citation",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "input": {
+    "patient_uuid_hash": "def456patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p02-whitaker-cbc.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "all_source_ids_unique": true
+  },
+  "what_bug_this_catches": "Catches extractor reusing the same source_id for multiple fields, which would cause the verifier's source attribution rule to incorrectly merge distinct lab values into one citation packet.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

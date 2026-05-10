@@ -1,0 +1,24 @@
+{
+  "case_id": "ext_010_kowalski_cmp_values",
+  "description": "STRESS: Kowalski CMP — exact numeric values from dirty scan must match ground truth",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "jkl012kowalski",
+    "documents": [
+      {"path": "evals/fixtures/documents/p04-kowalski-cmp.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "field_assertions": [
+      {"name": "creatinine", "value": 0.9, "unit": "mg/dL"},
+      {"name": "sodium", "value": 140.0, "unit": "mEq/L"},
+      {"name": "potassium", "value": 4.1, "unit": "mEq/L"}
+    ]
+  },
+  "what_bug_this_catches": "Stress case: OCR digit confusion on dirty scans (0.9 misread as 0.6, or 140 misread as 140.0). Wrong numeric values from the CMP would generate false clinical alerts for kidney function.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

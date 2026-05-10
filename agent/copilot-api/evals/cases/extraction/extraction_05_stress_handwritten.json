@@ -1,0 +1,45 @@
+{
+  "case_id": "extraction/05_stress_handwritten",
+  "category": "extraction",
+  "description": "Stress test: handwritten intake form (Reyes) - sparse extraction with low confidence.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where handwritten document extraction fails to produce any fields or produces fields with confidence=1.0 that should be approximate.",
+  "packets": [
+    {
+      "source_id": "extract:reyes-intake:weight",
+      "patient_uuid": "uuid-reyes-003",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "vitals.weight",
+      "label": "Weight",
+      "value": "220",
+      "unit": "lbs",
+      "observed_at": "2026-03-15",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "confidence": 0.75,
+      "bbox_unit": "approximate"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Weight was approximately 220 lbs per the handwritten intake form.",
+        "claim_type": "fact",
+        "source_ids": ["extract:reyes-intake:weight"],
+        "caveat": "This value was extracted from a handwritten form with reduced confidence (0.75)."
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

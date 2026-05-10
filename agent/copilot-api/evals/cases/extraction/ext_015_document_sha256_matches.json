@@ -1,0 +1,20 @@
+{
+  "case_id": "ext_015_document_sha256_matches",
+  "description": "Chen lipid panel — document_sha256 in response matches SHA-256 of the uploaded file bytes",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "input": {
+    "patient_uuid_hash": "abc123patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "document_sha256_matches_file": true
+  },
+  "what_bug_this_catches": "Catches document sha256 not being computed from raw file bytes (e.g., computed from a decoded string), which breaks the idempotency key SHA-256(patient_uuid + document_sha256 + field_path) and allows duplicate rows.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

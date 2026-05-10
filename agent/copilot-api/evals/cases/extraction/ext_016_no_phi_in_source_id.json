@@ -1,0 +1,21 @@
+{
+  "case_id": "ext_016_no_phi_in_source_id",
+  "description": "All extractions — source_id must not contain raw patient UUID or name",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "no_phi_in_logs"],
+  "input": {
+    "patient_uuid_hash": "abc123patient",
+    "documents": [
+      {"path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "source_id_no_raw_uuid": true,
+    "source_id_format": "doc:<sha256_prefix>:page<N>:<field_name>"
+  },
+  "what_bug_this_catches": "Catches source_id leaking the raw patient UUID, which would expose PHI in traces, logs, and the Langfuse observability sink. The source_id must use the sha256 prefix of the document, not patient identity.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}

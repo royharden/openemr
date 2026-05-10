@@ -1,0 +1,45 @@
+{
+  "case_id": "extraction/06_stress_dirty_scan",
+  "category": "extraction",
+  "description": "Stress test: dirty scan (Kowalski CMP) - blurred text, partial OCR confidence.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where dirty scan produces hallucinated field values that don't match the actual document content.",
+  "packets": [
+    {
+      "source_id": "extract:kowalski-cmp:creatinine",
+      "patient_uuid": "uuid-kowalski-004",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "creatinine",
+      "label": "Creatinine",
+      "value": "0.9",
+      "unit": "mg/dL",
+      "observed_at": "2026-02-20",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Creatinine: 0.9 mg/dL",
+      "confidence": 0.85
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Creatinine was 0.9 mg/dL per the CMP report.",
+        "claim_type": "fact",
+        "source_ids": ["extract:kowalski-cmp:creatinine"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

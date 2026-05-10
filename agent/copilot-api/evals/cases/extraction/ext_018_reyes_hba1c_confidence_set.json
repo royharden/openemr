@@ -1,0 +1,21 @@
+{
+  "case_id": "ext_018_reyes_hba1c_confidence_set",
+  "description": "STRESS: Reyes HbA1c image — citation confidence field is non-null and in [0,1]",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "input": {
+    "patient_uuid_hash": "ghi789reyes",
+    "documents": [
+      {"path": "evals/fixtures/documents/p03-reyes-hba1c.png", "doc_type": "lab_pdf"}
+    ]
+  },
+  "expectations": {
+    "doc_type": "lab_pdf",
+    "all_citations_have_confidence": true,
+    "confidence_range": [0.0, 1.0]
+  },
+  "what_bug_this_catches": "Stress case: image-only extraction (no pdfplumber bbox) should still set a confidence score in [0,1]. A null confidence or out-of-range value fails Pydantic validation on SourcePacket, silently dropping the citation in the response.",
+  "added_by": "team-a-extractor",
+  "added_in_pr": "wk2-team-a-extractors"
+}
