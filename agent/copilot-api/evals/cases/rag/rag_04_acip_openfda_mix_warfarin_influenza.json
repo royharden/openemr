@@ -1,0 +1,19 @@
+{
+  "case_id": "rag/rag_04_acip_openfda_mix_warfarin_influenza",
+  "category": "rag",
+  "description": "ACIP + openFDA mix: patient is on warfarin (openFDA → drug interaction chunk) and due for influenza vaccine (CDC-ACIP chunk). Both sources should appear in the top-5 after reranking.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "added_by": "wk2-team-b-rag",
+  "added_in_pr": "wk2-team-b-rag",
+  "what_bug_this_catches": "If retrieval only returns chunks from one source_organization, the synthesizer cannot produce a grounded answer combining prescription safety (FDA) and preventive care (ACIP). This regression would surface as single-org result sets when the corpus contains relevant content from multiple orgs.",
+  "input": {
+    "query": "influenza vaccine patient on warfarin drug interaction INR anticoagulation",
+    "patient_uuid_hash": "aaaa0000bbbb4444"
+  },
+  "expectations": {
+    "min_candidates": 2,
+    "any_source_organization": ["CDC-ACIP", "FDA"],
+    "all_chunks_have": ["chunk_id", "source_id", "source_organization", "text"]
+  }
+}

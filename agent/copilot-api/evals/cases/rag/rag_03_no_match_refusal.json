@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/03_no_match_refusal",
+  "category": "rag",
+  "description": "RAG no-match: query returns no relevant chunks; agent should acknowledge missing evidence.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where agent invents guideline citations when no relevant chunks are retrieved from corpus.",
+  "packets": [],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [],
+    "missing_data": ["No guideline evidence found for this query in the current corpus."],
+    "refusals": [],
+    "suggested_followups": ["Review the patient chart panels directly for this information."]
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "max_dropped": 0
+  }
+}

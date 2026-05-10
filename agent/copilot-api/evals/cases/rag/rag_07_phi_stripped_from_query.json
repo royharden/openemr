@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/rag_07_phi_stripped_from_query",
+  "category": "rag",
+  "description": "PHI stripping: query contains a patient name and phone number that must be stripped by strip_phi() before the query reaches the retriever. After stripping, the remaining clinical terms (Tdap booster adults) must still yield relevant results.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "no_phi_in_logs", "citation_present"],
+  "added_by": "wk2-team-b-rag",
+  "added_in_pr": "wk2-team-b-rag",
+  "what_bug_this_catches": "If strip_phi() is not called before passing the user query to the retriever, patient names and phone numbers appear in retrieval logs and corpus search traces, violating the no_phi_in_logs rubric. This test confirms that PHI-stripping is applied upstream of retrieval and that the stripped query still returns useful guideline evidence.",
+  "input": {
+    "raw_query": "patient Maria Garcia 555-867-5309 needs Tdap booster adults 10 years",
+    "stripped_query": "[REDACTED] [REDACTED] needs Tdap booster adults 10 years",
+    "patient_uuid_hash": "aaaa0000bbbb7777"
+  },
+  "expectations": {
+    "phi_terms_absent_from_retrieval_log": ["Maria Garcia", "555-867-5309"],
+    "min_candidates_after_strip": 1,
+    "any_source_organization": ["CDC-ACIP"]
+  }
+}

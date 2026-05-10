@@ -1,0 +1,19 @@
+{
+  "case_id": "rag/rag_06_no_relevant_chunk_refusal",
+  "category": "rag",
+  "description": "No relevant chunk: query is about a domain (dermatology patch test protocols) that does not appear in the CDC ACIP + openFDA + HMS-LOE corpus. Evidence-retriever should return zero or very low-score chunks and the synthesizer should decline to ground an evidence claim.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "safe_refusal"],
+  "added_by": "wk2-team-b-rag",
+  "added_in_pr": "wk2-team-b-rag",
+  "what_bug_this_catches": "If the retriever returns irrelevant high-score chunks for out-of-domain queries (BM25 false positives on common words, vector hallucination), the synthesizer may fabricate guideline citations rather than declining. The verifier chunk_id_in_corpus and source_year rules would catch some of this, but the retriever itself should return an empty or clearly low-confidence candidate set for queries outside the corpus domain.",
+  "input": {
+    "query": "patch test allergy testing epicutaneous delayed hypersensitivity dermatology",
+    "patient_uuid_hash": "aaaa0000bbbb6666"
+  },
+  "expectations": {
+    "max_high_score_candidates": 0,
+    "allow_empty_results": true,
+    "safe_refusal_if_no_candidates": true
+  }
+}

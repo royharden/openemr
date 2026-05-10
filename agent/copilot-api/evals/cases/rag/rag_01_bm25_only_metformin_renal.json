@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/rag_01_bm25_only_metformin_renal",
+  "category": "rag",
+  "description": "BM25-only retrieval hit: query terms 'metformin renal dosing eGFR' appear verbatim in an openFDA/HMS-LOE chunk. Vector path disabled (no embedder) to isolate BM25.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "added_by": "wk2-team-b-rag",
+  "added_in_pr": "wk2-team-b-rag",
+  "what_bug_this_catches": "If BM25 retrieval is broken or the bm25_terms column is empty, a term-match query like 'metformin renal dosing eGFR' returns zero results and the evidence-retriever worker produces an empty packet list, leaving the synthesizer without guideline grounding.",
+  "input": {
+    "query": "metformin renal dosing eGFR threshold contraindication",
+    "patient_uuid_hash": "aaaa0000bbbb1111"
+  },
+  "expectations": {
+    "min_candidates": 1,
+    "any_source_organization": ["FDA", "HMS-LOE"],
+    "any_chunk_text_contains": ["metformin", "egfr", "30"],
+    "all_chunks_have": ["chunk_id", "source_id", "text", "source_organization"]
+  }
+}
