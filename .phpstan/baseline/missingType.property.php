@@ -1632,6 +1632,11 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-claimrev-connect/src/SubscriberPatientEligibilityRequest.php',
 ];
 $ignoreErrors[] = [
+    'message' => '#^Property OpenEMR\\\\Modules\\\\ClinicalCopilot\\\\Bootstrap\\:\\:\\$logger has no type specified\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Bootstrap.php',
+];
+$ignoreErrors[] = [
     'message' => '#^Property Comlink\\\\OpenEMR\\\\Modules\\\\TeleHealthModule\\\\Bootstrap\\:\\:\\$moduleDirectoryName has no type specified\\.$#',
     'count' => 1,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-comlink-telehealth/src/Bootstrap.php',

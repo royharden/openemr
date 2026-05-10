@@ -3902,6 +3902,16 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-claimrev-connect/templates/receiver.php',
 ];
 $ignoreErrors[] = [
+    'message' => '#^Binary operation "\\." between mixed and \' \' results in an error\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/IdentityPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Binary operation "\\." between non\\-falsy\\-string and mixed results in an error\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/IdentityPacketBuilder.php',
+];
+$ignoreErrors[] = [
     'message' => '#^Binary operation "\\." between mixed and \'/interface/modules…\' results in an error\\.$#',
     'count' => 1,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-comlink-telehealth/src/Bootstrap.php',

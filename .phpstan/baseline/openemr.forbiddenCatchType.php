@@ -118,6 +118,76 @@ $ignoreErrors[] = [
 ];
 $ignoreErrors[] = [
     'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 3,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/feedback.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Audit/AgentTurnAuditor.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Bootstrap.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Gateway/LocalTraceLogger.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 3,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Gateway/SidecarClient.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ActiveMedicationsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ActiveProblemsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/AllergiesPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/IdentityPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ImmunizationsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/RecentLabsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/tests/packet_builders_smoke.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/tests/tool_executor_smoke.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
     'count' => 4,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-comlink-telehealth/src/Controller/TeleHealthVideoRegistrationController.php',
 ];

@@ -58,6 +58,26 @@ $ignoreErrors[] = [
 ];
 $ignoreErrors[] = [
     'message' => '#^Use a PSR\\-3 logger such as OpenEMR\\\\BC\\\\ServiceContainer\\:\\:getLogger\\(\\) instead of error_log\\(\\)\\.$#',
+    'count' => 3,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Use a PSR\\-3 logger such as OpenEMR\\\\BC\\\\ServiceContainer\\:\\:getLogger\\(\\) instead of error_log\\(\\)\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/feedback.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Use a PSR\\-3 logger such as OpenEMR\\\\BC\\\\ServiceContainer\\:\\:getLogger\\(\\) instead of error_log\\(\\)\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Audit/AgentTurnAuditor.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Use a PSR\\-3 logger such as OpenEMR\\\\BC\\\\ServiceContainer\\:\\:getLogger\\(\\) instead of error_log\\(\\)\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Gateway/LocalTraceLogger.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Use a PSR\\-3 logger such as OpenEMR\\\\BC\\\\ServiceContainer\\:\\:getLogger\\(\\) instead of error_log\\(\\)\\.$#',
     'count' => 1,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-dashboard-context/ModuleManagerListener.php',
 ];

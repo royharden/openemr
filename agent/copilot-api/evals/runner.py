@@ -29,12 +29,78 @@ from app.verifier import patient_uuid_hash, verify
 
 CASES_DIR = pathlib.Path(__file__).parent / "cases"
 RESULTS_PATH = pathlib.Path(__file__).parent.parent / "eval_results.json"
+CASE_SCHEMA_PATH = pathlib.Path(__file__).parent / "case_schema.json"
+
+
+def _load_case_schema() -> dict[str, Any] | None:
+    """Load the eval case JSON schema (Plan §15.5.3 / W0.5 contract-freeze).
+
+    Returns ``None`` if the schema or jsonschema lib is unavailable. The runner
+    treats absent schema as a soft failure (logs once, keeps running) so a
+    broken dev environment doesn't take down CI for unrelated reasons.
+    """
+
+    if not CASE_SCHEMA_PATH.exists():
+        return None
+    try:
+        return json.loads(CASE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"WARN: case_schema.json is invalid JSON, skipping validation: {e}", file=sys.stderr)
+        return None
+
+
+def _validate_case(
+    raw: dict[str, Any], path: pathlib.Path, schema: dict[str, Any] | None
+) -> None:
+    """Validate one raw case dict against case_schema.json.
+
+    Raises ``RuntimeError`` on hard schema violation. Plan §13.21 forbids
+    silently skipping bad cases — if a case file is malformed the runner must
+    refuse to load it so CI surfaces the problem.
+    """
+
+    if schema is None:
+        return
+    try:
+        import jsonschema  # type: ignore[import-untyped]
+    except ImportError:
+        # Soft-fail at the warning layer — Wk1 venvs may not have jsonschema.
+        # CI image and W0 pyproject.toml both pin it, so production paths hit
+        # the validation path.
+        if not getattr(_validate_case, "_warned", False):
+            print(
+                "WARN: jsonschema not installed; case-schema validation skipped. "
+                "Install via `pip install -e agent/copilot-api[live]` or add jsonschema.",
+                file=sys.stderr,
+            )
+            _validate_case._warned = True  # type: ignore[attr-defined]
+        return
+
+    try:
+        jsonschema.validate(instance=raw, schema=schema)
+    except jsonschema.ValidationError as e:
+        raise RuntimeError(
+            f"Case file failed schema validation: {path.name}\n"
+            f"  At: {'/'.join(str(p) for p in e.absolute_path) or '<root>'}\n"
+            f"  Reason: {e.message}\n"
+            f"  See evals/case_schema.json (Plan §15.5.3)."
+        ) from None
 
 
 def _load_cases() -> list[dict[str, Any]]:
+    schema = _load_case_schema()
     cases = []
-    for f in sorted(CASES_DIR.glob("*.json")):
-        cases.append(json.loads(f.read_text(encoding="utf-8")))
+    case_files = sorted(CASES_DIR.glob("*.json"))
+    # Wk2 cases may be organized into subdirs (extraction/, rag/, citation/, ...).
+    for sub in sorted(p for p in CASES_DIR.iterdir() if p.is_dir()):
+        case_files.extend(sorted(sub.glob("*.json")))
+    for f in case_files:
+        try:
+            raw = json.loads(f.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Case file is invalid JSON: {f}: {e}") from None
+        _validate_case(raw, f, schema)
+        cases.append(raw)
     return cases
 
 

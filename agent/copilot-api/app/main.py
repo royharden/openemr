@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Header
 
 from .auth import require_gateway_secret, verify_task_token
 from .observability import record_feedback, record_local_refusal
 from .orchestrator import process_brief
+from .routes import router as wk2_router
+from .startup import StartupSelfTestError, startup_self_test
 from .tool_planner import call_tool_plan
 from .schemas import (
     BriefRequest,
@@ -19,11 +24,40 @@ from .schemas import (
     VerifiedResponse,
 )
 
-app = FastAPI(title="Clinical Co-Pilot Sidecar", version="0.2.0")
+logger = logging.getLogger(__name__)
+
+# Module-level state for the healthcheck. The lifespan hook flips this to
+# True after startup_self_test passes; until then /healthz returns 503 so
+# the docker healthcheck holds traffic. Plan §15.5.11 + AgDR-0056.
+_self_test_passed = False
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    global _self_test_passed
+    try:
+        startup_self_test()
+        _self_test_passed = True
+    except StartupSelfTestError:
+        # Re-raise so uvicorn exits non-zero. The exception was already
+        # logged with STARTUP_SELF_TEST: FAILED in startup_self_test().
+        raise
+    yield
+
+
+app = FastAPI(title="Clinical Co-Pilot Sidecar", version="0.2.0", lifespan=_lifespan)
+
+# Wk2 contract-freeze (Plan §5 step 7 / AgDR-0044): three new endpoints
+# with locked paths and 501 stubs. Workstream A and C swap the bodies in.
+app.include_router(wk2_router)
 
 
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
+    if not _self_test_passed:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="startup_self_test_pending")
     return {"status": "ok"}
 
 

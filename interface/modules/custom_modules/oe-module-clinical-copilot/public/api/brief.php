@@ -20,13 +20,13 @@ use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
-use OpenEMR\Services\BaseService;
 use OpenEMR\Modules\ClinicalCopilot\Audit\AgentTurnAuditor;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\ClinicalToolExecutor;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\LocalTraceLogger;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\QuestionRouter;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\SidecarClient;
 use OpenEMR\Modules\ClinicalCopilot\Gateway\TaskToken;
+use OpenEMR\Services\BaseService;
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -517,7 +517,7 @@ try {
     error_log(sprintf(
         'ClinicalCopilot brief.php internal_error trace_id=%s exception=%s message=%s',
         $traceId,
-        get_class($e),
+        $e::class,
         $e->getMessage()
     ));
     copilot_send_json(500, [

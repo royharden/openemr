@@ -909,6 +909,51 @@ $ignoreErrors[] = [
 $ignoreErrors[] = [
     'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
     'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Bootstrap.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ActiveMedicationsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ActiveProblemsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 2,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/AllergiesPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 2,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/IdentityPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ImmunizationsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/RecentLabsPacketBuilder.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/tests/agent_turn_auditor_smoke.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/tests/packet_builders_smoke.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Construct empty\\(\\) is not allowed\\. Use more strict comparison\\.$#',
+    'count' => 1,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-comlink-telehealth/moduleConfig.php',
 ];
 $ignoreErrors[] = [

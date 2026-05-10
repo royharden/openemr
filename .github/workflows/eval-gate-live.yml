@@ -1,0 +1,68 @@
+name: copilot-eval-gate-live
+
+# Nightly live-vendor smoke for the Clinical Co-Pilot.
+# Plan §3 decision #19: this workflow hits real Anthropic / Voyage / Cohere
+# with a 5-case curated set (`evals/live_smoke/*.json`). It is NEVER
+# PR-blocking. Its job is to catch "the deterministic mock and reality have
+# diverged" — typically by alerting on stale cache fingerprints or a vendor
+# behavior change, not by gating any merge.
+
+on:
+  schedule:
+    # Every night at 06:00 UTC (~11pm Pacific).
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-live-smoke:
+    name: Live-vendor smoke (5 hand-picked cases)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true  # advisory only; never block
+
+    env:
+      COPILOT_EVAL_MODE: '0'  # use real vendor calls
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+      OPENFDA_API_KEY: ${{ secrets.OPENFDA_API_KEY }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+      PYTHONUNBUFFERED: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install sidecar dependencies
+        working-directory: agent/copilot-api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Live-vendor smoke (advisory only)
+        run: |
+          if [ -d agent/copilot-api/evals/live_smoke ]; then
+            cd agent/copilot-api
+            python -m evals.runner --live-smoke
+          else
+            echo "::notice::evals/live_smoke/ not yet populated (Wk2 Workstream C lands it)"
+          fi
+
+      - name: Upload live results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke-results
+          path: agent/copilot-api/live_smoke_results.json
+          if-no-files-found: ignore

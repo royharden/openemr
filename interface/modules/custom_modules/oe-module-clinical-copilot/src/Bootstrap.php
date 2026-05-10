@@ -15,7 +15,6 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot;
 
 use OpenEMR\BC\ServiceContainer;
-use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Events\PatientDemographics\RenderEvent;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PanelController;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
