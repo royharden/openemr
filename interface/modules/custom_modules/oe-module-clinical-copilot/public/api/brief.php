@@ -517,7 +517,7 @@ try {
     error_log(sprintf(
         'ClinicalCopilot brief.php internal_error trace_id=%s exception=%s message=%s',
         $traceId,
-        get_class($e),
+        $e::class,
         $e->getMessage()
     ));
     copilot_send_json(500, [
