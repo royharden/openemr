@@ -45,7 +45,13 @@
 
 declare(strict_types=1);
 
-$module = '../interface/modules/custom_modules/oe-module-clinical-copilot/';
+// Path is __DIR__-anchored so phpstan resolves it identically across hosts.
+// Each sibling baseline (cast.string.php, etc.) uses __DIR__ . '/../../...'
+// to walk from .phpstan/baseline/ up to the repo root. The earlier relative
+// form ('../interface/...') resolved correctly on the Windows author host
+// but failed on the CI Linux runner with "Path ... is neither a directory,
+// nor a file path, nor a fnmatch pattern." (AgDR-0057, W0 cleanup.)
+$module = __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/';
 
 return [
     'parameters' => [

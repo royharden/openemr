@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, Header
 from .auth import require_gateway_secret, verify_task_token
 from .observability import record_feedback, record_local_refusal
 from .orchestrator import process_brief
+from .routes import router as wk2_router
 from .startup import StartupSelfTestError, startup_self_test
 from .tool_planner import call_tool_plan
 from .schemas import (
@@ -45,6 +46,10 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Clinical Co-Pilot Sidecar", version="0.2.0", lifespan=_lifespan)
+
+# Wk2 contract-freeze (Plan §5 step 7 / AgDR-0044): three new endpoints
+# with locked paths and 501 stubs. Workstream A and C swap the bodies in.
+app.include_router(wk2_router)
 
 
 @app.get("/healthz")

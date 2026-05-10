@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openemr.copilot/wk2/case_schema.json",
+  "title": "Clinical Co-Pilot eval case schema (Wk1 + Wk2 unified)",
+  "description": "Locks the eval case JSON shape across Wk1 (verifier-only cases) and Wk2 (extraction / rag / citation / refusal_phi / regression). Wk1 cases identify themselves by 'name'; Wk2 cases identify themselves by 'case_id' AND must declare 'category'+'rubrics'+'what_bug_this_catches' (Plan §15.5.3). Validation runs at runner load time; on failure the runner refuses to load the case (no silent skips per antipattern §13.21).",
+  "type": "object",
+  "additionalProperties": true,
+  "anyOf": [
+    {"required": ["name"]},
+    {"required": ["case_id"]}
+  ],
+  "properties": {
+    "name": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_./-]+$"},
+    "description": {"type": "string"},
+    "mode": {
+      "type": "string",
+      "enum": [
+        "verifier",
+        "router_refusal",
+        "tool_plan",
+        "tool_error",
+        "graph_full",
+        "extractor_only",
+        "rag_only",
+        "verifier_only"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "enum": ["extraction", "rag", "citation", "refusal_phi", "regression"]
+    },
+    "rubrics": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "schema_valid",
+          "citation_present",
+          "factually_consistent",
+          "safe_refusal",
+          "no_phi_in_logs"
+        ]
+      }
+    },
+    "expectations": {"type": "object"},
+    "packets": {"type": "array"},
+    "llm_output": {"type": "object"},
+    "request": {"type": "object"},
+    "input": {
+      "type": "object",
+      "properties": {
+        "patient_uuid_hash": {"type": "string"},
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "doc_type"],
+            "properties": {
+              "path": {"type": "string"},
+              "doc_type": {"type": "string", "enum": ["lab_pdf", "intake_form"]}
+            }
+          }
+        },
+        "query": {"type": "string"}
+      }
+    },
+    "mocked_tool_plan": {"type": "object"},
+    "question": {"type": "string"},
+    "regression_marker": {"type": ["string", "null"]},
+    "added_by": {"type": "string"},
+    "added_in_pr": {"type": "string"},
+    "what_bug_this_catches": {"type": "string", "minLength": 8}
+  },
+  "if": {"required": ["category"]},
+  "then": {
+    "required": [
+      "case_id",
+      "category",
+      "rubrics",
+      "expectations",
+      "what_bug_this_catches"
+    ]
+  }
+}

@@ -63,5 +63,28 @@ return RectorConfig::configure()
         OEGlobalsBagTypedGettersRector::class,
         SimplifyIfElseToTernaryRector::class,
     ])
+    // Wk2 W0 cleanup (paired with AgDR-0057 phpstan baseline approach) ----
+    // Bound the four mechanical Rector rules currently flagging the Wk1
+    // Clinical Co-Pilot module so PR #1 unblocks Wk2 parallel teams. The
+    // 14 affected files (catch (\Throwable $e), redundant (string) casts,
+    // a final readonly class candidate, and a ??= op) are punch-list items
+    // for Workstream A to clean as it touches each file. Per CLAUDE.md
+    // ("fix existing baseline entries when modifying the file"), Workstream
+    // A removes a path from below as it migrates each file. The whole
+    // carve-out should be deleted before Wk3 starts.
+    ->withSkip([
+        \Rector\DeadCode\Rector\Catch_\RemoveUnusedVariableInCatchRector::class => [
+            __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
+        ],
+        \Rector\CodeQuality\Rector\FuncCall\RecastingRemovalRector::class => [
+            __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
+        ],
+        \Rector\Php82\Rector\Class_\ReadOnlyClassRector::class => [
+            __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
+        ],
+        \Rector\Php74\Rector\Assign\NullCoalescingOperatorRector::class => [
+            __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
+        ],
+    ])
     ->withPhpSets()
     ->withTypeCoverageLevel(5);

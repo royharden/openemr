@@ -11,7 +11,23 @@ from pydantic import BaseModel, Field, field_validator
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
+SourceType = Literal["openemr_packet", "document_extract", "guideline_chunk"]
+BboxUnit = Literal["exact", "approximate"]
+
+
 class SourcePacket(BaseModel):
+    """Source-of-truth packet for one extracted fact.
+
+    Wk1 packets carry only the OpenEMR-native fields (source_id, patient_uuid,
+    resource_type, source_table, field, label, value, unit, observed_at,
+    freshness, status, sensitive).
+
+    Wk2 (Plan §3 #13, §12 Citation Contract) extends the same model with
+    optional fields used by document_extract and guideline_chunk packets.
+    All Wk2 additions are optional with default None so Wk1 packets keep
+    validating unchanged.
+    """
+
     source_id: str
     patient_uuid: str
     resource_type: str
@@ -26,6 +42,46 @@ class SourcePacket(BaseModel):
     freshness: Literal["recent", "stale", "unknown"] = "unknown"
     status: str | None = None
     sensitive: bool = False
+
+    # --- Wk2 citation-contract extension (Plan §3 #13, §12, AgDR-0039) ---
+    # All optional. Required combinations enforced by verifier rules
+    # (bbox_well_formed, quote_verbatim_in_pdf, chunk_id_in_corpus,
+    # extracted_field_in_schema, guideline_grade_present), not Pydantic.
+    source_type: SourceType | None = None
+    page_or_section: str | None = None
+    field_or_chunk_id: str | None = None
+    quote_or_value: str | None = None
+    bbox: tuple[float, float, float, float] | None = None
+    bbox_unit: BboxUnit | None = None
+    confidence: float | None = None
+    page_index: int | None = None
+    recommendation_grade: str | None = None  # ACIP A|B, USPSTF A|B|C|D|I, etc.
+    source_year: int | None = None
+    source_organization: str | None = None  # CDC-ACIP | FDA | HMS-LOE | ...
+
+    @field_validator("bbox")
+    @classmethod
+    def _bbox_in_unit_range(
+        cls, v: tuple[float, float, float, float] | None
+    ) -> tuple[float, float, float, float] | None:
+        if v is None:
+            return v
+        x0, y0, x1, y1 = v
+        for c in v:
+            if not 0.0 <= c <= 1.0:
+                raise ValueError("bbox coordinates must be in [0, 1] (normalized fractions)")
+        if not (x0 < x1 and y0 < y1):
+            raise ValueError("bbox must satisfy x0<x1 and y0<y1")
+        return v
+
+    @field_validator("confidence")
+    @classmethod
+    def _confidence_in_unit_range(cls, v: float | None) -> float | None:
+        if v is None:
+            return v
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("confidence must be in [0, 1]")
+        return v
 
 
 UseCase = Literal[
@@ -45,6 +101,10 @@ ClinicalToolName = Literal[
     "get_allergy_list",
     "get_recent_labs",
     "get_immunization_history",
+    # Wk2 (Plan §3 #21, §6 Workstream A) — gateway-allowlisted document tool.
+    # Body implemented by Team A; literal locked here so Team C can write
+    # graph routing logic without merge-collision risk.
+    "attach_and_extract",
 ]
 
 PlannerStatus = Literal["planned", "fallback_required", "failed"]
@@ -212,3 +272,82 @@ class VerifiedResponse(BaseModel):
     selected_tools: list[ClinicalToolName] = Field(default_factory=list)
     planner_status: PlannerStatus | None = None
     tool_results_summary: list[dict[str, Any]] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Wk2 Workstream 0.5 — contract-freeze shells for extraction pipeline
+# (Plan §5 step 7, §6 Workstream A, §15 Team A brief)
+#
+# Team A extends the bodies (extractor logic, exact field set per doc type).
+# Field NAMES at the envelope level are locked here so Team A and Team C can
+# work in parallel without renaming risk. Inner field collections stay
+# permissive — the value list is keyed by `name` so Team A can grow it without
+# changing the envelope shape.
+# ---------------------------------------------------------------------------
+
+DocumentType = Literal["lab_pdf", "intake_form"]
+
+
+class ExtractedField(BaseModel):
+    """One field pulled from a document, with its citation packet.
+
+    Locked envelope (W0.5):
+      - name       (string field path, e.g. ``vitals.bp_systolic`` or ``ldl``)
+      - value      (string|number|null — coerced to string in storage layer)
+      - unit       (optional unit string, e.g. ``mg/dL``)
+      - reference_range (optional, e.g. ``<100``)
+      - flag       (optional H/L/N/A flag)
+      - loinc_code (optional, populated when extractor recognizes a code)
+      - citation   (REQUIRED for non-null value — the SourcePacket that
+                    proves where this came from)
+    """
+
+    name: str = Field(..., max_length=128)
+    value: str | float | int | bool | None = None
+    unit: str | None = Field(None, max_length=32)
+    reference_range: str | None = Field(None, max_length=64)
+    flag: str | None = Field(None, max_length=8)
+    loinc_code: str | None = Field(None, max_length=32)
+    citation: SourcePacket | None = None
+
+
+class LabResult(BaseModel):
+    """Strict schema for a lab PDF extraction (Plan §6 Workstream A).
+
+    Envelope locked at W0.5 contract-freeze; inner field set is dynamic.
+    Extractor implementation (vision + pdfplumber bbox) lives at
+    ``app.extractors.lab_pdf`` (Team A).
+    """
+
+    document_sha256: str = Field(..., min_length=64, max_length=64)
+    page_count: int = Field(..., ge=1)
+    extracted_at: str  # ISO 8601 UTC
+    extracted_by_model: str = Field(..., max_length=64)
+    fields: list[ExtractedField] = Field(default_factory=list)
+
+
+class IntakeFields(BaseModel):
+    """Strict schema for an intake-form extraction (Plan §6 Workstream A)."""
+
+    document_sha256: str = Field(..., min_length=64, max_length=64)
+    page_count: int = Field(..., ge=1)
+    extracted_at: str  # ISO 8601 UTC
+    extracted_by_model: str = Field(..., max_length=64)
+    fields: list[ExtractedField] = Field(default_factory=list)
+
+
+class ExtractedDocument(BaseModel):
+    """Sidecar response envelope for ``POST /v1/extract/{lab-pdf,intake-form}``.
+
+    PHP gateway is the only writer to ``copilot_document_facts``. The sidecar
+    returns this structure; the gateway calls
+    ``DocumentFactsRepository`` to persist the fields with the
+    SHA-256(patient_uuid + document_sha256 + field_path) idempotency key.
+    """
+
+    doc_type: DocumentType
+    document_sha256: str = Field(..., min_length=64, max_length=64)
+    result: LabResult | IntakeFields
+    source_packets: list[SourcePacket] = Field(default_factory=list)
+    extracted_field_count: int = 0
+    dropped_field_count: int = 0  # claims dropped by quote_verbatim_in_pdf etc.
