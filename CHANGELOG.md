@@ -9,6 +9,19 @@
 - **[#3](https://github.com/openemr/openemr/pull/3)** `feat(wk2-b): hybrid RAG & guideline corpus` — Team B retrieval (BM25 + Voyage embedding + Cohere rerank, CDC ACIP + openFDA corpus, 8 RAG eval cases).
 - **[#4](https://github.com/openemr/openemr/pull/4)** `feat(wk2-c): LangGraph supervisor & 50-case eval gate` — Team C orchestration (deterministic supervisor, 4 worker nodes, 50-case golden suite, 5 boolean rubrics, CI-blocking eval gate).
 
+### Surprise Challenge — Modern Patient Dashboard (2026-05-10 PM)
+
+Wk2 Surprise track. A standalone Vite + React 19 + TypeScript SPA at `openemr/dashboard-modern/` that authenticates via SMART-on-FHIR v2.2.0 and consumes OpenEMR's FHIR R4 API as a read-only data layer. Zero PHP / SQL / Docker edits — runs alongside the legacy PHP UI as a strangler-fig replacement for one bounded surface. Framework-choice defense lives at `openemr/PATIENT_DASHBOARD_MIGRATION.md`.
+
+- **[`d066b2433`](https://github.com/royharden/openemr/commit/d066b2433)** `feat(dashboard-modern): Wk2 Surprise Workstream 0 scaffold` — Vite 8 + React 19.2 + TS 6 strict scaffold; FROZEN view-model contract at `src/models/dashboard.ts`; locked-signature stubs for queries + adapters; Phase 0 medication-parity verdict (FHIR-only split via `MedicationRequest.intent`); probe driver (`scripts/probe.mjs`) for live OAuth dance.
+- **[`9baa7d3f1`](https://github.com/royharden/openemr/commit/9baa7d3f1)** `feat(dashboard-modern): implement Workstream A — SMART auth + FHIR client wrapper` — `fhirclient` v2 wired (PKCE public client; FHIR-side SMART discovery; OIDC-side OAuth discovery); `getSession()` / `redact()` / discovery-driven `logout()`; `fhirGet<T>()` Zod-parses every response. Also bundles Team B's view-model implementation (PatientHeader + Allergies / ProblemList / Medications cards; NKDA-aware; adapter-side status filtering; Phase-0 `intent === 'plan'` filter on medications) — Team A's `git add` swept B's WIP files into the same commit.
+- **[`545559026`](https://github.com/royharden/openemr/commit/545559026)** `feat(dashboard-modern): implement Workstream C — Prescriptions, CareTeam, LabResults` — Phase-0 `intent === 'order'` filter; per-participant Practitioner follow-up reads with parallelism cap of 3; abnormal lab interpretation (H/L/HH/LL) badges; 38 unit tests + 24 RTL component tests.
+- **[`d17eb7d79`](https://github.com/royharden/openemr/commit/d17eb7d79)** `feat(dashboard-modern): implement Workstream D — test harness, MSW lifecycle, mutation contract` — MSW server lifecycle hardened with `onUnhandledRequest: 'error'`; Playwright config polished; mutation-policy contract test (AgDR-0084) intercepts every `/apis/default/` request and fails on any non-`GET`; whitelist auto-discovers token + revocation endpoints from OIDC config; plant-and-revert dry-run captured under `dashboard-modern/agentdocs/regression-dryrun/`.
+
+**Verification:** `npm run typecheck && npm run lint && npm run test && npm run build` all exit 0. **128 vitest tests pass** across 11 files. `npx playwright test` — 5 passed, 2 skipped (opt-in via `PW_WITH_SMART_SESSION=1` and `PW_USE_MSW=1`).
+
+**Track separation honored:** zero edits in Wk2 Main-track zones (`agent/copilot-api/`, `interface/modules/custom_modules/oe-module-clinical-copilot/`, `sql/migrations/`, `.github/workflows/eval-gate*.yml`, `scripts/`).
+
 ---
 
 ## [8.0.0.3](https://github.com/openemr/openemr/milestone/28?closed=1) - 2026-03-25
