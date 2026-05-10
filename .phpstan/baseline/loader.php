@@ -173,4 +173,11 @@ return ['includes' => [
     __DIR__ . '/variable.undefined.php',
     __DIR__ . '/void.pure.php',
     __DIR__ . '/while.alwaysTrue.php',
+    // ---- Wk2 W0 (2026-05-09) ----
+    // Bounded baseline for the Wk1 Clinical Co-Pilot module. ~147 errors
+    // across 11 categories, all type-narrowing or pattern-replacement work.
+    // See clinical-copilot-wk1-debt.php for the punch-list and AgDR-0057.
+    // Workstream A reduces these as it touches files; this entry should be
+    // deleted (along with its file) before Wk3 starts.
+    __DIR__ . '/clinical-copilot-wk1-debt.php',
 ]];
