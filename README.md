@@ -32,6 +32,120 @@
 
 ---
 
+## Week 2: Multimodal Evidence Agent
+
+**New in Wk2 (2026-05-10):** Document ingestion (lab PDFs, intake forms), hybrid evidence retrieval (CDC ACIP guidelines + openFDA), LangGraph multi-agent supervisor, and 50-case eval-driven CI gate.
+
+### Quick Start (Week 2 Features)
+
+**Prerequisites:**
+- Docker + Docker Compose running (`cd docker/development-easy && docker compose up -d --wait`).
+- Python 3.11+ with `agent/copilot-api/` dependencies installed.
+- Environment keys in `.env`: `ANTHROPIC_API_KEY`, `LANGFUSE_*`, `VOYAGE_API_KEY`, `COHERE_API_KEY`, `OPENFDA_API_KEY`, `OPENEMR_GATEWAY_SECRET` (see `.env.example`).
+
+**Ingest a document:**
+```bash
+# Terminal 1: Start the sidecar
+cd agent/copilot-api
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+
+# Terminal 2: Upload a lab PDF
+curl -X POST http://localhost:8001/v1/extract/lab-pdf \
+  -H "Authorization: Bearer <gateway-secret>" \
+  -F "patient_uuid=uuid-001" \
+  -F "document_file=@sample.pdf"
+
+# Response: ExtractedDocument with lab results + source packets (bbox, quote, page)
+```
+
+**Retrieve evidence:**
+```bash
+# Build the guideline corpus (idempotent)
+python scripts/build_corpus.py
+
+# Query for evidence (e.g., CDC ACIP A1c monitoring)
+curl -X POST http://localhost:8001/v1/rag/retrieve \
+  -H "Authorization: Bearer <gateway-secret>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "A1c control target for type 2 diabetes",
+    "top_k": 5
+  }'
+
+# Response: top-5 reranked guideline chunks with source year + grade
+```
+
+**Full agent answer:**
+```bash
+# Synthesis: combine extraction + evidence + OpenEMR tools
+curl -X POST http://localhost:8001/v1/copilot/answer \
+  -H "Authorization: Bearer <gateway-secret>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trace_id": "...",
+    "patient_uuid_hash": "...",
+    "use_case": "free_text_followup",
+    "question": "Is the patient due for any vaccines?",
+    "packets": [...]  # from OpenEMR gateway
+  }'
+
+# Response: VerifiedResponse with claims, citations, refusals, usage metrics
+```
+
+### Running Evals
+
+**Pre-push smoke (10 cases, local, no vendor API calls):**
+```bash
+bash scripts/run_eval_gate.sh --smoke
+```
+
+**Full 50-case golden suite (CI):**
+```bash
+bash scripts/run_eval_gate.sh --full
+```
+
+**Results:** Pass/fail matrix by rubric (schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs). Exits with code 1 if any rubric floor is violated.
+
+### Architecture & Design
+
+- **W2_ARCHITECTURE.md:** Full multimodal agent design, citation contract, supervisor routing, eval gate, file ownership zones.
+- **agent/copilot-api/README.md:** Sidecar setup, sqlite-vec installation, vendor wiring, corpus refresh.
+- **Eval gate:** 50 cases covering extraction stress, RAG quality, citation accuracy, refusal safety, and Wk1 regression. CI blocks PRs on failure (agentdocs/regression-dry-run/).
+
+### Key Components
+
+| Component | Role | Location |
+|-----------|------|----------|
+| **Vision Extractor** | Claude Sonnet 4.6 + pdfplumber bbox | `app/extractors/lab_pdf.py`, `intake_form.py` |
+| **Hybrid Retriever** | BM25 + Voyage embedding + Cohere rerank | `app/rag/retriever.py` |
+| **LangGraph Supervisor** | Deterministic routing (no LLM hop) | `app/graph/supervisor.py`, `nodes.py` |
+| **Verifier Gate** | 5 boolean rubrics (no LLM judge) | `evals/rubrics.py`, `floor.json` |
+| **Corpus** | CDC ACIP + openFDA drugs | `app/rag/ingestion/` + `scripts/build_corpus.py` |
+| **Eval Runner** | 50-case golden suite | `evals/runner.py`, `evals/cases/` |
+
+### Environment Variables (Week 2 Additions)
+
+Required for Wk2 extraction + RAG:
+```bash
+# Voyage embeddings (hybrid retrieval)
+VOYAGE_API_KEY="pa-..."
+
+# Cohere reranking (with local fallback)
+COHERE_API_KEY="cohere-..."
+
+# openFDA drug labels
+OPENFDA_API_KEY="..."
+
+# Same as Wk1 (required)
+ANTHROPIC_API_KEY="sk-ant-api03-..."
+LANGFUSE_PUBLIC_KEY="pk-lf-..."
+LANGFUSE_SECRET_KEY="sk-lf-..."
+LANGFUSE_HOST="https://us.cloud.langfuse.com"
+OPENEMR_GATEWAY_SECRET="local-dev-shared-secret"
+```
+
+---
+
 [![Syntax Status](https://github.com/openemr/openemr/actions/workflows/syntax.yml/badge.svg)](https://github.com/openemr/openemr/actions/workflows/syntax.yml)
 [![Styling Status](https://github.com/openemr/openemr/actions/workflows/styling.yml/badge.svg)](https://github.com/openemr/openemr/actions/workflows/styling.yml)
 [![Testing Status](https://github.com/openemr/openemr/actions/workflows/test.yml/badge.svg)](https://github.com/openemr/openemr/actions/workflows/test.yml)

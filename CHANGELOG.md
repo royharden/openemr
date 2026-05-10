@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## Week 2: Multimodal Evidence Agent (2026-05-10)
+
+### Clinical Co-Pilot Enhancement
+
+- **[#1](https://github.com/openemr/openemr/pull/1)** `feat(wk2): foundations + contract-freeze for multimodal evidence agent` — Workstream 0 foundation (W0.5 contract-freeze, eval scaffolds, dependencies, AgDR stubs 0027–0056).
+- **[#2](https://github.com/openemr/openemr/pull/2)** `feat(wk2-a): document intake & persistence` — Team A extractors (lab PDF + intake form vision with Sonnet 4.6, pdfplumber bbox, 107 tests passing).
+- **[#3](https://github.com/openemr/openemr/pull/3)** `feat(wk2-b): hybrid RAG & guideline corpus` — Team B retrieval (BM25 + Voyage embedding + Cohere rerank, CDC ACIP + openFDA corpus, 8 RAG eval cases).
+- **[#4](https://github.com/openemr/openemr/pull/4)** `feat(wk2-c): LangGraph supervisor & 50-case eval gate` — Team C orchestration (deterministic supervisor, 4 worker nodes, 50-case golden suite, 5 boolean rubrics, CI-blocking eval gate).
+
+---
+
 ## [8.0.0.3](https://github.com/openemr/openemr/milestone/28?closed=1) - 2026-03-25
 
 ### Fixed
