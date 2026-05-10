@@ -191,9 +191,10 @@ def get_eval_synthesis_response(
     case_id: str = "",
 ) -> dict[str, Any]:
     """Return a deterministic synthesis response for eval mode."""
+    import copy
     question_lower = question.lower()
     for phrase in _INJECTION_PHRASES:
         if phrase in question_lower:
-            return dict(_SYNTH_REGISTRY["__injection__"])
+            return copy.deepcopy(_SYNTH_REGISTRY["__injection__"])
     key = hashlib.sha256(question.encode()).hexdigest()[:16]
-    return dict(_SYNTH_REGISTRY.get(key, _SYNTH_REGISTRY["__default__"]))
+    return copy.deepcopy(_SYNTH_REGISTRY.get(key, _SYNTH_REGISTRY["__default__"]))

@@ -1,0 +1,41 @@
+{
+  "case_id": "citation/07_stale_uncaveated",
+  "category": "citation",
+  "description": "Citation fails: claim cites stale packet without staleness caveat.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where stale_data_uncaveat rule does not fire when a stale packet is cited without acknowledgment.",
+  "packets": [
+    {
+      "source_id": "lab:a1c:007",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "7.4",
+      "unit": "%",
+      "observed_at": "2025-01-10",
+      "freshness": "stale",
+      "status": "final"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "A1c was 7.4% on 2025-01-10.",
+        "claim_type": "fact",
+        "source_ids": ["lab:a1c:007"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "failed",
+    "rules_must_fire": ["stale_data_uncaveat"]
+  }
+}

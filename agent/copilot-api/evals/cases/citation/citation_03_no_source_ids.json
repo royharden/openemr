@@ -1,0 +1,43 @@
+{
+  "case_id": "citation/03_no_source_ids",
+  "category": "citation",
+  "description": "Citation fails: claim has empty source_ids (unsupported claim).",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where citation_present rubric doesn't check for empty source_ids list.",
+  "packets": [
+    {
+      "source_id": "lab:cholesterol:003",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "Cholesterol",
+      "value": "198",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Cholesterol is within normal range.",
+        "claim_type": "fact",
+        "source_ids": [],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "failed",
+    "min_accepted_claims": 0,
+    "max_dropped": 1,
+    "rules_must_fire": ["source_attribution"]
+  }
+}

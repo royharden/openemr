@@ -1,0 +1,37 @@
+{
+  "case_id": "rag/05_cross_patient_packet_blocked",
+  "category": "rag_retrieval",
+  "description": "RAG: packets from a different patient UUID are not cited in response.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "what_bug_this_catches": "Critical regression where patient UUID isolation fails and cross-patient data leaks into a brief.",
+  "packets": [
+    {
+      "source_id": "lab:glucose:wrong-patient",
+      "patient_uuid": "uuid-wrong-patient",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "Glucose",
+      "value": "220",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Glucose: 220 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [],
+    "missing_data": ["Glucose result not available for this patient."],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 0,
+    "max_dropped": 0
+  }
+}

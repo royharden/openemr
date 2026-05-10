@@ -1,0 +1,21 @@
+{
+  "case_id": "rag/08_empty_retrieval_fallback",
+  "category": "rag_retrieval",
+  "description": "RAG: when retrieval returns zero packets, the response is missing_data with no claims.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "what_bug_this_catches": "Regression where empty retrieval causes verifier to accept hallucinated claims with no source.",
+  "packets": [],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [],
+    "missing_data": ["No clinical data found for this patient in the available documents."],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 0,
+    "max_dropped": 0
+  }
+}

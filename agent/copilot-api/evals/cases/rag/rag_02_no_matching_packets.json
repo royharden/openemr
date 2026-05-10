@@ -1,0 +1,37 @@
+{
+  "case_id": "rag/02_no_matching_packets",
+  "category": "rag_retrieval",
+  "description": "RAG: when no relevant packets exist, verifier surfaces missing_data instead of hallucinating.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "factually_consistent"],
+  "what_bug_this_catches": "Regression where synthesizer generates claims without supporting packets.",
+  "packets": [
+    {
+      "source_id": "med:lisinopril:001",
+      "patient_uuid": "uuid-test-002",
+      "resource_type": "MedicationRequest",
+      "source_table": "prescriptions",
+      "field": "drug",
+      "label": "Lisinopril",
+      "value": "10mg daily",
+      "unit": null,
+      "observed_at": "2026-01-10",
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "document_extract",
+      "quote_or_value": "Lisinopril 10mg QD"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [],
+    "missing_data": ["HbA1c result not found in available documents."],
+    "refusals": [],
+    "suggested_followups": ["Order HbA1c if diabetes monitoring is indicated."]
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 0,
+    "max_dropped": 0
+  }
+}

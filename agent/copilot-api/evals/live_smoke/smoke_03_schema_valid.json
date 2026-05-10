@@ -1,0 +1,45 @@
+{
+  "case_id": "live_smoke/03_schema_valid",
+  "name": "smoke_03_schema_valid",
+  "category": "smoke",
+  "mode": "extraction",
+  "description": "Smoke: extraction case validates against schema_valid rubric.",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Catches broken schema_valid rubric or extraction mode handler in the runner.",
+  "packets": [
+    {
+      "source_id": "extract:smoke:hemoglobin",
+      "patient_uuid": "uuid-smoke-002",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "hemoglobin",
+      "label": "Hemoglobin",
+      "value": "13.8",
+      "unit": "g/dL",
+      "observed_at": "2026-05-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "Hemoglobin: 13.8 g/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Hemoglobin was 13.8 g/dL.",
+        "claim_type": "fact",
+        "source_ids": ["extract:smoke:hemoglobin"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

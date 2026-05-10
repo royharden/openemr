@@ -1,0 +1,59 @@
+{
+  "case_id": "rag/06_guideline_packet_cited",
+  "category": "rag_retrieval",
+  "description": "RAG: guideline/corpus packet is retrieved and cited alongside lab data.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where evidence_retriever skips guideline packets and only includes EMR packets.",
+  "packets": [
+    {
+      "source_id": "lab:ldl:001",
+      "patient_uuid": "uuid-test-006",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "LDL",
+      "value": "145",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-01",
+      "freshness": "recent",
+      "status": "final",
+      "source_type": "document_extract",
+      "quote_or_value": "LDL: 145 mg/dL"
+    },
+    {
+      "source_id": "guideline:acc-aha-2019:ldl-target",
+      "patient_uuid": "uuid-test-006",
+      "resource_type": "DocumentReference",
+      "source_table": "guideline_corpus",
+      "field": "recommendation",
+      "label": "ACC/AHA Cholesterol Guideline",
+      "value": "LDL target <70 mg/dL for high cardiovascular risk patients",
+      "unit": null,
+      "observed_at": "2019-11-01",
+      "freshness": "stale",
+      "status": "final",
+      "source_type": "guideline",
+      "quote_or_value": "For very high-risk patients, LDL-C goal <70 mg/dL"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "LDL was 145 mg/dL on 2026-04-01, above the ACC/AHA guideline target of <70 mg/dL for high-risk patients.",
+        "claim_type": "fact",
+        "source_ids": ["lab:ldl:001", "guideline:acc-aha-2019:ldl-target"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}
