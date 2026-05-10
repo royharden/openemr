@@ -11,26 +11,83 @@ Plan: `openemr/planning/Plan_wk2_Claude_Surprise01_2026-05-10_modern-patient-das
 | Probe | Purpose | Outcome |
 |---|---|---|
 | Discovery probes | Validate SMART + OIDC discovery URLs and capabilities | ✅ verified during pre-flight (status companion §M) |
-| OAuth dance | Reach the OpenEMR `/token` endpoint with an authorization code | ✅ working end-to-end up to patient-select |
-| `MedicationRequest` shape (Phase 0) | Confirm `intent` discriminator | ⚠ **deferred** — verdict already locked from code analysis (see `MEDICATION_PARITY_SPIKE.md`) |
-| `CareTeam` `_include=CareTeam:participant` | Does OpenEMR honor it? | ⚠ **deferred** — defaulting to per-participant follow-up reads |
-| `AllergyIntolerance` `&clinical-status=active` | Server-side filter honored? | ⚠ **deferred** — adapter-side filter is canonical regardless |
+| OAuth dance | Reach the OpenEMR `/token` endpoint with an authorization code | ✅ end-to-end (login → patient-select → consent → token) |
+| `MedicationRequest` shape (Phase 0) | Confirm `intent` discriminator | ✅ **CONFIRMED LIVE** — Maria G.'s 4 entries split exactly as predicted (3 `order`, 1 `plan`) |
+| `CareTeam` `_include=CareTeam:participant` | Does OpenEMR honor it? | ❌ **DOES NOT WORK** — surrogate test (`MedicationRequest:requester`) shows `_include` *zeroes the result set* on this OpenEMR (4 → 0 entries). AgDR-0086 stays unfiled. |
+| `AllergyIntolerance` `&clinical-status=active` | Server-side filter honored? | ❌ **BROKEN** — server-side `clinical-status=active` returns 0 entries despite an active allergy being present; adapter-side filter (AgDR-0087) is now load-bearing with live evidence |
 
-## Why "deferred"
+## Live-probe results (2026-05-10 PM)
 
-The probe driver (`scripts/probe.mjs`) successfully drives the SMART
-auth_code + PKCE flow through OpenEMR's login form, but stalls on the
-patient-select page at `/oauth2/default/smart/patient-select`. That
-page is rendered by OpenEMR's `OAuth2KeyConfig` controller and shows a
-search-and-pick UI rather than a flat input field; clicking through it
-programmatically requires more reverse-engineering than the W0 budget
-allows. Workstream A owns the SMART auth implementation and will be
-naturally driving an EHR-launched flow (where a `patient` context is
-bound by OpenEMR before the SPA receives the token), so live probes
-attach there for free.
+Probe artifact: `agentdocs/probe-results/probe.json`. The driver
+(`scripts/probe.mjs`) authenticates as admin/pass, picks Maria G.
+through OpenEMR's `/oauth2/default/smart/patient-select` page, completes
+consent, and runs all four queries with the bound access token.
 
-The defaults below are **safe regardless of probe outcome**, so the
-build is unblocked.
+### Phase 0 medication parity — CONFIRMED
+
+`GET /apis/default/fhir/MedicationRequest?patient=<maria-uuid>` returns
+4 entries:
+
+| FHIR id | `intent` | `status` | drug |
+|---|---|---|---|
+| a1bf39b7-61de-4760-ba36-a7a2fa2c4fbd | `order` | `active` | Metformin |
+| a1bf39b7-6346-4551-95e5-836dbb328c88 | `order` | `active` | Lisinopril |
+| a1bf39b7-634f-4ab5-ac73-7b9d1e2dbd1b | `order` | `active` | Atorvastatin |
+| a1be95b9-0d15-4e73-8134-6855e979d514 | `plan`  | `active` | Lisinopril 10 mg PO daily |
+
+The 4th entry (legacy `lists`-row Lisinopril with `intent=plan`) co-
+exists with a formal Rx Lisinopril (`intent=order`). This validates
+both the Phase 0 verdict AND Team B's Duplicate-Rx conflict-chip logic
+in `MedicationsCard`.
+
+### CareTeam `_include` — DOES NOT WORK
+
+Maria G. has no CareTeam records (`?patient=` returns 0 entries), so
+the direct `?_include=CareTeam:participant` test was inconclusive. As
+a surrogate, we ran:
+
+| Query | Entry count |
+|---|---|
+| `MedicationRequest?patient=<maria-uuid>` | 4 |
+| `MedicationRequest?patient=<maria-uuid>&_include=MedicationRequest:requester` | **0** |
+
+Adding `_include` to a query that otherwise returns 4 entries reduces
+it to 0. OpenEMR doesn't ignore `_include` — it actively breaks the
+query. This is decisive evidence that `_include=CareTeam:participant`
+must NOT be enabled. Per-participant Practitioner follow-up reads
+(parallelism cap of 3) is the load-bearing default. **AgDR-0086 stays
+unfiled.**
+
+### Server-side status filter — BROKEN
+
+| Query | Entry count |
+|---|---|
+| `AllergyIntolerance?patient=<maria-uuid>` | 1 (`clinicalStatus.coding[0].code = "active"`) |
+| `AllergyIntolerance?patient=<maria-uuid>&clinical-status=active` | **0** |
+
+The server-side `clinical-status=active` filter excludes a record that
+*is* active. This is the lesson the master plan §3 reviewer feedback
+predicted — and now we have live confirmation. **AgDR-0087 (adapter-
+side filtering as canonical default) is no longer "defensive" —
+without it, the dashboard would show empty cards on real data.**
+
+## Lessons learned during live-probe development
+
+- **The OpenEMR SMART app must list `launch/patient` in its registered
+  scope** for standalone-launch probes to bind a patient context. The
+  original 2026-05-10 registration didn't include it; patched via
+  direct SQL on `oauth_clients.scope` (logged in status companion §I).
+- **OpenEMR's `apiOpenEMR` session cookie** is set on the first
+  authenticated FHIR request. The driver replays it on subsequent
+  requests so the FHIR server doesn't re-establish session each call.
+- **`form.submit()` from `page.evaluate()`** must be deferred via
+  `setTimeout(0)` to let the evaluate call resolve before navigation
+  destroys the execution context.
+- **The full standalone OAuth flow has 4 hops**:
+  `/authorize → /provider/login → /smart/patient-select → /smart/patient-select-confirm → /scope-authorize-confirm → /device/code → redirect_uri?code=…`
+- **OpenEMR's access token JWT does NOT carry the `patient` claim**
+  directly — patient context is stored server-side in `oauth_trusted_user.session_cache.puuid`
+  and rehydrated on each FHIR request via the access token's id.
 
 ## Defaults locked in (no live probe needed)
 

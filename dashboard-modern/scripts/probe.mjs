@@ -105,10 +105,22 @@ page.on('framenavigated', (frame) => {
 })
 page.on('request', (req) => {
   const url = req.url()
+  // Trace all top-level navigations.
+  if (req.isNavigationRequest()) {
+    console.log(`[trace] ${req.method()} ${url}`)
+  }
   if (url.startsWith(REDIRECT_URI)) {
     const u = new URL(url)
     const c = u.searchParams.get('code')
     if (c) authCode = c
+  }
+})
+page.on('response', (resp) => {
+  const status = resp.status()
+  const url = resp.url()
+  if (status >= 300 && status < 400) {
+    const loc = resp.headers()['location']
+    console.log(`[trace] ${status} from ${url} -> ${loc ?? '(no location)'}`)
   }
 })
 await context.route('http://localhost:5173/**', async (route) => {
@@ -158,26 +170,46 @@ try {
     'button:has-text("Continue")',
     'button:has-text("Submit")',
   ]
-  // Patient-picker support: if a patient_id input or select shows up, fill it
-  // with the demo Maria G. (pid 9001).
+  // Patient-picker support — OpenEMR's /oauth2/default/smart/patient-select page renders
+  // one <button class="patient-btn" data-patient-id="<uuid>"> per patient and a sibling
+  // hidden form posting to /smart/patient-select-confirm. We click Maria G.'s button
+  // (UUID hard-coded from the demo seed; first button as fallback).
+  const MARIA_G_UUID = '11111111-1111-4111-8111-111111111111'
+  let pickerDone = false
   async function pickPatientIfAsked() {
-    const candidates = [
-      'input[name*="patient" i]',
-      'select[name*="patient" i]',
-      'input#patient_id',
-      'input#patientId',
-    ]
-    for (const sel of candidates) {
-      const loc = page.locator(sel).first()
-      if (await loc.count()) {
-        await loc.fill('9001').catch(() => {})
+    if (pickerDone) return false
+    if (!page.url().includes('smart/patient-select')) return false
+    if (page.url().includes('patient-select-confirm')) return false
+    // Drive the form directly via page.evaluate. Pick Maria G. by UUID,
+    // populate the hidden input, submit the form. Wrap the submit in
+    // setTimeout(0) so the evaluate returns BEFORE navigation tears down
+    // the execution context.
+    console.log('[probe] picking patient via direct form submit')
+    const submitted = await page
+      .evaluate((uuid) => {
+        const input = document.getElementById('patient_id')
+        const form = document.getElementById('patientForm')
+        if (input == null || form == null) return false
+        input.value = uuid
+        // Defer the submit so this evaluate call resolves first.
+        setTimeout(() => form.submit(), 0)
         return true
-      }
-    }
-    return false
+      }, MARIA_G_UUID)
+      .catch((e) => {
+        console.log('[probe] picker eval err', e?.message ?? e)
+        return false
+      })
+    if (!submitted) return false
+    pickerDone = true
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+    return true
   }
-  for (let attempt = 0; attempt < 8 && !authCode; attempt++) {
-    await pickPatientIfAsked()
+  for (let attempt = 0; attempt < 12 && !authCode; attempt++) {
+    if (await pickPatientIfAsked()) {
+      await page.waitForTimeout(800)
+      // Don't `continue` — fall through to the consent click in case the
+      // patient submit lands on /scope-authorize-confirm.
+    }
     let clicked = false
     for (const sel of possibleAccept) {
       const loc = page.locator(sel).first()
@@ -225,7 +257,9 @@ if (!tokenRes.ok) {
 const tokenJson = await tokenRes.json()
 const accessToken = tokenJson.access_token
 const patientId = tokenJson.patient
-console.log('[probe] token received. patient context =', patientId)
+const safeTokenJson = { ...tokenJson, access_token: '[REDACTED]', refresh_token: tokenJson.refresh_token ? '[REDACTED]' : undefined, id_token: tokenJson.id_token ? '[REDACTED]' : undefined }
+console.log('[probe] token response (redacted):', JSON.stringify(safeTokenJson, null, 2))
+console.log('[probe] patient context =', patientId)
 
 if (!accessToken) {
   console.error('[probe] no access_token in response', tokenJson)
@@ -236,10 +270,25 @@ if (!patientId) {
 }
 
 // ── Probe runner ────────────────────────────────────────────────────────────
+// OpenEMR's FHIR layer establishes a session via Set-Cookie on the first
+// authenticated request. We capture and replay that cookie so subsequent
+// requests don't re-establish session each call.
+let apiCookie = null
 async function fhirGet(path) {
-  const res = await fetch(`${FHIR_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/fhir+json' },
-  })
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: 'application/fhir+json',
+  }
+  if (apiCookie != null) headers['Cookie'] = apiCookie
+  const res = await fetch(`${FHIR_BASE}${path}`, { headers })
+  const setCookie = res.headers.get('set-cookie')
+  if (setCookie != null) {
+    const m = /apiOpenEMR=[^;]+/.exec(setCookie)
+    if (m && apiCookie == null) {
+      apiCookie = m[0]
+      console.log('[probe] captured apiOpenEMR cookie for follow-up requests')
+    }
+  }
   const text = await res.text()
   let json = null
   try {
@@ -247,11 +296,43 @@ async function fhirGet(path) {
   } catch {
     // leave as text
   }
-  return { status: res.status, body: json ?? text }
+  return {
+    status: res.status,
+    headers: Object.fromEntries(res.headers.entries()),
+    body: json ?? text,
+  }
 }
 
-const pid = patientId || ''
+// Fall back to Maria G.'s known UUID from the demo seed if the token
+// response didn't carry a `patient` claim — OpenEMR's flow doesn't
+// always include it as a top-level claim.
+const MARIA_G_UUID_FALLBACK = '11111111-1111-4111-8111-111111111111'
+const pid = patientId || MARIA_G_UUID_FALLBACK
+console.log('[probe] running probes for patient =', pid)
+
+// Diagnostic: introspect the token to see scopes, aud, sub, patient.
+try {
+  const introspectRes = await fetch(`${OPENEMR_BASE}/oauth2/default/introspect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: new URLSearchParams({ token: accessToken, client_id: CLIENT_ID }),
+  })
+  const introspectText = await introspectRes.text()
+  console.log('[probe] introspection result:', introspectRes.status)
+  console.log(introspectText)
+} catch (err) {
+  console.log('[probe] introspection failed:', err?.message ?? err)
+}
+
 const results = {}
+
+console.log('[probe] sanity probes (metadata, Patient/{id}, /Person)…')
+results.metadata = await fhirGet(`/metadata`)
+results.patientById = await fhirGet(`/Patient/${pid}`)
+results.personById = await fhirGet(`/Person/a1ac0051-f4d5-40c9-9c78-d0024bfcc809`)
 
 console.log('[probe] running Phase 0 medication probe…')
 results.medicationRequest = await fhirGet(`/MedicationRequest?patient=${encodeURIComponent(pid)}`)
@@ -260,6 +341,13 @@ console.log('[probe] running CareTeam _include probe…')
 results.careTeamPlain = await fhirGet(`/CareTeam?patient=${encodeURIComponent(pid)}`)
 results.careTeamInclude = await fhirGet(
   `/CareTeam?patient=${encodeURIComponent(pid)}&_include=CareTeam:participant`,
+)
+// Surrogate: Maria G. has no CareTeam, so the include result is empty either
+// way. Use MedicationRequest:requester as a surrogate to learn whether OpenEMR
+// honors `_include` at all on this server.
+results.medRequestPlain = await fhirGet(`/MedicationRequest?patient=${encodeURIComponent(pid)}`)
+results.medRequestIncludeRequester = await fhirGet(
+  `/MedicationRequest?patient=${encodeURIComponent(pid)}&_include=MedicationRequest:requester`,
 )
 
 console.log('[probe] running status-filter probe…')

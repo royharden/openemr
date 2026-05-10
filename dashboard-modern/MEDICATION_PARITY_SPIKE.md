@@ -83,18 +83,45 @@ principle, a manually authored prescription row could set
 set, so defaults hold. The migration defense doc records this as a
 known data-quality dependency.
 
-## Live-probe status (deferred)
+## Live-probe status — CONFIRMED 2026-05-10 PM
 
-The Phase 0 spike's *step 2* was to confirm the verdict against a live
-`MedicationRequest?patient=<uuid>` response. The probe driver
-(`scripts/probe.mjs`) successfully completes the SMART OAuth dance
-through OpenEMR's login screen and reaches the patient-picker page at
-`/oauth2/default/smart/patient-select`. Selecting a patient
-programmatically requires more reverse-engineering of that page than
-the W0 budget allows. The verdict above is decisive on its own — the
-live curl will be re-run during Workstream A's first session, when an
-EHR-launched bearer token (with patient context already bound) is
-naturally available.
+The Phase 0 spike's *step 2* live confirmation now landed via the
+extended `scripts/probe.mjs` driver. Maria G.'s 4 `MedicationRequest`
+entries match the predicted split exactly:
+
+| FHIR id | `intent` | `status` | drug | UI card |
+|---|---|---|---|---|
+| a1bf39b7-61de-4760-ba36-a7a2fa2c4fbd | `order` | `active` | Metformin | Prescriptions |
+| a1bf39b7-6346-4551-95e5-836dbb328c88 | `order` | `active` | Lisinopril | Prescriptions |
+| a1bf39b7-634f-4ab5-ac73-7b9d1e2dbd1b | `order` | `active` | Atorvastatin | Prescriptions |
+| a1be95b9-0d15-4e73-8134-6855e979d514 | `plan`  | `active` | Lisinopril 10 mg PO daily | Medications |
+
+The 4th entry — a `lists`-row Lisinopril with `intent=plan` — co-exists
+with a formal Lisinopril Rx (`intent=order`). This is the exact
+**conflict-chip use case** Team B's `MedicationsCard` handles. Live
+data thus also validates the Duplicate-Rx UI logic.
+
+Probe artifact: `agentdocs/probe-results/probe.json` (committed for
+reproducibility — synthetic Maria G. data, no PHI).
+
+### How to re-run the live probe
+
+```bash
+cd openemr/dashboard-modern
+node scripts/probe.mjs
+```
+
+The driver runs entirely in headless Chromium with `ignoreHTTPSErrors`,
+authenticates as admin/pass, picks Maria G., completes consent, and
+captures the access token. Outputs land in
+`agentdocs/probe-results/probe.json`.
+
+> **Pre-req lesson:** The OpenEMR SMART app must include `launch/patient`
+> in its registered scope list for standalone-launch probes to bind a
+> patient context to the access token. The original 2026-05-10
+> registration was missing this scope; we patched it via direct SQL on
+> `oauth_clients.scope` (recorded in the W0 commit's status companion
+> drift log §I).
 
 ## Decision
 
