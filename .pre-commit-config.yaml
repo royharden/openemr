@@ -149,3 +149,18 @@ repos:
     language: system
     stages:
     - commit-msg
+
+  # ---- Clinical Co-Pilot Wk2 — eval gate (pre-push smoke) ----
+  # Plan §3 decision #10: single source-of-truth eval-gate script,
+  # invoked from local pre-push AND GitHub Actions.
+  # Install with: prek install --hook-type pre-push  (or pre-commit equivalent)
+  # Budget: <30s for the smoke pass (a 10-case subset). Full 50-case run
+  # is gated in CI only.
+  - id: copilot-eval-smoke
+    name: Clinical Co-Pilot eval-gate smoke (10 cases, deterministic mocks)
+    entry: bash scripts/run_eval_gate.sh --smoke
+    language: system
+    stages:
+    - pre-push
+    pass_filenames: false
+    always_run: true

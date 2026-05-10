@@ -1,0 +1,103 @@
+name: copilot-eval-gate
+
+# PR-blocking eval gate for the Clinical Co-Pilot.
+# Plan §3 decision #10: single-CI = GitHub Actions only; the same script
+# is invoked by the local pre-push hook so contributors get the gate too.
+#
+# Decision #19 (deterministic mock mode): COPILOT_EVAL_MODE=1 substitutes
+# EvalEmbedder / EvalReranker / EvalVisionExtractor for the live Voyage /
+# Cohere / Anthropic boundaries. A vendor outage CANNOT block a merge.
+# Live-vendor smoke runs on a separate nightly workflow (eval-gate-live.yml).
+
+on:
+  pull_request:
+    branches: [master, main, wk2-*]
+    paths:
+      - 'agent/copilot-api/**'
+      - 'interface/modules/custom_modules/oe-module-clinical-copilot/**'
+      - 'scripts/run_eval_gate.sh'
+      - '.github/workflows/eval-gate.yml'
+      - '.pre-commit-config.yaml'
+  push:
+    branches: [master, main, wk2-*]
+    paths:
+      - 'agent/copilot-api/**'
+      - 'interface/modules/custom_modules/oe-module-clinical-copilot/**'
+      - 'scripts/run_eval_gate.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-gate:
+    name: Eval gate (50-case golden set, deterministic mocks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      COPILOT_EVAL_MODE: '1'
+      # No vendor API keys are passed in; the deterministic mocks run offline.
+      # The live-vendor smoke workflow uses repository secrets instead.
+      PYTHONUNBUFFERED: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # need PR base for diff-based check_pr_has_tests
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install sidecar dependencies
+        working-directory: agent/copilot-api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          # Wk2 additions (defensive — pyproject may not list all yet during W0)
+          pip install pdfplumber pypdfium2 rank-bm25 || true
+
+      - name: Validate eval case schema
+        working-directory: agent/copilot-api
+        run: |
+          if [ -f evals/case_schema.json ]; then
+            python -m evals.runner --validate-schema-only
+          else
+            echo "::warning::evals/case_schema.json not yet present (Workstream 0.5 lands it)"
+          fi
+
+      - name: Tests-required-on-PR check
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -f scripts/check_pr_has_tests.py ]; then
+            python scripts/check_pr_has_tests.py \
+              --base "${{ github.event.pull_request.base.sha }}" \
+              --head "${{ github.event.pull_request.head.sha }}"
+          else
+            echo "::warning::scripts/check_pr_has_tests.py not yet present (Workstream 0.5 lands it)"
+          fi
+
+      - name: Run eval gate (full 50-case golden set)
+        run: bash scripts/run_eval_gate.sh --full --rubric-report
+
+      - name: Multi-layer PHI scan
+        if: always()
+        working-directory: agent/copilot-api
+        run: |
+          if [ -f evals/runner.py ]; then
+            python -m evals.runner --check-corpus-phi --check-trace-phi || true
+          fi
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            agent/copilot-api/eval_results.json
+            agent/copilot-api/eval_results_rubric.json
+          if-no-files-found: ignore
