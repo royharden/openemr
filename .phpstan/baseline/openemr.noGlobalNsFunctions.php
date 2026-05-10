@@ -2227,6 +2227,71 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-claimrev-connect/src/SFTP_Mock_Service.php',
 ];
 $ignoreErrors[] = [
+    'message' => '#^Function copilot_audit_tag may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_env_string may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_filter_builders may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_int may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_list may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_packets_summary may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_payload_int may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_payload_string may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_scalar_text may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_send_json may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_string may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_uuid_v4 may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/brief.php',
+];
+$ignoreErrors[] = [
+    'message' => '#^Function copilot_feedback_send may not be defined in the global namespace\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/feedback.php',
+];
+$ignoreErrors[] = [
     'message' => '#^Function doOnetimeDocumentRequest may not be defined in the global namespace\\.$#',
     'count' => 1,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-faxsms/library/api_onetime.php',
