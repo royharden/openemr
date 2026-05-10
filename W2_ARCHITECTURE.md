@@ -2,9 +2,9 @@
 
 **Multimodal Evidence Agent: document vision, hybrid RAG, supervised routing, and eval-driven quality gates**
 
-Version: 1.0  
-Date: 2026-05-10  
-Owner: Workstream D (Integration, Demo, Docs)  
+Version: 1.0
+Date: 2026-05-10
+Owner: Workstream D (Integration, Demo, Docs)
 Status: Final (Wk2 gates 1–4 complete; regression dry-run in agentdocs/)
 
 ---
@@ -71,7 +71,7 @@ SourcePacket (Pydantic):
 
 ### 3.1 Extractors
 
-**`extractors/lab_pdf.py`**  
+**`extractors/lab_pdf.py`**
 - Input: PDF file (lab report or similar).
 - VLM: Claude Sonnet 4.6 vision (no API delays; local sidecar Anthropic API).
 - Output schema: `LabResult` Pydantic model.
@@ -80,7 +80,7 @@ SourcePacket (Pydantic):
   - Confidence scores assigned based on VLM confidence tokens (future refinement).
 - **Idempotency:** SHA256(patient_uuid + document_sha256 + field_path) → copilot_document_facts table unique constraint.
 
-**`extractors/intake_form.py`**  
+**`extractors/intake_form.py`**
 - Input: PDF, PNG, or JPEG (handwritten or printed intake form).
 - VLM: Claude Sonnet 4.6 for image/PDF extraction.
 - Output schema: `IntakeFields` Pydantic model.
@@ -91,7 +91,7 @@ SourcePacket (Pydantic):
 
 ### 3.2 Endpoints
 
-**`POST /v1/extract/lab-pdf`**  
+**`POST /v1/extract/lab-pdf`**
 Request:
 ```json
 {
@@ -102,7 +102,7 @@ Request:
 ```
 Response: `ExtractedDocument` (doc_type="lab_pdf", result=LabResult, packets=[SourcePacket, ...])
 
-**`POST /v1/extract/intake-form`**  
+**`POST /v1/extract/intake-form`**
 Request:
 ```json
 {
@@ -168,27 +168,27 @@ Response: `ExtractedDocument` (doc_type="intake_form", result=IntakeFields, pack
     "patient_uuid": str,
     "trace_id": str,
     "use_case": UseCase,  # pre_room_brief | what-changed | ... | free_text_followup
-    
+
     # Input
     "question": str | None,  # free-text question
     "selected_tools": list[ClinicalToolName],
     "packets": list[SourcePacket],  # tool results from gateway
-    
+
     # Extraction phase (if applicable)
     "extracted_documents": list[ExtractedDocument],  # from intake_extractor_node
     "extraction_packets": list[SourcePacket],
-    
+
     # Retrieval phase
     "retrieved_chunks": list[GuidelineChunk],  # from evidence_retriever_node
     "rag_packets": list[SourcePacket],
-    
+
     # Synthesis phase
     "llm_output": LLMOutput,  # from synthesizer_node
-    
+
     # Verification phase
     "verified_response": VerifiedResponse,  # from verifier_node
     "verifier_issues": list[VerifierIssue],
-    
+
     # Metadata
     "supervisor_routing_log": list[dict],  # for observability
 }
