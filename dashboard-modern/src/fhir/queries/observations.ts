@@ -1,19 +1,24 @@
+import { z } from 'zod'
+import { fhirGet } from '@/fhir/client'
+import { FhirBundleSchema } from '@/fhir/schemas/bundle'
+import { ObservationSchema } from '@/fhir/schemas/observation'
+import { adaptLabs } from '@/models/adapters/labs'
 import type { LabResultDisplay } from '@/models/dashboard'
 
-/**
- * LOCKED SIGNATURE — Workstream C implements the body.
- *
- * Fetches Observation?patient={patientId}&category=laboratory.
- * `category` is fundamental and OK to keep server-side.
- *
- * `_count` and `_sort=-effectiveDateTime` may be honored — verify in
- * Workstream C's pre-spike. If silently ignored, sort + limit in adapter.
- *
- * Returns the most recent {n} laboratory observations for the patient.
- */
 export async function getRecentLabResults(
-  _patientId: string,
-  _n: number = 10,
+  patientId: string,
+  n: number = 10,
 ): Promise<ReadonlyArray<LabResultDisplay>> {
-  throw new Error('getRecentLabResults(): not implemented — Workstream C')
+  const bundle = await fhirGet(
+    `Observation?patient=${patientId}&category=laboratory&_count=${n}&_sort=-effectiveDateTime`,
+    FhirBundleSchema,
+  )
+
+  const resources = (bundle.entry ?? [])
+    .map((e) => e.resource)
+    .map((raw) => ObservationSchema.safeParse(raw))
+    .filter((r): r is z.SafeParseSuccess<z.infer<typeof ObservationSchema>> => r.success)
+    .map((r) => r.data)
+
+  return adaptLabs(resources, n)
 }
