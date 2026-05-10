@@ -1,0 +1,46 @@
+{
+  "capturedAt": "2026-05-10T10:41:00.240Z",
+  "patientId": "",
+  "results": {
+    "medicationRequest": {
+      "status": 401,
+      "body": {
+        "error": "An error occurred",
+        "message": "Unauthorized",
+        "code": 0
+      }
+    },
+    "careTeamPlain": {
+      "status": 401,
+      "body": {
+        "error": "An error occurred",
+        "message": "Unauthorized",
+        "code": 0
+      }
+    },
+    "careTeamInclude": {
+      "status": 401,
+      "body": {
+        "error": "An error occurred",
+        "message": "Unauthorized",
+        "code": 0
+      }
+    },
+    "allergyPlain": {
+      "status": 401,
+      "body": {
+        "error": "An error occurred",
+        "message": "Unauthorized",
+        "code": 0
+      }
+    },
+    "allergyFiltered": {
+      "status": 401,
+      "body": {
+        "error": "An error occurred",
+        "message": "Unauthorized",
+        "code": 0
+      }
+    }
+  }
+}
