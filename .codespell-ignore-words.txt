@@ -1,6 +1,11 @@
 # OpenEMR Ignore Words for Codespell
 # Format: one word per line (case-insensitive)
 
+# Clinical Co-Pilot (Wk1+) — search-keyword variants and domain shorthand
+# (these are intentionally not "what's" / etc. because they match user input
+# without apostrophes — see app/router_logic.py family-keyword tables)
+whats
+
 # Medical abbreviations and terminology
 abd
 aci

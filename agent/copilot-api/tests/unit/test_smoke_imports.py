@@ -23,7 +23,8 @@ def test_check_pr_has_tests_script_imports() -> None:
     import importlib.util
     import pathlib
 
-    repo_root = pathlib.Path(__file__).resolve().parents[3]
+    # parents: [0]=tests/unit, [1]=tests, [2]=copilot-api, [3]=agent, [4]=repo root
+    repo_root = pathlib.Path(__file__).resolve().parents[4]
     script = repo_root / "scripts" / "check_pr_has_tests.py"
     assert script.exists(), "scripts/check_pr_has_tests.py missing"
     spec = importlib.util.spec_from_file_location("_check_pr_has_tests", script)
