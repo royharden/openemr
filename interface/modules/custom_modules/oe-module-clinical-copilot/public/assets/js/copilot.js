@@ -131,6 +131,15 @@
         setTimeout(function () {
             document.addEventListener('click', dismissPopover);
         }, 0);
+
+        if (
+            meta &&
+            meta.bbox && meta.bbox.length === 4 &&
+            meta.page_index !== undefined && meta.page_index !== null &&
+            meta.doc_url && cfg.showBboxOverlay !== false
+        ) {
+            showBboxOverlay(meta.doc_url, meta.page_index, meta.bbox);
+        }
     }
 
     function renderRefusal(payload) {
@@ -452,22 +461,6 @@
             }
         });
     }
-
-    // Augment source chip clicks: if the packet has bbox + page_index,
-    // show the overlay in addition to the popover.
-    var _origShowPopover = showPopover;
-    showPopover = function (chipEl, sourceId) {
-        _origShowPopover(chipEl, sourceId);
-        var meta = (lastPacketsSummary || []).find(function (s) { return s.source_id === sourceId; });
-        if (
-            meta &&
-            meta.bbox && meta.bbox.length === 4 &&
-            meta.page_index !== undefined && meta.page_index !== null &&
-            meta.doc_url && cfg.showBboxOverlay !== false
-        ) {
-            showBboxOverlay(meta.doc_url, meta.page_index, meta.bbox);
-        }
-    };
 
     // -----------------------------------------------------------------------
     // Wk2 Workstream A: document upload form handling
