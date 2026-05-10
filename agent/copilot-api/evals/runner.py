@@ -3,19 +3,31 @@
 This tests the deterministic verifier in isolation. It does NOT call the LLM,
 so it runs offline, fast, and CI-safe.
 
-A subset of cases (those with `mode: "router_refusal"`) instead exercise the
-gateway-side `QuestionRouter` (mirrored in `app.router_logic`) and assert that
-no sidecar/LLM call would have been made — i.e. the router itself produced the
-refusal.
+Modes supported (case.mode):
+  verifier         — original mode: run verifier against fixed packets+llm_output
+  router_refusal   — exercise QuestionRouter; assert refusal without sidecar call
+  tool_plan        — validate ToolPlanResponse schema and planner_status
+  tool_error       — assert gateway 502 + no-LLM expectations
+  extraction       — validate rubrics against pre-built extraction packets+llm_output
+  rag_retrieval    — validate rubrics for RAG retrieval cases
+  citation         — validate rubrics for citation annotation cases
+
+New flags:
+  --rubric-report  — print per-rubric pass-rate matrix after the table
+  --smoke          — run only the first 10 cases (pre-push smoke)
+  --mode=X         — filter to only cases with the given mode
 
 Usage:
     python -m evals.runner
+    python -m evals.runner --rubric-report
+    python -m evals.runner --smoke
 
 Writes ./eval_results.json and prints a summary table.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import pathlib
 import sys
@@ -30,6 +42,7 @@ from app.verifier import patient_uuid_hash, verify
 CASES_DIR = pathlib.Path(__file__).parent / "cases"
 RESULTS_PATH = pathlib.Path(__file__).parent.parent / "eval_results.json"
 CASE_SCHEMA_PATH = pathlib.Path(__file__).parent / "case_schema.json"
+FLOOR_PATH = pathlib.Path(__file__).parent / "floor.json"
 
 
 def _load_case_schema() -> dict[str, Any] | None:
@@ -229,21 +242,134 @@ def _request_patient_hash(case: dict[str, Any], packets: list[SourcePacket]) -> 
     return patient_uuid_hash("")
 
 
+# === Wk2 Workstream C: rubric-mode checkers ===
+
+
+def _build_runner_result_from_case(case: dict[str, Any]) -> dict[str, Any]:
+    """Build a runner_result dict from case packets + llm_output for rubric eval."""
+    return {
+        "packets": case.get("packets", []),
+        "llm_output": case.get("llm_output", {}),
+        "verified_response": case.get("llm_output", {}),
+        "verifier_status": case.get("expectations", {}).get("verifier_status", "passed"),
+    }
+
+
+def _check_rubric_mode(case: dict[str, Any], mode: str) -> tuple[bool, list[str], dict[str, bool]]:
+    """Check a case that uses rubric-based evaluation (extraction, rag_retrieval, citation).
+
+    Returns (passed, failures, rubric_results).
+    """
+    from evals.rubrics import evaluate_case
+
+    runner_result = _build_runner_result_from_case(case)
+    rubric_results = evaluate_case(case, runner_result, log_text="")
+
+    failures: list[str] = []
+    for rubric, passed in rubric_results.items():
+        if not passed:
+            failures.append(f"rubric/{rubric}: FAIL")
+
+    # Also run standard verifier expectations if mode allows
+    expects = case.get("expectations", {})
+    if expects.get("min_accepted_claims") is not None:
+        claims = runner_result.get("verified_response", {}).get("claims", [])
+        if len(claims) < expects["min_accepted_claims"]:
+            failures.append(
+                f"min_accepted_claims: expected >= {expects['min_accepted_claims']}, got {len(claims)}"
+            )
+
+    return (len(failures) == 0, failures, rubric_results)
+
+
+def _load_floors() -> dict[str, float]:
+    """Load per-rubric floor thresholds from floor.json."""
+    if not FLOOR_PATH.exists():
+        return {}
+    try:
+        return json.loads(FLOOR_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _print_rubric_report(results: list[dict[str, Any]]) -> None:
+    """Print a per-rubric pass-rate report table."""
+    from evals.rubrics import compute_rubric_matrix, check_floors
+
+    matrix = compute_rubric_matrix(results)
+    if not matrix:
+        print("\n(No rubric results to report.)")
+        return
+
+    floors = _load_floors()
+    failing_floors = check_floors(matrix, floors)
+
+    print("\n" + "=" * 60)
+    print("RUBRIC REPORT")
+    print("=" * 60)
+    print(f"{'RUBRIC':<30}{'PASS':<6}{'FAIL':<6}{'RATE':<8}{'FLOOR':<8}{'OK':<5}")
+    print("-" * 60)
+    for rubric, stats in sorted(matrix.items()):
+        floor = floors.get(rubric, "-")
+        ok = "OK" if rubric not in failing_floors else "FAIL"
+        floor_str = f"{floor:.2f}" if isinstance(floor, float) else str(floor)
+        print(
+            f"{rubric:<30}{stats['pass_count']:<6}{stats['fail_count']:<6}"
+            f"{stats['pass_rate']:.2%}  {floor_str:<8}{ok:<5}"
+        )
+    print("-" * 60)
+    if failing_floors:
+        print(f"\nRubrics below floor: {', '.join(failing_floors)}")
+    else:
+        print("\nAll rubrics at or above floor thresholds.")
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Eval runner for copilot-api")
+    parser.add_argument("--rubric-report", action="store_true", help="Print per-rubric pass-rate report")
+    parser.add_argument("--smoke", action="store_true", help="Run only first 10 cases (pre-push smoke)")
+    parser.add_argument("--mode", default=None, help="Filter to cases with this mode only")
+    parser.add_argument("--case", default=None, help="Run a single case by case_id or filename")
+    args, _ = parser.parse_known_args()
+
     cases = _load_cases()
     if not cases:
         print(f"No cases found in {CASES_DIR}", file=sys.stderr)
         return 2
 
+    # Filter by mode if requested
+    if args.mode:
+        cases = [c for c in cases if c.get("mode", "verifier") == args.mode]
+
+    # Filter by case_id if --case given
+    if args.case:
+        needle = args.case.lower()
+        cases = [
+            c for c in cases
+            if needle in (c.get("case_id", "") or "").lower()
+            or needle in (c.get("name", "") or "").lower()
+        ]
+
+    # Smoke: limit to first 10
+    if args.smoke:
+        cases = cases[:10]
+
+    if not cases:
+        print("No matching cases after filters.", file=sys.stderr)
+        return 2
+
     results = []
     pass_count = 0
 
-    print(f"\nRunning {len(cases)} eval cases against the verifier...\n")
+    print(f"\nRunning {len(cases)} eval cases...\n")
     print(f"{'#':<3}{'NAME':<40}{'STATUS':<22}{'PASS':<6}")
     print("-" * 71)
 
     for i, case in enumerate(cases, 1):
         mode = case.get("mode", "verifier")
+        # Use case_id as the display name when no 'name' field
+        display_name = case.get("name") or case.get("case_id", f"case_{i}")
+
         if mode == "router_refusal":
             started = time.monotonic()
             passed, failures = _check_router_refusal(case)
@@ -252,18 +378,20 @@ def main() -> int:
             if passed:
                 pass_count += 1
             flag = "PASS" if passed else "FAIL"
-            print(f"{i:<3}{case['name'][:38]:<40}{status_label:<22}{flag:<6}")
+            print(f"{i:<3}{display_name[:38]:<40}{status_label:<22}{flag:<6}")
             if not passed:
                 for f in failures:
                     print(f"      - {f}")
             results.append({
-                "name": case["name"],
+                "name": display_name,
                 "mode": mode,
                 "elapsed_ms": round(elapsed_ms, 3),
                 "passed": passed,
                 "failures": failures,
+                "rubric_results": {},
             })
             continue
+
         if mode == "tool_plan":
             started = time.monotonic()
             passed, failures, status_label = _check_tool_plan(case)
@@ -271,19 +399,21 @@ def main() -> int:
             if passed:
                 pass_count += 1
             flag = "PASS" if passed else "FAIL"
-            print(f"{i:<3}{case['name'][:38]:<40}{status_label:<22}{flag:<6}")
+            print(f"{i:<3}{display_name[:38]:<40}{status_label:<22}{flag:<6}")
             if not passed:
                 for f in failures:
                     print(f"      - {f}")
             results.append({
-                "name": case["name"],
+                "name": display_name,
                 "mode": mode,
                 "status": status_label,
                 "elapsed_ms": round(elapsed_ms, 3),
                 "passed": passed,
                 "failures": failures,
+                "rubric_results": {},
             })
             continue
+
         if mode == "tool_error":
             started = time.monotonic()
             passed, failures = _check_tool_error(case)
@@ -292,20 +422,46 @@ def main() -> int:
             if passed:
                 pass_count += 1
             flag = "PASS" if passed else "FAIL"
-            print(f"{i:<3}{case['name'][:38]:<40}{status_label:<22}{flag:<6}")
+            print(f"{i:<3}{display_name[:38]:<40}{status_label:<22}{flag:<6}")
             if not passed:
                 for f in failures:
                     print(f"      - {f}")
             results.append({
-                "name": case["name"],
+                "name": display_name,
                 "mode": mode,
                 "elapsed_ms": round(elapsed_ms, 3),
                 "passed": passed,
                 "failures": failures,
+                "rubric_results": {},
             })
             continue
 
-        packets = [SourcePacket(**p) for p in case["packets"]]
+        # Wk2 rubric modes: extraction, rag_retrieval, citation
+        if mode in ("extraction", "rag_retrieval", "citation"):
+            started = time.monotonic()
+            passed, failures, rubric_results = _check_rubric_mode(case, mode)
+            elapsed_ms = (time.monotonic() - started) * 1000
+            status_label = mode
+            if passed:
+                pass_count += 1
+            flag = "PASS" if passed else "FAIL"
+            print(f"{i:<3}{display_name[:38]:<40}{status_label:<22}{flag:<6}")
+            if not passed:
+                for f in failures:
+                    print(f"      - {f}")
+            results.append({
+                "name": display_name,
+                "mode": mode,
+                "elapsed_ms": round(elapsed_ms, 3),
+                "passed": passed,
+                "failures": failures,
+                "rubric_results": rubric_results,
+            })
+            continue
+
+        # Default: verifier mode
+        raw_packets = case.get("packets", [])
+        packets = [SourcePacket(**p) for p in raw_packets]
         llm_output = LLMOutput(**case["llm_output"])
         request_uuid_hash = _request_patient_hash(case, packets)
 
@@ -316,21 +472,43 @@ def main() -> int:
         if passed:
             pass_count += 1
 
+        # Also run rubrics if declared
+        rubric_results: dict[str, bool] = {}
+        if case.get("rubrics"):
+            from evals.rubrics import evaluate_case
+            runner_result = {
+                "packets": raw_packets,
+                "verified_response": {
+                    "claims": [c.model_dump() for c in result.claims],
+                    "missing_data": result.missing_data,
+                    "refusals": result.refusals,
+                    "suggested_followups": result.suggested_followups,
+                    "verifier_status": result.verifier_status,
+                    "answer_type": llm_output.answer_type,
+                    "unsupported_dropped": result.unsupported_dropped,
+                    "verifier_issues": [vi.model_dump() for vi in result.verifier_issues],
+                    "trace_id": f"eval-{i}",
+                    "selected_tools": [],
+                },
+            }
+            rubric_results = evaluate_case(case, runner_result, log_text="")
+
         flag = "PASS" if passed else "FAIL"
-        print(f"{i:<3}{case['name'][:38]:<40}{result.verifier_status:<22}{flag:<6}")
+        print(f"{i:<3}{display_name[:38]:<40}{result.verifier_status:<22}{flag:<6}")
         if not passed:
             for f in failures:
                 print(f"      - {f}")
 
         results.append({
-            "name": case["name"],
+            "name": display_name,
             "verifier_status": result.verifier_status,
             "accepted_claims": len(result.claims),
             "unsupported_dropped": result.unsupported_dropped,
-            "rules_fired": sorted({i.rule for i in result.verifier_issues}),
+            "rules_fired": sorted({vi.rule for vi in result.verifier_issues}),
             "elapsed_ms": round(elapsed_ms, 3),
             "passed": passed,
             "failures": failures,
+            "rubric_results": rubric_results,
         })
 
     summary = {
@@ -343,6 +521,10 @@ def main() -> int:
 
     print("-" * 71)
     print(f"\n{pass_count}/{len(cases)} passed.  Results: {RESULTS_PATH}")
+
+    if args.rubric_report:
+        _print_rubric_report(results)
+
     return 0 if pass_count == len(cases) else 1
 
 

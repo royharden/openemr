@@ -1,0 +1,47 @@
+{
+  "case_id": "rag/06_vector_only_hit",
+  "category": "rag",
+  "description": "RAG retrieval: semantic query (no exact term match) returns correct chunk via vector search.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where vector retrieval path is bypassed so semantically similar but lexically different queries fail to retrieve correct chunks.",
+  "packets": [
+    {
+      "source_id": "chunk:acip:pneumococcal:2024",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "GuidelineChunk",
+      "source_table": "guideline",
+      "field": "recommendation",
+      "label": "Pneumococcal vaccine adults",
+      "value": "PCV21 is recommended for all adults 65 years or older who have not previously received a pneumococcal conjugate vaccine.",
+      "unit": null,
+      "observed_at": null,
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "guideline_chunk",
+      "page_or_section": "Pneumococcal Vaccination 2024",
+      "recommendation_grade": "A",
+      "source_year": 2024,
+      "source_organization": "CDC-ACIP"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "CDC-ACIP 2024 recommends PCV21 for adults 65 or older not previously vaccinated with a pneumococcal conjugate vaccine.",
+        "claim_type": "fact",
+        "source_ids": ["chunk:acip:pneumococcal:2024"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

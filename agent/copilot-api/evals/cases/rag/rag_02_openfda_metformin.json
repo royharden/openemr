@@ -1,0 +1,47 @@
+{
+  "case_id": "rag/02_openfda_metformin",
+  "category": "rag",
+  "description": "RAG retrieval: OpenFDA drug label chunk for metformin renal dosing.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where FDA guideline chunks without recommendation_grade are incorrectly rejected by the verifier.",
+  "packets": [
+    {
+      "source_id": "chunk:fda:metformin:renal-2023",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "GuidelineChunk",
+      "source_table": "guideline",
+      "field": "contraindication",
+      "label": "Metformin renal dosing",
+      "value": "Metformin is contraindicated in patients with eGFR less than 30 mL/min/1.73m2.",
+      "unit": null,
+      "observed_at": null,
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "guideline_chunk",
+      "page_or_section": "Contraindications",
+      "recommendation_grade": null,
+      "source_year": 2023,
+      "source_organization": "FDA"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Per FDA drug label, metformin is contraindicated when eGFR is below 30 mL/min/1.73m2.",
+        "claim_type": "fact",
+        "source_ids": ["chunk:fda:metformin:renal-2023"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

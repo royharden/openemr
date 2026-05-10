@@ -1,0 +1,19 @@
+{
+  "case_id": "rag/rag_02_vector_only_influenza",
+  "category": "rag",
+  "description": "Vector-only retrieval hit: query 'annual flu shot elderly' uses synonyms not in the exact chunk text ('flu' vs 'influenza', 'shot' vs 'vaccine', 'elderly' vs 'older adults'). BM25 would miss or rank low; dense vector must compensate.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present"],
+  "added_by": "wk2-team-b-rag",
+  "added_in_pr": "wk2-team-b-rag",
+  "what_bug_this_catches": "If the vector retrieval path is disabled or the EvalEmbedder is not producing discriminative vectors, synonym-based queries that rely on semantic similarity never return relevant chunks, breaking evidence retrieval for queries that don't use exact guideline terminology.",
+  "input": {
+    "query": "annual flu shot elderly high dose",
+    "patient_uuid_hash": "aaaa0000bbbb2222"
+  },
+  "expectations": {
+    "min_candidates": 1,
+    "any_source_organization": ["CDC-ACIP"],
+    "all_chunks_have": ["chunk_id", "source_id", "text", "source_year"]
+  }
+}

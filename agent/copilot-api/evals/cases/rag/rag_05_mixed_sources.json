@@ -1,0 +1,71 @@
+{
+  "case_id": "rag/05_mixed_sources",
+  "category": "rag",
+  "description": "RAG retrieval: query returns both CDC-ACIP and OpenFDA chunks for a mixed evidence scenario.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where mixed-source retrieval (CDC-ACIP + FDA) fails to produce valid citations for both source organizations.",
+  "packets": [
+    {
+      "source_id": "chunk:acip:flu:2024",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "GuidelineChunk",
+      "source_table": "guideline",
+      "field": "recommendation",
+      "label": "Influenza vaccine",
+      "value": "Annual influenza vaccination is recommended for all persons aged 6 months or older.",
+      "unit": null,
+      "observed_at": null,
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "guideline_chunk",
+      "page_or_section": "Influenza Recommendations 2024-25",
+      "recommendation_grade": "A",
+      "source_year": 2024,
+      "source_organization": "CDC-ACIP"
+    },
+    {
+      "source_id": "chunk:fda:fluzone:2024",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "GuidelineChunk",
+      "source_table": "guideline",
+      "field": "indication",
+      "label": "Fluzone indication",
+      "value": "Fluzone High-Dose Quadrivalent is indicated for adults 65 years of age and older.",
+      "unit": null,
+      "observed_at": null,
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "guideline_chunk",
+      "page_or_section": "Indications and Usage",
+      "recommendation_grade": null,
+      "source_year": 2024,
+      "source_organization": "FDA"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Per CDC-ACIP 2024, annual influenza vaccination is recommended for all persons 6 months or older.",
+        "claim_type": "fact",
+        "source_ids": ["chunk:acip:flu:2024"],
+        "caveat": null
+      },
+      {
+        "text": "Per FDA, Fluzone High-Dose is indicated for adults 65 and older.",
+        "claim_type": "fact",
+        "source_ids": ["chunk:fda:fluzone:2024"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 2,
+    "max_dropped": 0
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/rag_03_bm25_and_vector_statin_ldl",
+  "category": "rag",
+  "description": "Both BM25 and vector paths hit: query 'statin therapy LDL target secondary prevention' contains both exact terms (statin, LDL) and semantic concepts (secondary prevention → established ASCVD). Tests that union deduplicates correctly.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "added_by": "wk2-team-b-rag",
+  "added_in_pr": "wk2-team-b-rag",
+  "what_bug_this_catches": "If the BM25+vector union deduplication is broken, the same chunk appears twice in the candidate list passed to the reranker, causing the reranker to waste slots on duplicates and reducing effective top-5 diversity. Also catches cases where high BM25 score for an already-high-vector-score chunk inflates its combined score beyond the real best match.",
+  "input": {
+    "query": "statin therapy LDL target secondary prevention atorvastatin",
+    "patient_uuid_hash": "aaaa0000bbbb3333"
+  },
+  "expectations": {
+    "min_candidates": 1,
+    "any_source_organization": ["FDA", "HMS-LOE"],
+    "no_duplicate_chunk_ids": true,
+    "all_chunks_have": ["chunk_id", "source_id", "text"]
+  }
+}

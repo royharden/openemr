@@ -1,0 +1,47 @@
+{
+  "case_id": "rag/08_hms_loe_chunk",
+  "category": "rag",
+  "description": "RAG retrieval: HMS Library of Evidence chunk with Oxford CEBM grade.",
+  "mode": "verifier",
+  "rubrics": ["schema_valid", "citation_present"],
+  "what_bug_this_catches": "Regression where HMS-LOE chunks with Oxford CEBM grades (1a/1b/2a etc) are rejected by the verifier instead of accepted.",
+  "packets": [
+    {
+      "source_id": "chunk:hms-loe:statin:ldl-2022",
+      "patient_uuid": "uuid-chen-001",
+      "resource_type": "GuidelineChunk",
+      "source_table": "guideline",
+      "field": "evidence_summary",
+      "label": "Statin LDL reduction",
+      "value": "Statins reduce LDL cholesterol by 30-50% depending on potency and dose.",
+      "unit": null,
+      "observed_at": null,
+      "freshness": "recent",
+      "status": "active",
+      "source_type": "guideline_chunk",
+      "page_or_section": "Cardiovascular Risk Reduction",
+      "recommendation_grade": "1a",
+      "source_year": 2022,
+      "source_organization": "HMS-LOE"
+    }
+  ],
+  "llm_output": {
+    "answer_type": "pre_room_brief",
+    "claims": [
+      {
+        "text": "Per HMS-LOE (CEBM 1a), statins reduce LDL by 30-50% depending on potency.",
+        "claim_type": "fact",
+        "source_ids": ["chunk:hms-loe:statin:ldl-2022"],
+        "caveat": null
+      }
+    ],
+    "missing_data": [],
+    "refusals": [],
+    "suggested_followups": []
+  },
+  "expectations": {
+    "verifier_status": "passed",
+    "min_accepted_claims": 1,
+    "max_dropped": 0
+  }
+}

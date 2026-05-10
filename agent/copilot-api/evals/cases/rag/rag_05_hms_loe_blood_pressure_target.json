@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/rag_05_hms_loe_blood_pressure_target",
+  "category": "rag",
+  "description": "HMS-LOE source hit: query about blood pressure targets in hypertension should return an HMS-LOE chunk with a CEBM recommendation grade and source_year within the acceptable window.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "added_by": "wk2-team-b-rag",
+  "added_in_pr": "wk2-team-b-rag",
+  "what_bug_this_catches": "If HMS-LOE ingestor fails silently (chunks not stored), HMS-LOE chunks never appear in retrieval results. The verifier guideline_grade_present rule also depends on HMS-LOE chunks having source_organization='HMS-LOE' rather than falling through to the CDC-ACIP branch, which would incorrectly reject valid CEBM grades.",
+  "input": {
+    "query": "blood pressure target hypertension systolic 130 adults CKD diabetes",
+    "patient_uuid_hash": "aaaa0000bbbb5555"
+  },
+  "expectations": {
+    "min_candidates": 1,
+    "any_source_organization": ["HMS-LOE"],
+    "any_chunk_has_grade": true,
+    "all_chunks_have": ["chunk_id", "source_id", "source_year", "text"]
+  }
+}
