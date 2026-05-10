@@ -75,4 +75,3 @@ See Plan §15.5.12 (freshness check) and the `testing-discipline-clinical-copilo
 ## L5 — Live-vendor smoke (`evals/live_smoke/`)
 
 *(empty — populated by Workstream C; nightly only, never PR-blocking)*
-

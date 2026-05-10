@@ -73,10 +73,10 @@ return RectorConfig::configure()
     // A removes a path from below as it migrates each file. The whole
     // carve-out should be deleted before Wk3 starts.
     ->withSkip([
-        \Rector\DeadCode\Rector\Catch_\RemoveUnusedVariableInCatchRector::class => [
+        \Rector\Php80\Rector\Catch_\RemoveUnusedVariableInCatchRector::class => [
             __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
         ],
-        \Rector\CodeQuality\Rector\FuncCall\RecastingRemovalRector::class => [
+        \Rector\DeadCode\Rector\Cast\RecastingRemovalRector::class => [
             __DIR__ . '/interface/modules/custom_modules/oe-module-clinical-copilot/',
         ],
         \Rector\Php82\Rector\Class_\ReadOnlyClassRector::class => [

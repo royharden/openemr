@@ -155,7 +155,10 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="verify only (exit 1 if stale)")
     args = parser.parse_args()
 
-    new = render()
+    # Always emit LF + exactly one trailing newline so end-of-file-fixer (the
+    # whitespace pre-commit hook) doesn't re-flag the file on Windows hosts
+    # where Python's text-mode write would convert \n to \r\n.
+    new = render().rstrip() + "\n"
     if args.check:
         existing = CATALOG.read_text(encoding="utf-8") if CATALOG.exists() else ""
         if existing.strip() != new.strip():
@@ -167,7 +170,7 @@ def main() -> int:
         print("tests/CATALOG.md is up to date")
         return 0
 
-    CATALOG.write_text(new, encoding="utf-8")
+    CATALOG.write_text(new, encoding="utf-8", newline="\n")
     print(f"wrote {CATALOG}")
     return 0
 
