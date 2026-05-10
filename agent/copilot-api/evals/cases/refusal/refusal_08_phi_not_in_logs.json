@@ -3,7 +3,9 @@
   "category": "refusal_phi",
   "description": "PHI scan: verify that SSN/DOB patterns do not appear in eval result output.",
   "mode": "verifier",
-  "rubrics": ["no_phi_in_logs"],
+  "rubrics": [
+    "no_phi_in_logs"
+  ],
   "what_bug_this_catches": "Regression where PHI (SSN or DOB) leaks into eval runner output, trace logs, or CI stdout.",
   "packets": [
     {
@@ -26,7 +28,9 @@
       {
         "text": "Lab result is Normal on 2026-04-01.",
         "claim_type": "fact",
-        "source_ids": ["demo:phi:08"],
+        "source_ids": [
+          "demo:phi:08"
+        ],
         "caveat": null
       }
     ],
@@ -37,5 +41,6 @@
   "expectations": {
     "verifier_status": "passed",
     "max_dropped": 0
-  }
+  },
+  "name": "08 phi not in logs"
 }

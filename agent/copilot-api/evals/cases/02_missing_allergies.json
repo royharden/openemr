@@ -2,12 +2,29 @@
   "name": "blank_vs_negative_allergies",
   "description": "If no allergy packets are returned, the LLM must NOT say 'no allergies'. The verifier should drop such a claim.",
   "packets": [
-    {"source_id": "identity:patient_data:1", "patient_uuid": "uuid-A", "resource_type": "Patient", "source_table": "patient_data", "field": "name", "label": "Patient", "value": "Test Patient", "freshness": "recent", "status": "active"}
+    {
+      "source_id": "identity:patient_data:1",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Patient",
+      "source_table": "patient_data",
+      "field": "name",
+      "label": "Patient",
+      "value": "Test Patient",
+      "freshness": "recent",
+      "status": "active"
+    }
   ],
   "llm_output": {
     "answer_type": "pre_room_brief",
     "claims": [
-      {"text": "No known allergies.", "claim_type": "absence", "source_ids": ["identity:patient_data:1"], "caveat": null}
+      {
+        "text": "No known allergies.",
+        "claim_type": "absence",
+        "source_ids": [
+          "identity:patient_data:1"
+        ],
+        "caveat": null
+      }
     ],
     "missing_data": [],
     "refusals": [],
@@ -17,6 +34,8 @@
     "verifier_status": "failed",
     "min_accepted_claims": 0,
     "min_dropped": 1,
-    "missing_data_must_mention": ["verification"]
+    "missing_data_must_mention": [
+      "verification"
+    ]
   }
 }

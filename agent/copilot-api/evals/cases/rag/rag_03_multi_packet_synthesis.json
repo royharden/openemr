@@ -1,9 +1,13 @@
 {
   "case_id": "rag/03_multi_packet_synthesis",
-  "category": "rag_retrieval",
+  "category": "rag",
   "description": "RAG: synthesizer correctly cites multiple packets in a single claim.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where only first-ranked packet is cited, dropping corroborating evidence.",
   "packets": [
     {
@@ -41,9 +45,12 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "Basic metabolic panel from 2026-04-02: Sodium 140 mEq/L, Potassium 4.1 mEq/L — both within normal limits.",
+        "text": "Basic metabolic panel from 2026-04-02: Sodium 140 mEq/L, Potassium 4.1 mEq/L \u00e2\u20ac\u201d both within normal limits.",
         "claim_type": "fact",
-        "source_ids": ["lab:sodium:001", "lab:potassium:001"],
+        "source_ids": [
+          "lab:sodium:001",
+          "lab:potassium:001"
+        ],
         "caveat": null
       }
     ],
@@ -55,5 +62,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "03 multi packet synthesis"
 }

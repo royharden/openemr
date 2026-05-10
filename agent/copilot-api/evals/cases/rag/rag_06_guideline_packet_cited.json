@@ -1,9 +1,12 @@
 {
   "case_id": "rag/06_guideline_packet_cited",
-  "category": "rag_retrieval",
+  "category": "rag",
   "description": "RAG: guideline/corpus packet is retrieved and cited alongside lab data.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
   "what_bug_this_catches": "Regression where evidence_retriever skips guideline packets and only includes EMR packets.",
   "packets": [
     {
@@ -31,9 +34,9 @@
       "value": "LDL target <70 mg/dL for high cardiovascular risk patients",
       "unit": null,
       "observed_at": "2019-11-01",
-      "freshness": "stale",
+      "freshness": "recent",
       "status": "final",
-      "source_type": "guideline",
+      "source_type": "guideline_chunk",
       "quote_or_value": "For very high-risk patients, LDL-C goal <70 mg/dL"
     }
   ],
@@ -43,7 +46,10 @@
       {
         "text": "LDL was 145 mg/dL on 2026-04-01, above the ACC/AHA guideline target of <70 mg/dL for high-risk patients.",
         "claim_type": "fact",
-        "source_ids": ["lab:ldl:001", "guideline:acc-aha-2019:ldl-target"],
+        "source_ids": [
+          "lab:ldl:001",
+          "guideline:acc-aha-2019:ldl-target"
+        ],
         "caveat": null
       }
     ],
@@ -55,5 +61,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "06 guideline packet cited"
 }

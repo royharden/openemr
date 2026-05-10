@@ -1,9 +1,13 @@
 {
   "case_id": "rag/07_retrieval_top_n_limit",
-  "category": "rag_retrieval",
+  "category": "rag",
   "description": "RAG: when many packets are available, only the top-N most relevant are cited.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where all packets are blindly included, causing context overflow and hallucination.",
   "packets": [
     {
@@ -34,7 +38,7 @@
       "freshness": "stale",
       "status": "active",
       "source_type": "document_extract",
-      "quote_or_value": "Penicillin — Rash"
+      "quote_or_value": "Penicillin \u00e2\u20ac\u201d Rash"
     }
   ],
   "llm_output": {
@@ -43,7 +47,9 @@
       {
         "text": "WBC was 11.2 K/uL on 2026-04-03, mildly elevated.",
         "claim_type": "fact",
-        "source_ids": ["lab:wbc:001"],
+        "source_ids": [
+          "lab:wbc:001"
+        ],
         "caveat": null
       }
     ],
@@ -55,5 +61,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "07 retrieval top n limit"
 }

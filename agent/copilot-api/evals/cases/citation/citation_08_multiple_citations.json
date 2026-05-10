@@ -3,7 +3,11 @@
   "category": "citation",
   "description": "Citation present: trend claim cites two valid packets with matching values.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where trend claims with multiple citations are incorrectly rejected.",
   "packets": [
     {
@@ -39,7 +43,10 @@
       {
         "text": "LDL improved from 130 mg/dL in January to 122 mg/dL in April.",
         "claim_type": "trend",
-        "source_ids": ["lab:ldl:jan", "lab:ldl:apr"],
+        "source_ids": [
+          "lab:ldl:jan",
+          "lab:ldl:apr"
+        ],
         "caveat": null
       }
     ],
@@ -51,5 +58,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "08 multiple citations"
 }

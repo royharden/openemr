@@ -2,12 +2,30 @@
   "name": "value_mismatch_lab_result",
   "description": "Claim writes A1c=6.4% while the cited lab packet's value is 8.4%. Verifier must drop with source_value_mismatch.",
   "packets": [
-    {"source_id": "lab:procedure_result:777", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "result", "label": "Hemoglobin A1c", "value": "8.4", "unit": "%", "observed_at": "2026-04-27", "freshness": "recent"}
+    {
+      "source_id": "lab:procedure_result:777",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "Hemoglobin A1c",
+      "value": "8.4",
+      "unit": "%",
+      "observed_at": "2026-04-27",
+      "freshness": "recent"
+    }
   ],
   "llm_output": {
     "answer_type": "pre_room_brief",
     "claims": [
-      {"text": "Recent A1c is 6.4%.", "claim_type": "fact", "source_ids": ["lab:procedure_result:777"], "caveat": null}
+      {
+        "text": "Recent A1c is 6.4%.",
+        "claim_type": "fact",
+        "source_ids": [
+          "lab:procedure_result:777"
+        ],
+        "caveat": null
+      }
     ],
     "missing_data": [],
     "refusals": [],
@@ -16,6 +34,8 @@
   "expectations": {
     "verifier_status": "failed",
     "min_dropped": 1,
-    "rules_must_fire": ["source_value_mismatch"]
+    "rules_must_fire": [
+      "source_value_mismatch"
+    ]
   }
 }

@@ -21,14 +21,23 @@
       {
         "text": "Pneumococcal PPSV23 documented on 2025-10-15.",
         "claim_type": "fact",
-        "source_ids": ["immunization:1"]
+        "source_ids": [
+          "immunization:1"
+        ]
       }
     ],
-    "missing_data": ["Limited immunization data - only one Pneumococcal entry on file."]
+    "missing_data": [
+      "Limited immunization data - only one Pneumococcal entry on file."
+    ]
   },
   "expectations": {
     "verifier_status": "passed",
     "min_accepted_claims": 1,
-    "missing_data_must_not_mention": ["Hepatitis A", "influenza", "COVID", "tetanus"]
+    "missing_data_must_not_mention": [
+      "Hepatitis A",
+      "influenza",
+      "COVID",
+      "tetanus"
+    ]
   }
 }

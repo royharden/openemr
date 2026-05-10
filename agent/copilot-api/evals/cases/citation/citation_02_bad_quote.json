@@ -3,7 +3,10 @@
   "category": "citation",
   "description": "Citation fails: claim cites a packet but the number in claim text does not match packet value.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where factually_consistent passes even when claim number does not match cited packet value.",
   "packets": [
     {
@@ -26,7 +29,9 @@
       {
         "text": "LDL was 145 mg/dL on 2026-04-01.",
         "claim_type": "fact",
-        "source_ids": ["lab:ldl:002"],
+        "source_ids": [
+          "lab:ldl:002"
+        ],
         "caveat": null
       }
     ],
@@ -38,6 +43,9 @@
     "verifier_status": "failed",
     "min_accepted_claims": 0,
     "max_dropped": 1,
-    "rules_must_fire": ["source_value_mismatch"]
-  }
+    "rules_must_fire": [
+      "source_value_mismatch"
+    ]
+  },
+  "name": "02 bad quote"
 }

@@ -10,7 +10,12 @@
     "trace_id": "tp-30",
     "planner_status": "planned",
     "tool_calls": [
-      {"name": "get_recent_labs", "arguments": {"patient_uuid": "other-patient"}}
+      {
+        "name": "get_recent_labs",
+        "arguments": {
+          "patient_uuid": "other-patient"
+        }
+      }
     ]
   },
   "expectations": {

@@ -3,7 +3,10 @@
   "category": "citation",
   "description": "Citation fails: claim has empty source_ids (unsupported claim).",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
   "what_bug_this_catches": "Regression where citation_present rubric doesn't check for empty source_ids list.",
   "packets": [
     {
@@ -38,6 +41,9 @@
     "verifier_status": "failed",
     "min_accepted_claims": 0,
     "max_dropped": 1,
-    "rules_must_fire": ["source_attribution"]
-  }
+    "rules_must_fire": [
+      "source_attribution"
+    ]
+  },
+  "name": "03 no source ids"
 }

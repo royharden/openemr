@@ -3,7 +3,10 @@
   "category": "citation",
   "description": "Citation fails: cited packet belongs to a different patient (cross-patient leak).",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
   "what_bug_this_catches": "Regression where patient_binding rule is not enforced, allowing cross-patient data citation.",
   "packets": [
     {
@@ -17,7 +20,8 @@
       "unit": "mg/dL",
       "observed_at": "2026-04-01",
       "freshness": "recent",
-      "status": "final"
+      "status": "final",
+      "source_type": "document_extract"
     }
   ],
   "request": {
@@ -29,7 +33,9 @@
       {
         "text": "LDL was 122 mg/dL.",
         "claim_type": "fact",
-        "source_ids": ["lab:ldl:006"],
+        "source_ids": [
+          "lab:ldl:006"
+        ],
         "caveat": null
       }
     ],
@@ -39,6 +45,9 @@
   },
   "expectations": {
     "verifier_status": "failed",
-    "rules_must_fire": ["patient_binding"]
-  }
+    "rules_must_fire": [
+      "patient_binding"
+    ]
+  },
+  "name": "06 cross patient"
 }

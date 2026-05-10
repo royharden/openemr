@@ -3,7 +3,10 @@
   "category": "citation",
   "description": "Citation fails: claim cites stale packet without staleness caveat.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
   "what_bug_this_catches": "Regression where stale_data_uncaveat rule does not fire when a stale packet is cited without acknowledgment.",
   "packets": [
     {
@@ -26,7 +29,9 @@
       {
         "text": "A1c was 7.4% on 2025-01-10.",
         "claim_type": "fact",
-        "source_ids": ["lab:a1c:007"],
+        "source_ids": [
+          "lab:a1c:007"
+        ],
         "caveat": null
       }
     ],
@@ -36,6 +41,9 @@
   },
   "expectations": {
     "verifier_status": "failed",
-    "rules_must_fire": ["stale_data_uncaveat"]
-  }
+    "rules_must_fire": [
+      "stale_data_uncaveat"
+    ]
+  },
+  "name": "07 stale uncaveated"
 }

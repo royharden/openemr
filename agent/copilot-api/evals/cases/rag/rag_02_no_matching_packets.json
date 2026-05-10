@@ -1,9 +1,12 @@
 {
   "case_id": "rag/02_no_matching_packets",
-  "category": "rag_retrieval",
+  "category": "rag",
   "description": "RAG: when no relevant packets exist, verifier surfaces missing_data instead of hallucinating.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where synthesizer generates claims without supporting packets.",
   "packets": [
     {
@@ -25,13 +28,18 @@
   "llm_output": {
     "answer_type": "pre_room_brief",
     "claims": [],
-    "missing_data": ["HbA1c result not found in available documents."],
+    "missing_data": [
+      "HbA1c result not found in available documents."
+    ],
     "refusals": [],
-    "suggested_followups": ["Order HbA1c if diabetes monitoring is indicated."]
+    "suggested_followups": [
+      "Order HbA1c if diabetes monitoring is indicated."
+    ]
   },
   "expectations": {
-    "verifier_status": "passed",
+    "verifier_status": "passed_with_drops",
     "min_accepted_claims": 0,
     "max_dropped": 0
-  }
+  },
+  "name": "02 no matching packets"
 }

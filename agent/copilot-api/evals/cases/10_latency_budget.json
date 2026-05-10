@@ -2,29 +2,199 @@
   "name": "verifier_latency_under_budget",
   "description": "The verifier alone must process a 50-packet, 50-claim payload in well under the per-turn p95 budget. Sets a 100ms ceiling; the LLM call dominates the real budget, but the verifier itself must stay fast.",
   "packets": [
-    {"source_id": "p:1", "patient_uuid": "uuid-A", "resource_type": "Condition", "source_table": "lists", "field": "title", "label": "Active problem", "value": "HTN", "freshness": "recent", "status": "active"},
-    {"source_id": "p:2", "patient_uuid": "uuid-A", "resource_type": "Condition", "source_table": "lists", "field": "title", "label": "Active problem", "value": "DM2", "freshness": "recent", "status": "active"},
-    {"source_id": "p:3", "patient_uuid": "uuid-A", "resource_type": "Condition", "source_table": "lists", "field": "title", "label": "Active problem", "value": "HLD", "freshness": "recent", "status": "active"},
-    {"source_id": "p:4", "patient_uuid": "uuid-A", "resource_type": "MedicationStatement", "source_table": "lists", "field": "title", "label": "Med", "value": "Lisinopril", "freshness": "recent", "status": "active"},
-    {"source_id": "p:5", "patient_uuid": "uuid-A", "resource_type": "MedicationStatement", "source_table": "lists", "field": "title", "label": "Med", "value": "Metformin", "freshness": "recent", "status": "active"},
-    {"source_id": "p:6", "patient_uuid": "uuid-A", "resource_type": "MedicationStatement", "source_table": "lists", "field": "title", "label": "Med", "value": "Atorvastatin", "freshness": "recent", "status": "active"},
-    {"source_id": "p:7", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "result", "label": "A1c", "value": "7.4", "unit": "%", "observed_at": "2026-01-15", "freshness": "recent", "status": "final"},
-    {"source_id": "p:8", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "result", "label": "A1c", "value": "8.1", "unit": "%", "observed_at": "2026-04-20", "freshness": "recent", "status": "final"},
-    {"source_id": "p:9", "patient_uuid": "uuid-A", "resource_type": "Observation", "source_table": "procedure_result", "field": "result", "label": "LDL", "value": "142", "unit": "mg/dL", "observed_at": "2026-04-20", "freshness": "recent", "status": "final"},
-    {"source_id": "p:10", "patient_uuid": "uuid-A", "resource_type": "AllergyIntolerance", "source_table": "lists", "field": "title", "label": "Allergy", "value": "Penicillin", "freshness": "recent", "status": "active"}
+    {
+      "source_id": "p:1",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Condition",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Active problem",
+      "value": "HTN",
+      "freshness": "recent",
+      "status": "active"
+    },
+    {
+      "source_id": "p:2",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Condition",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Active problem",
+      "value": "DM2",
+      "freshness": "recent",
+      "status": "active"
+    },
+    {
+      "source_id": "p:3",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Condition",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Active problem",
+      "value": "HLD",
+      "freshness": "recent",
+      "status": "active"
+    },
+    {
+      "source_id": "p:4",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationStatement",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Med",
+      "value": "Lisinopril",
+      "freshness": "recent",
+      "status": "active"
+    },
+    {
+      "source_id": "p:5",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationStatement",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Med",
+      "value": "Metformin",
+      "freshness": "recent",
+      "status": "active"
+    },
+    {
+      "source_id": "p:6",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationStatement",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Med",
+      "value": "Atorvastatin",
+      "freshness": "recent",
+      "status": "active"
+    },
+    {
+      "source_id": "p:7",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "7.4",
+      "unit": "%",
+      "observed_at": "2026-01-15",
+      "freshness": "recent",
+      "status": "final"
+    },
+    {
+      "source_id": "p:8",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "8.1",
+      "unit": "%",
+      "observed_at": "2026-04-20",
+      "freshness": "recent",
+      "status": "final"
+    },
+    {
+      "source_id": "p:9",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "LDL",
+      "value": "142",
+      "unit": "mg/dL",
+      "observed_at": "2026-04-20",
+      "freshness": "recent",
+      "status": "final"
+    },
+    {
+      "source_id": "p:10",
+      "patient_uuid": "uuid-A",
+      "resource_type": "AllergyIntolerance",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Allergy",
+      "value": "Penicillin",
+      "freshness": "recent",
+      "status": "active"
+    }
   ],
   "llm_output": {
     "answer_type": "pre_room_brief",
     "claims": [
-      {"text": "Active problem: HTN.", "claim_type": "fact", "source_ids": ["p:1"], "caveat": null},
-      {"text": "Active problem: DM2.", "claim_type": "fact", "source_ids": ["p:2"], "caveat": null},
-      {"text": "Active problem: HLD.", "claim_type": "fact", "source_ids": ["p:3"], "caveat": null},
-      {"text": "On Lisinopril.", "claim_type": "fact", "source_ids": ["p:4"], "caveat": null},
-      {"text": "On Metformin.", "claim_type": "fact", "source_ids": ["p:5"], "caveat": null},
-      {"text": "On Atorvastatin.", "claim_type": "fact", "source_ids": ["p:6"], "caveat": null},
-      {"text": "A1c rose from 7.4% (Jan) to 8.1% (Apr).", "claim_type": "trend", "source_ids": ["p:7", "p:8"], "caveat": null},
-      {"text": "LDL 142 mg/dL on 2026-04-20.", "claim_type": "fact", "source_ids": ["p:9"], "caveat": null},
-      {"text": "Penicillin allergy on file.", "claim_type": "fact", "source_ids": ["p:10"], "caveat": null}
+      {
+        "text": "Active problem: HTN.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:1"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "Active problem: DM2.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:2"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "Active problem: HLD.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:3"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "On Lisinopril.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:4"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "On Metformin.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:5"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "On Atorvastatin.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:6"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "A1c rose from 7.4% (Jan) to 8.1% (Apr).",
+        "claim_type": "trend",
+        "source_ids": [
+          "p:7",
+          "p:8"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "LDL 142 mg/dL on 2026-04-20.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:9"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "Penicillin allergy on file.",
+        "claim_type": "fact",
+        "source_ids": [
+          "p:10"
+        ],
+        "caveat": null
+      }
     ],
     "missing_data": [],
     "refusals": [],

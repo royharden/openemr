@@ -1,20 +1,57 @@
 {
   "case_id": "regression/01_cross_patient",
   "category": "regression",
-  "description": "Wk1 regression: cross-patient packet binding — claim from wrong patient must be dropped.",
+  "description": "Wk1 regression: cross-patient packet binding \u2014 claim from wrong patient must be dropped.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present"],
-  "what_bug_this_catches": "Wk1 regression: patient_binding rule — if a cited packet has a different patient_uuid than the request, the claim is dropped and a security event logged.",
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
+  "what_bug_this_catches": "Wk1 regression: patient_binding rule \u2014 if a cited packet has a different patient_uuid than the request, the claim is dropped and a security event logged.",
   "regression_marker": "wk1:03_cross_patient.json",
   "packets": [
-    {"source_id": "med:lists:5", "patient_uuid": "uuid-A", "resource_type": "MedicationStatement", "source_table": "lists", "field": "title", "label": "Active medication", "value": "Lisinopril", "freshness": "recent", "status": "active"},
-    {"source_id": "med:lists:9", "patient_uuid": "uuid-B", "resource_type": "MedicationStatement", "source_table": "lists", "field": "title", "label": "Active medication", "value": "Metformin", "freshness": "recent", "status": "active"}
+    {
+      "source_id": "med:lists:5",
+      "patient_uuid": "uuid-A",
+      "resource_type": "MedicationStatement",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Active medication",
+      "value": "Lisinopril",
+      "freshness": "recent",
+      "status": "active"
+    },
+    {
+      "source_id": "med:lists:9",
+      "patient_uuid": "uuid-B",
+      "resource_type": "MedicationStatement",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Active medication",
+      "value": "Metformin",
+      "freshness": "recent",
+      "status": "active"
+    }
   ],
   "llm_output": {
     "answer_type": "pre_room_brief",
     "claims": [
-      {"text": "Currently on Lisinopril.", "claim_type": "fact", "source_ids": ["med:lists:5"], "caveat": null},
-      {"text": "Currently on Metformin.", "claim_type": "fact", "source_ids": ["med:lists:9"], "caveat": null}
+      {
+        "text": "Currently on Lisinopril.",
+        "claim_type": "fact",
+        "source_ids": [
+          "med:lists:5"
+        ],
+        "caveat": null
+      },
+      {
+        "text": "Currently on Metformin.",
+        "claim_type": "fact",
+        "source_ids": [
+          "med:lists:9"
+        ],
+        "caveat": null
+      }
     ],
     "missing_data": [],
     "refusals": [],
@@ -24,6 +61,9 @@
     "verifier_status": "passed_with_drops",
     "min_accepted_claims": 1,
     "min_dropped": 1,
-    "rules_must_fire": ["patient_binding"]
-  }
+    "rules_must_fire": [
+      "patient_binding"
+    ]
+  },
+  "name": "01 cross patient"
 }

@@ -3,7 +3,10 @@
   "category": "citation",
   "description": "Citation fails: claim references a source_id not in the provided packets.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
   "what_bug_this_catches": "Regression where verifier does not reject claims referencing non-existent source_ids.",
   "packets": [
     {
@@ -26,7 +29,9 @@
       {
         "text": "Patient has a history of hypertension.",
         "claim_type": "fact",
-        "source_ids": ["lab:does_not_exist:999"],
+        "source_ids": [
+          "lab:does_not_exist:999"
+        ],
         "caveat": null
       }
     ],
@@ -37,6 +42,9 @@
   "expectations": {
     "verifier_status": "failed",
     "min_accepted_claims": 0,
-    "rules_must_fire": ["source_attribution"]
-  }
+    "rules_must_fire": [
+      "source_attribution"
+    ]
+  },
+  "name": "04 unknown source"
 }

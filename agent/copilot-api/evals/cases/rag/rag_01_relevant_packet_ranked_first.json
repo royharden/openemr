@@ -1,9 +1,13 @@
 {
   "case_id": "rag/01_relevant_packet_ranked_first",
-  "category": "rag_retrieval",
+  "category": "rag",
   "description": "RAG: the most relevant packet for the question ranks first in retrieval.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where reranker returns packets in insertion order regardless of query relevance.",
   "packets": [
     {
@@ -43,7 +47,9 @@
       {
         "text": "HbA1c was 8.2% on 2026-04-01.",
         "claim_type": "fact",
-        "source_ids": ["lab:hba1c:001"],
+        "source_ids": [
+          "lab:hba1c:001"
+        ],
         "caveat": null
       }
     ],
@@ -55,5 +61,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "01 relevant packet ranked first"
 }

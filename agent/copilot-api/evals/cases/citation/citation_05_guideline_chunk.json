@@ -3,7 +3,10 @@
   "category": "citation",
   "description": "Citation present: claim cites a guideline chunk source packet.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present"
+  ],
   "what_bug_this_catches": "Regression where guideline_chunk source_type packets are not accepted as valid citations.",
   "packets": [
     {
@@ -29,9 +32,11 @@
     "answer_type": "pre_room_brief",
     "claims": [
       {
-        "text": "Per CDC-ACIP 2024, adults who have not received Tdap should receive a one-time dose.",
+        "text": "Per CDC-ACIP guidelines, adults who have not received Tdap should receive a one-time dose.",
         "claim_type": "fact",
-        "source_ids": ["chunk:acip:tdap:adult"],
+        "source_ids": [
+          "chunk:acip:tdap:adult"
+        ],
         "caveat": null
       }
     ],
@@ -43,5 +48,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "05 guideline chunk"
 }

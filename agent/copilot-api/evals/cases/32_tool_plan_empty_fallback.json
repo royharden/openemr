@@ -15,6 +15,10 @@
   "expectations": {
     "planner_status": "fallback_required",
     "use_fallback_when_empty": true,
-    "expected_fallback_tools": ["get_patient_identity", "get_active_problems", "get_recent_labs"]
+    "expected_fallback_tools": [
+      "get_patient_identity",
+      "get_active_problems",
+      "get_recent_labs"
+    ]
   }
 }

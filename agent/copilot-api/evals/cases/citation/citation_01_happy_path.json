@@ -3,7 +3,11 @@
   "category": "citation",
   "description": "Citation present: claim cites a valid source packet with matching value.",
   "mode": "verifier",
-  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "factually_consistent"
+  ],
   "what_bug_this_catches": "Regression where citation_present rubric passes even when source_ids list is empty.",
   "packets": [
     {
@@ -28,7 +32,9 @@
       {
         "text": "LDL was 122 mg/dL on 2026-04-01.",
         "claim_type": "fact",
-        "source_ids": ["lab:ldl:001"],
+        "source_ids": [
+          "lab:ldl:001"
+        ],
         "caveat": null
       }
     ],
@@ -40,5 +46,6 @@
     "verifier_status": "passed",
     "min_accepted_claims": 1,
     "max_dropped": 0
-  }
+  },
+  "name": "01 happy path"
 }

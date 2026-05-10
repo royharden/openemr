@@ -10,12 +10,21 @@
     "trace_id": "tp-29",
     "planner_status": "planned",
     "tool_calls": [
-      {"name": "get_patient_identity", "arguments": {}},
-      {"name": "get_immunization_history", "arguments": {}}
+      {
+        "name": "get_patient_identity",
+        "arguments": {}
+      },
+      {
+        "name": "get_immunization_history",
+        "arguments": {}
+      }
     ]
   },
   "expectations": {
     "planner_status": "planned",
-    "expected_tools": ["get_patient_identity", "get_immunization_history"]
+    "expected_tools": [
+      "get_patient_identity",
+      "get_immunization_history"
+    ]
   }
 }
