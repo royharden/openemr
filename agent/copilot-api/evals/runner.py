@@ -436,12 +436,25 @@ def main() -> int:
             })
             continue
 
-        # Wk2 rubric modes: extraction, rag_retrieval, citation
-        if mode in ("extraction", "rag_retrieval", "citation"):
+        # Wk2 rubric modes: extraction, rag_retrieval, citation, extractor_only
+        # Also: any case with a `rubrics` field but no `llm_output` runs in rubric mode
+        # regardless of declared mode (handles Team C's refusal/regression cases that
+        # declare mode=verifier but only ship `rubrics` for rubric-only evaluation).
+        rubric_mode_aliases = {
+            "extraction": "extraction",
+            "extractor_only": "extraction",  # Team A naming alias
+            "rag_retrieval": "rag_retrieval",
+            "citation": "citation",
+        }
+        is_rubric_mode = mode in rubric_mode_aliases or (
+            case.get("rubrics") and "llm_output" not in case
+        )
+        if is_rubric_mode:
+            effective_mode = rubric_mode_aliases.get(mode, mode if mode in ("rag_retrieval", "citation") else case.get("category", "rubric"))
             started = time.monotonic()
-            passed, failures, rubric_results = _check_rubric_mode(case, mode)
+            passed, failures, rubric_results = _check_rubric_mode(case, effective_mode)
             elapsed_ms = (time.monotonic() - started) * 1000
-            status_label = mode
+            status_label = effective_mode
             if passed:
                 pass_count += 1
             flag = "PASS" if passed else "FAIL"
@@ -451,7 +464,7 @@ def main() -> int:
                     print(f"      - {f}")
             results.append({
                 "name": display_name,
-                "mode": mode,
+                "mode": effective_mode,
                 "elapsed_ms": round(elapsed_ms, 3),
                 "passed": passed,
                 "failures": failures,
