@@ -44,7 +44,7 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
                   LIMIT 40',
                 [$patientHash],
             );
-        } catch (\Exception) {
+        } catch (\RuntimeException) {
             return [];
         }
 
@@ -122,7 +122,12 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
         }
 
         $decoded = json_decode($value, true);
-        return is_array($decoded) ? $decoded : [];
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
     }
 
     /**

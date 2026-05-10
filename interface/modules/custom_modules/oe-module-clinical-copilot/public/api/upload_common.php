@@ -10,19 +10,23 @@
 
 declare(strict_types=1);
 
+namespace OpenEMR\Modules\ClinicalCopilot\Api;
+
 require_once(__DIR__ . "/../../../../../globals.php");
 require_once(\OpenEMR\Core\OEGlobalsBag::getInstance()->getProjectDir() . "/library/documents.php");
 
+use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Common\Database\QueryUtils;
-use OpenEMR\Common\Logging\SystemLogger;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentUploadController;
 use OpenEMR\Modules\ClinicalCopilot\Repository\DocumentFactsRepository;
 use OpenEMR\Services\BaseService;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\Request;
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -40,6 +44,15 @@ function copilot_upload_send_json(int $status, array $payload): never
 function copilot_upload_string(mixed $value, string $default = ''): string
 {
     return is_string($value) ? $value : $default;
+}
+
+function copilot_upload_int(mixed $value): int
+{
+    if (is_int($value)) {
+        return $value;
+    }
+
+    return is_numeric($value) ? (int) $value : 0;
 }
 
 function copilot_upload_detect_mime(string $tmpPath, string $fallback): string
@@ -110,8 +123,12 @@ function copilot_upload_doc_url(int $pid, string $documentId): string
 
 function copilot_upload_handle(string $docType): void
 {
+    $request = Request::createFromGlobals();
     $session = SessionWrapperFactory::getInstance()->getActiveSession();
-    $csrf = $_POST['csrf_token_form'] ?? $_SERVER['HTTP_APICSRFTOKEN'] ?? null;
+    $csrf = $request->request->get('csrf_token_form');
+    if (!is_string($csrf) || $csrf === '') {
+        $csrf = $request->headers->get('APICSRFTOKEN');
+    }
     if (!is_string($csrf) || !CsrfUtils::verifyCsrfToken($csrf, $session, 'ClinicalCopilot')) {
         copilot_upload_send_json(403, ['error' => 'csrf_failure']);
     }
@@ -120,22 +137,22 @@ function copilot_upload_handle(string $docType): void
         copilot_upload_send_json(403, ['error' => 'acl_denied']);
     }
 
-    $pid = (int) ($session->get('pid') ?? 0);
+    $pid = copilot_upload_int($session->get('pid'));
     if ($pid <= 0) {
         copilot_upload_send_json(400, ['error' => 'missing_patient']);
     }
 
-    $upload = $_FILES['file'] ?? null;
-    if (!is_array($upload) || !isset($upload['tmp_name'], $upload['name'], $upload['error'])) {
+    $upload = $request->files->get('file');
+    if (!$upload instanceof UploadedFile) {
         copilot_upload_send_json(400, ['error' => 'missing_file']);
     }
-    if ((int) $upload['error'] !== UPLOAD_ERR_OK) {
-        copilot_upload_send_json(400, ['error' => 'upload_error', 'code' => (int) $upload['error']]);
+    if ($upload->getError() !== UPLOAD_ERR_OK) {
+        copilot_upload_send_json(400, ['error' => 'upload_error', 'code' => $upload->getError()]);
     }
 
-    $tmpName = copilot_upload_string($upload['tmp_name'] ?? null);
-    $originalName = basename(copilot_upload_string($upload['name'] ?? null, 'upload.bin'));
-    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+    $tmpName = $upload->getPathname();
+    $originalName = basename($upload->getClientOriginalName() !== '' ? $upload->getClientOriginalName() : 'upload.bin');
+    if ($tmpName === '' || !$upload->isValid()) {
         copilot_upload_send_json(400, ['error' => 'invalid_upload']);
     }
 
@@ -150,8 +167,8 @@ function copilot_upload_handle(string $docType): void
             throw new \RuntimeException('patient_uuid_missing');
         }
         $patientUuid = UuidRegistry::uuidToString($patientUuidBin);
-        $userId = (int) ($session->get('authUserID') ?? 0);
-        $mimeType = copilot_upload_detect_mime($scratch, copilot_upload_string($upload['type'] ?? null, 'application/octet-stream'));
+        $userId = copilot_upload_int($session->get('authUserID'));
+        $mimeType = copilot_upload_detect_mime($scratch, $upload->getClientMimeType() ?? 'application/octet-stream');
 
         [$documentId, $documentUuidBin] = copilot_upload_store_document(
             $tmpName,
@@ -167,7 +184,7 @@ function copilot_upload_handle(string $docType): void
             throw new \RuntimeException('sidecar_not_configured');
         }
 
-        $logger = new SystemLogger();
+        $logger = ServiceContainer::getLogger();
         $controller = new DocumentUploadController(
             $sidecarBaseUrl,
             $sidecarSecret,
@@ -185,8 +202,8 @@ function copilot_upload_handle(string $docType): void
         $payload['document_uuid'] = UuidRegistry::uuidToString($documentUuidBin);
         $payload['doc_url'] = copilot_upload_doc_url($pid, $documentId);
         copilot_upload_send_json(200, $payload);
-    } catch (\Exception $e) {
-        (new SystemLogger())->error('ClinicalCopilot: document upload failed', [
+    } catch (\RuntimeException $e) {
+        ServiceContainer::getLogger()->error('ClinicalCopilot: document upload failed', [
             'exception' => $e,
         ]);
         copilot_upload_send_json(500, [

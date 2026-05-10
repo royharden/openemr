@@ -20,14 +20,14 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Repository;
 
 use OpenEMR\Common\Database\QueryUtils;
-use OpenEMR\Common\Logging\SystemLogger;
+use Psr\Log\LoggerInterface;
 
 final class DocumentFactsRepository
 {
     private const TABLE = 'copilot_document_facts';
 
     public function __construct(
-        private readonly SystemLogger $logger,
+        private readonly LoggerInterface $logger,
     ) {}
 
     /**
@@ -83,9 +83,6 @@ final class DocumentFactsRepository
         $inserted     = 0;
 
         foreach ($fields as $field) {
-            if (!is_array($field)) {
-                continue;
-            }
             $fieldPathRaw = $field['name'] ?? '';
             $fieldPath = is_string($fieldPathRaw) ? $fieldPathRaw : '';
             if ($fieldPath === '') {
@@ -169,7 +166,7 @@ final class DocumentFactsRepository
                     $params,
                 );
                 $inserted += max(0, (int) $affected);
-            } catch (\Exception $e) {
+            } catch (\RuntimeException $e) {
                 $this->logger->error('DocumentFactsRepository: insert failed', [
                     'field_path' => $fieldPath,
                     'exception'  => $e,
@@ -218,7 +215,7 @@ final class DocumentFactsRepository
 
         try {
             QueryUtils::sqlStatementThrowException($sql);
-        } catch (\Exception $e) {
+        } catch (\RuntimeException $e) {
             $this->logger->error('DocumentFactsRepository: schema bootstrap failed', [
                 'exception' => $e,
             ]);

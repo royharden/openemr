@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Gateway;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 
 final class SidecarClient
 {
@@ -84,7 +85,7 @@ final class SidecarClient
                 'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ]);
             return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
-        } catch (\Exception $e) {
+        } catch (GuzzleException $e) {
             return [
                 '__sidecar_error' => 'request_failed',
                 '__sidecar_message' => $e->getMessage(),
@@ -128,7 +129,7 @@ final class SidecarClient
                 'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ]);
             return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
-        } catch (\Exception $e) {
+        } catch (GuzzleException $e) {
             return [
                 '__sidecar_error' => 'request_failed',
                 '__sidecar_message' => $e->getMessage(),
