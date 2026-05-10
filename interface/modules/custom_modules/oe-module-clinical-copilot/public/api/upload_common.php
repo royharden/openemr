@@ -99,7 +99,7 @@ function copilot_upload_store_document(
         throw new \RuntimeException('openemr_document_store_failed');
     }
 
-    $documentId = copilot_upload_string($stored['doc_id'] ?? null);
+    $documentId = copilot_upload_string($stored['doc_id']);
     if ($documentId === '') {
         throw new \RuntimeException('openemr_document_id_missing');
     }
