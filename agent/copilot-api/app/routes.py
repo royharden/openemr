@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import time
 import uuid
 from typing import Any
 
@@ -230,10 +231,28 @@ async def copilot_answer(body: _CopilotAnswerRequest) -> JSONResponse:
 
     try:
         graph = get_compiled_graph()
+        graph_started = time.monotonic()
         final_state: CopilotState = await graph.ainvoke(initial_state)
+        graph_elapsed_ms = (time.monotonic() - graph_started) * 1000.0
     except Exception as exc:
         logger.error("Graph execution failed for trace_id=%s: %s", run_id, exc)
         raise HTTPException(status_code=500, detail="graph_execution_failed") from exc
+
+    # Emit a graph-completion span for Langfuse / log scrapers (AgDR-0055; PHI-safe via observability.scrub_phi).
+    # Per Team C 2026-05-10 followup: the endpoint runs the graph but never recorded the completion span.
+    try:
+        from .observability import record_graph_span
+        record_graph_span(
+            trace_id=run_id,
+            node_name="graph_complete",
+            graph_path=final_state.get("graph_path", []),
+            worker_handoffs=final_state.get("worker_handoffs", []),
+            decision_reason=final_state.get("decision_reason", ""),
+            duration_ms=graph_elapsed_ms,
+        )
+    except Exception as span_exc:
+        # Span recording must never break the response path.
+        logger.warning("record_graph_span failed for trace_id=%s: %s", run_id, span_exc)
 
     verified = final_state.get("verified_response")
     if verified is None:
