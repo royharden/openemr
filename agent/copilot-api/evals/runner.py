@@ -330,12 +330,23 @@ def main() -> int:
     parser.add_argument("--smoke", action="store_true", help="Run only first 10 cases (pre-push smoke)")
     parser.add_argument("--mode", default=None, help="Filter to cases with this mode only")
     parser.add_argument("--case", default=None, help="Run a single case by case_id or filename")
+    parser.add_argument(
+        "--validate-schema-only",
+        action="store_true",
+        help="Validate every case against case_schema.json and exit (CI eval-gate uses this).",
+    )
     args, _ = parser.parse_known_args()
 
     cases = _load_cases()
     if not cases:
         print(f"No cases found in {CASES_DIR}", file=sys.stderr)
         return 2
+
+    # --validate-schema-only: _load_cases() already raises RuntimeError on schema
+    # violation; if cases loaded above, validation passed.
+    if args.validate_schema_only:
+        print(f"{len(cases)}/{len(cases)} cases pass schema validation.")
+        return 0
 
     # Filter by mode if requested
     if args.mode:
@@ -598,7 +609,27 @@ def main_with_args(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", help="Run a single case by case_id")
     parser.add_argument("--smoke", action="store_true", help="Run live smoke cases only (<30s)")
     parser.add_argument("--rubric-report", action="store_true", help="Print per-rubric pass rates vs floors")
+    parser.add_argument(
+        "--validate-schema-only",
+        action="store_true",
+        help="Validate every case against case_schema.json and exit (CI eval-gate uses this).",
+    )
     args = parser.parse_args(argv)
+
+    # --validate-schema-only short-circuit (CI eval-gate "Validate eval case schema" step).
+    # _load_cases() already invokes _validate_case() on every file; if it raises,
+    # validation failed. If it returns, all cases passed.
+    if args.validate_schema_only:
+        try:
+            cases = _load_cases()
+        except RuntimeError as e:
+            print(f"FAIL: {e}", file=sys.stderr)
+            return 1
+        if not cases:
+            print(f"No cases found in {CASES_DIR}", file=sys.stderr)
+            return 2
+        print(f"{len(cases)}/{len(cases)} cases pass schema validation.")
+        return 0
 
     if args.smoke:
         smoke_dir = pathlib.Path(__file__).parent / "live_smoke"
