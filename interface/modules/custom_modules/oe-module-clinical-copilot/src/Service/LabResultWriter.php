@@ -362,15 +362,23 @@ final class LabResultWriter
         // fields below also use the least-final enum values for the same
         // reason; clinician review (Wk3 workflow) is the only legitimate
         // path to promote these rows.
+        //
+        // Plan §3.4 (audit finding #14): the comment body must be a stable
+        // provenance prefix ONLY — NO raw VLM extracted value. The previous
+        // `Quote: <first 240 chars of fact.quote_or_value>` body could
+        // surface PHI extracted from the source document (e.g., patient name
+        // appearing in a lab printout header). UI consumers (chip-link
+        // popover, FHIR Observation client) resolve the value at view time
+        // by querying `copilot_document_facts WHERE id = fact_id` — the
+        // fact_id is preserved in the machine-readable prefix so the lookup
+        // is deterministic, and the comments field stays PHI-free in the
+        // event a corpus PHI scan ever runs against `procedure_result.comments`.
         $provenanceComment = sprintf(
             '[Co-Pilot extracted — pending clinician review] [copilot-extracted: doc_uuid=%s; fact_id=%d; extraction=%s]',
             $documentUuidStr,
             $factIdInt,
             $extractedAtStr,
         );
-        if (is_string($fact['quote_or_value']) && $fact['quote_or_value'] !== '') {
-            $provenanceComment .= ' Quote: ' . substr($fact['quote_or_value'], 0, 240);
-        }
 
         // --- Transaction begin ---
         // AgDR-0067 — concurrent-upload safety. Two simultaneous uploaders of
@@ -641,10 +649,46 @@ final class LabResultWriter
 
     /**
      * Apply the map-table migration on demand (mirrors DocumentFactsRepository's
-     * ensureSchema pattern). Idempotent — uses CREATE TABLE IF NOT EXISTS.
+     * ensureSchema pattern). Idempotent.
+     *
+     * Plan §3.3 (audit finding #13): make DDL-on-every-upload the EXCEPTION,
+     * not the rule. Pre-check `information_schema.tables` first; only run
+     * the migration when the table is genuinely missing (i.e., the deployment
+     * forgot to apply `2026_05_10_copilot_fact_to_result_map.sql`). On a
+     * healthy deployment this becomes a single fast SELECT instead of an
+     * idempotent-but-expensive CREATE-TABLE-IF-NOT-EXISTS per upload. The
+     * auto-create path logs a WARNING so a missing-migration deploy is
+     * visible in the logs without breaking the upload.
      */
     public function ensureMapSchema(): void
     {
+        try {
+            $present = QueryUtils::fetchSingleValue(
+                "SELECT 1 AS present FROM information_schema.tables "
+                . "WHERE table_schema = DATABASE() AND table_name = 'copilot_fact_to_result_map' LIMIT 1",
+                'present',
+                [],
+            );
+            if ($present !== null && $present !== false) {
+                return; // Table exists — happy path, no DDL.
+            }
+        } catch (\RuntimeException $precheckExc) {
+            // information_schema query itself failed — log and fall through
+            // to the legacy CREATE-TABLE-IF-NOT-EXISTS path, which is still a
+            // safe idempotent no-op if the table actually exists.
+            $this->logger->warning(
+                'LabResultWriter: information_schema precheck failed; '
+                . 'falling back to CREATE TABLE IF NOT EXISTS',
+                ['exception' => $precheckExc],
+            );
+        }
+
+        $this->logger->warning(
+            'LabResultWriter: auto-creating copilot_fact_to_result_map '
+            . '(migration 2026_05_10_copilot_fact_to_result_map.sql not applied) — '
+            . 'deployment should apply the migration explicitly.'
+        );
+
         $migration = dirname(__DIR__, 2) . '/sql/migrations/2026_05_10_copilot_fact_to_result_map.sql';
         $sql = is_file($migration) ? file_get_contents($migration) : false;
         if (!is_string($sql) || trim($sql) === '') {
