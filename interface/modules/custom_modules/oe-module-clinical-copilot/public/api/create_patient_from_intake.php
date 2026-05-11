@@ -203,8 +203,11 @@ try {
         if (is_string($docShaRaw) && $docShaRaw !== '') {
             $docSha = $docShaRaw;
         } else {
+            // hash_file('sha256', ...) returns non-falsy-string per phpstan
+            // stub; only the length is interesting (defensive against a
+            // future stub change or unusual fs error).
             $computed = hash_file('sha256', $scratch);
-            if (!is_string($computed) || strlen($computed) !== 64) {
+            if (strlen($computed) !== 64) {
                 throw new \RuntimeException('sha256_compute_failed');
             }
             $docSha = $computed;

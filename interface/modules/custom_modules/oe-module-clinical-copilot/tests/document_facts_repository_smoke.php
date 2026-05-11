@@ -72,14 +72,10 @@ foreach (array_slice($cliArgs, 1) as $arg) {
 $report = [];
 $failures = 0;
 
-/**
- * Narrow a phpstan-`mixed` QueryUtils::fetchSingleValue result to int per
- * AgDR-0082's "narrow before cast" discipline.
- */
-function _dfr_smoke_int(mixed $raw): int
-{
-    return is_numeric($raw) ? (int) $raw : 0;
-}
+// AgDR-0082 narrow-before-cast helper for QueryUtils::fetchSingleValue's
+// `mixed` return. Closure (not a top-level function) so the project's
+// "no functions in global namespace" phpstan rule doesn't fire.
+$smokeInt = static fn(mixed $raw): int => is_numeric($raw) ? (int) $raw : 0;
 
 // ----------------------------------------------------------------------
 // Prereq: does the table exist? If not, SKIP all three tests.
@@ -180,11 +176,11 @@ try {
         'c',
         [$idempotencyKey1],
     );
-    $test1Pass = ($insertedFirst > 0) && (_dfr_smoke_int($countAfterFirst) === 1);
+    $test1Pass = ($insertedFirst > 0) && ($smokeInt($countAfterFirst) === 1);
     $report['test_1_first_insert'] = [
         'pass' => $test1Pass,
         'last_insert_id' => $insertedFirst,
-        'db_count' => _dfr_smoke_int($countAfterFirst),
+        'db_count' => $smokeInt($countAfterFirst),
     ];
     if (!$test1Pass) {
         $failures++;
@@ -210,11 +206,11 @@ try {
         'c',
         [$idempotencyKey1],
     );
-    $test2Pass = ($insertedSecond === 0) && (_dfr_smoke_int($countAfterSecond) === 1);
+    $test2Pass = ($insertedSecond === 0) && ($smokeInt($countAfterSecond) === 1);
     $report['test_2_idempotent_reinsert'] = [
         'pass' => $test2Pass,
         'last_insert_id' => $insertedSecond,
-        'db_count' => _dfr_smoke_int($countAfterSecond),
+        'db_count' => $smokeInt($countAfterSecond),
     ];
     if (!$test2Pass) {
         $failures++;
@@ -240,11 +236,11 @@ try {
         'c',
         [$idempotencyKey2],
     );
-    $test3Pass = ($insertedThird > 0) && (_dfr_smoke_int($countForKey2) === 1);
+    $test3Pass = ($insertedThird > 0) && ($smokeInt($countForKey2) === 1);
     $report['test_3_new_fieldpath_inserts'] = [
         'pass' => $test3Pass,
         'last_insert_id' => $insertedThird,
-        'db_count' => _dfr_smoke_int($countForKey2),
+        'db_count' => $smokeInt($countForKey2),
     ];
     if (!$test3Pass) {
         $failures++;

@@ -65,14 +65,10 @@ foreach (array_slice($cliArgs, 1) as $arg) {
 $report = [];
 $failures = 0;
 
-/**
- * Narrow a phpstan-`mixed` QueryUtils::fetchSingleValue result to int per
- * AgDR-0082's "narrow before cast" discipline.
- */
-function _dedup_smoke_int(mixed $raw): int
-{
-    return is_numeric($raw) ? (int) $raw : 0;
-}
+// AgDR-0082 narrow-before-cast helper for QueryUtils::fetchSingleValue's
+// `mixed` return. Closure (not a top-level function) so the project's
+// "no functions in global namespace" phpstan rule doesn't fire.
+$smokeInt = static fn(mixed $raw): int => is_numeric($raw) ? (int) $raw : 0;
 
 // ----------------------------------------------------------------------
 // Prereq: does the sha_index table exist?
@@ -158,10 +154,10 @@ try {
     // Lookup should still return null because documents.id=999999999 doesn't exist.
     $orphanLookup = copilot_upload_lookup_existing_document($testPid, $testSha);
 
-    $test2Pass = (_dedup_smoke_int($indexCount) === 1) && ($orphanLookup === null);
+    $test2Pass = ($smokeInt($indexCount) === 1) && ($orphanLookup === null);
     $report['test_2_orphan_row_returns_null'] = [
         'pass' => $test2Pass,
-        'index_count' => _dedup_smoke_int($indexCount),
+        'index_count' => $smokeInt($indexCount),
         'lookup_result' => $orphanLookup === null ? 'null (orphan branch)' : 'non-null (BUG)',
     ];
     if (!$test2Pass) {
@@ -184,10 +180,10 @@ try {
         'c',
         [$testPid, $testSha],
     );
-    $test3Pass = _dedup_smoke_int($indexCountAfterDup) === 1;
+    $test3Pass = $smokeInt($indexCountAfterDup) === 1;
     $report['test_3_record_sha_idempotent'] = [
         'pass' => $test3Pass,
-        'index_count' => _dedup_smoke_int($indexCountAfterDup),
+        'index_count' => $smokeInt($indexCountAfterDup),
     ];
     if (!$test3Pass) {
         $failures++;
