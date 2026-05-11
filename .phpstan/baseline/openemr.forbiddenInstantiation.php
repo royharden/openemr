@@ -262,4 +262,17 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../tests/Tests/Unit/Common/Crypto/CryptoGenTest.php',
 ];
 
+$ignoreErrors[] = [
+    'message' => '#^Direct instantiation of OpenEMR\\\\Common\\\\Logging\\\\SystemLogger is discouraged\\. Use OpenEMR\\\\BC\\\\ServiceContainer\\:\\:getLogger\\(\\) instead\\.$#',
+    'count' => 2,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/create_patient_from_intake.php',
+];
+
+$ignoreErrors[] = [
+    'message' => '#^Direct instantiation of OpenEMR\\\\Common\\\\Logging\\\\SystemLogger is discouraged\\. Use OpenEMR\\\\BC\\\\ServiceContainer\\:\\:getLogger\\(\\) instead\\.$#',
+    'count' => 4,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/upload_common.php',
+];
+
+
 return ['parameters' => ['ignoreErrors' => $ignoreErrors]];

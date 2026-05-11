@@ -1047,4 +1047,29 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../tests/api/InternalFhirTest.php',
 ];
 
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Exception\\) would suppress ErrorException, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/create_patient_from_intake.php',
+];
+
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 2,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/create_patient_from_intake.php',
+];
+
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
+    'count' => 3,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/upload_common.php',
+];
+
+$ignoreErrors[] = [
+    'message' => '#^catch \\(Exception\\) would suppress ErrorException, which is forbidden\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/upload_common.php',
+];
+
+
 return ['parameters' => ['ignoreErrors' => $ignoreErrors]];

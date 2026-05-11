@@ -217,4 +217,11 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../src/Services/FHIR/Observation/FhirObservationLaboratoryService.php',
 ];
 
+$ignoreErrors[] = [
+    'message' => '#^Variable \\$scratch in isset\\(\\) always exists and is not nullable\\.$#',
+    'count' => 1,
+    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/create_patient_from_intake.php',
+];
+
+
 return ['parameters' => ['ignoreErrors' => $ignoreErrors]];
