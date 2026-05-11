@@ -240,7 +240,12 @@ try {
         $patientUuid = $patientUuidBin !== false && $patientUuidBin !== ''
             ? UuidRegistry::uuidToString($patientUuidBin)
             : (string)$pid;
-    } catch (\Throwable $e) {
+    } catch (\RuntimeException | \PDOException $e) {
+        // Plan §4.2 / AgDR-0082 — enumerated catch. BaseService::getUuidById
+        // does a SELECT; the realistic throw paths are SqlQueryException
+        // (RuntimeException subclass) and PDOException for transport errors.
+        // Fall back to the bare pid string for the patient_uuid_hash — the
+        // hash is opaque and downstream consumers don't decode it.
         $patientUuid = (string)$pid;
     }
     $patientUuidHash = TaskToken::patientUuidHash($patientUuid);
@@ -268,7 +273,11 @@ try {
                     $routerRefusalReason,
                     $patientUuidHash,
                 );
-            } catch (\Throwable $e) {
+            } catch (\GuzzleHttp\Exception\GuzzleException | \RuntimeException $e) {
+                // Plan §4.2 / AgDR-0082 — enumerated catch. LocalTraceLogger
+                // wraps Guzzle internally now (see post-Phase-4.2 catch in
+                // LocalTraceLogger.php). Defensive RuntimeException covers
+                // JSON-throw boundary failures upstream of the Guzzle call.
                 error_log('ClinicalCopilot local refusal trace log failed: ' . $e->getMessage());
             }
         }
@@ -530,7 +539,16 @@ try {
         );
         copilot_send_json(200, $response);
     }
-} catch (\Throwable $e) {
+} catch (\RuntimeException | \PDOException | \JsonException | \LogicException $e) {
+    // Plan §4.2 / AgDR-0082 — enumerated catch covering the top-level brief
+    // request handler. Inside the try: DB lookups (RuntimeException via
+    // SqlQueryException, PDOException for transport); JSON encoding paths
+    // (JsonException defensive); QuestionRouter / TaskToken / packet builders
+    // (LogicException for misconfigured router family). \Error subclasses
+    // (TypeError, etc.) intentionally propagate so a programming bug surfaces
+    // in error_log + the apache stack rather than being silently masked
+    // behind an "internal_error" response that the developer can't trace.
+    //
     // Log full detail server-side; never leak the exception message to the browser.
     error_log(sprintf(
         'ClinicalCopilot brief.php internal_error trace_id=%s exception=%s message=%s',

@@ -697,7 +697,11 @@ final class LabResultWriter
         }
         try {
             QueryUtils::sqlStatementThrowException($sql);
-        } catch (\Throwable $exc) {
+        } catch (\RuntimeException $exc) {
+            // Plan §4.2 / AgDR-0082 — enumerated catch.
+            // QueryUtils::sqlStatementThrowException throws SqlQueryException
+            // (extends RuntimeException) on DDL/SQL failure. RuntimeException
+            // covers that plus any other PDO transport-layer error wrapping.
             $this->logger->error(
                 'LabResultWriter: map-table schema bootstrap failed',
                 ['exception' => $exc],

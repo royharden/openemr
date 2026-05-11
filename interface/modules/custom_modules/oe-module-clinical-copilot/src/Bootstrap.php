@@ -56,7 +56,13 @@ class Bootstrap
         try {
             $controller = new PanelController();
             echo $controller->renderPanel((int)$pid);
-        } catch (\Throwable $e) {
+        } catch (\RuntimeException | \LogicException $e) {
+            // Plan §4.2 / AgDR-0082 — enumerated catch. PanelController::renderPanel
+            // can throw: RuntimeException (DB / Twig render / missing template);
+            // LogicException (BadMethodCallException for a missing service binding).
+            // \Error subclasses (TypeError on a null deref, etc.) are intentionally
+            // NOT caught so a programming bug surfaces in logs rather than silently
+            // hiding behind an empty chart panel.
             $this->logger->error("ClinicalCopilot: Error rendering panel", ['error' => $e->getMessage()]);
         }
     }

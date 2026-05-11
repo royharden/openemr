@@ -48,7 +48,12 @@ final class AgentTurnAuditor
                 'clinical-copilot',
                 'agent',
             );
-        } catch (\Throwable $e) {
+        } catch (\RuntimeException | \PDOException $e) {
+            // Plan §4.2 / AgDR-0082 — enumerated catch. EventAuditLogger::newEvent
+            // writes to the audit_master table; the only realistic throw paths are
+            // DB errors (SqlQueryException extends RuntimeException; PDOException
+            // for transport-level failures). The audit write is best-effort by
+            // design — the agent turn already completed, we just log and move on.
             error_log('ClinicalCopilot AgentTurnAuditor failed: ' . $e->getMessage());
         }
     }

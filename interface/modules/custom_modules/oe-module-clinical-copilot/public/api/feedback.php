@@ -97,7 +97,12 @@ try {
         'verdict' => $verdict,
         'sidecar' => $sidecarStatus,
     ]);
-} catch (\Throwable $e) {
+} catch (\RuntimeException | \PDOException | \JsonException $e) {
+    // Plan §4.2 / AgDR-0082 — enumerated catch. Inside the try: AgentTurnAuditor::record
+    // can throw SqlQueryException (extends RuntimeException); session/CSRF helpers may
+    // throw RuntimeException; SidecarClient::callFeedback wraps its own Guzzle errors
+    // and returns an array. \JsonException is defensive against a future json_encode
+    // path that adopts JSON_THROW_ON_ERROR.
     error_log('ClinicalCopilot feedback.php error: ' . $e->getMessage());
     copilot_feedback_send(500, ['error' => 'internal_error']);
 }
