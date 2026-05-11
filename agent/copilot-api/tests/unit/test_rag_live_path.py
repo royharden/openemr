@@ -86,7 +86,7 @@ def test_live_path_invokes_embedder_and_reranker(
             )
             self.embedder = embedder
 
-        def query(self, text: str, k: int = 20) -> list[GuidelineChunk]:
+        def query(self, text: str, k: int = 20, **kwargs: Any) -> list[GuidelineChunk]:
             return candidates
 
     monkeypatch.setattr("app.rag.HybridRetriever", FakeRetriever)
@@ -146,7 +146,7 @@ def test_live_path_uses_candidate_pool_of_twenty(
         def __init__(self, corpus: Any, embedder: Any = None) -> None:
             self.embedder = embedder
 
-        def query(self, text: str, k: int = 20) -> list[GuidelineChunk]:
+        def query(self, text: str, k: int = 20, **kwargs: Any) -> list[GuidelineChunk]:
             requested_k["k"] = k
             return [_stub_chunk(f"c{i}") for i in range(min(k, 20))]
 
@@ -199,7 +199,7 @@ def test_live_path_degrades_to_bm25_only_on_embedder_init_failure(
         def __init__(self, corpus: Any, embedder: Any = None) -> None:
             observed_embedder["value"] = embedder
 
-        def query(self, text: str, k: int = 20) -> list[GuidelineChunk]:
+        def query(self, text: str, k: int = 20, **kwargs: Any) -> list[GuidelineChunk]:
             return [_stub_chunk("c1")]
 
     class FakeCorpus:

@@ -235,25 +235,78 @@ class Corpus:
         return cur.fetchone()[0]
 
     def all_rows(self) -> list[dict[str, Any]]:
-        """Return lightweight row dicts (no embedding blob) for BM25 indexing."""
+        """Return lightweight row dicts (no embedding blob) for BM25 indexing.
+
+        AgDR-0080: includes ``source_organization`` / ``recommendation_grade``
+        / ``source_year`` so the BM25 index can be filtered post-retrieval
+        without a second DB roundtrip.
+        """
         cur = self.conn.execute(
-            "SELECT id, bm25_terms FROM chunks ORDER BY id"
+            """SELECT id, bm25_terms, source_organization,
+                      recommendation_grade, source_year
+               FROM chunks ORDER BY id"""
         )
-        return [{"id": r["id"], "bm25_terms": r["bm25_terms"]} for r in cur]
+        return [
+            {
+                "id": r["id"],
+                "bm25_terms": r["bm25_terms"],
+                "source_organization": r["source_organization"],
+                "recommendation_grade": r["recommendation_grade"],
+                "source_year": r["source_year"],
+            }
+            for r in cur
+        ]
 
     def vector_candidates(
-        self, query_embedding: list[float], k: int = 20
+        self,
+        query_embedding: list[float],
+        k: int = 20,
+        *,
+        source_organizations: list[str] | None = None,
+        year_window: tuple[int, int] | None = None,
     ) -> list[tuple[str, float]]:
         """Return up to *k* (chunk_id, cosine_score) pairs via sqlite-vec.
 
+        Optional AgDR-0080 filters are pushed down to SQL when set:
+          * ``source_organizations`` — restrict to chunks whose
+            ``source_organization`` is in the supplied list (case-sensitive
+            because the corpus stores canonical organization names like
+            ``CDC-ACIP``, ``FDA``, ``ACC-AHA``).
+          * ``year_window`` — ``(min_year, max_year)`` inclusive on
+            ``source_year``. Pass ``None`` for an unbounded side via the
+            tuple itself; the caller is expected to supply both bounds
+            when this filter is used.
+
+        Recommendation-grade filtering happens at the Python layer in
+        ``HybridRetriever.query`` because grade ordering ("A" < "B" < "C")
+        is application-level semantics that does not belong in the SQL
+        schema.
+
         Falls back to brute-force dot-product scan if the extension isn't
-        loaded (e.g., CI environments without the wheel).
+        loaded (e.g., CI environments without the wheel) — same filters
+        applied there.
         """
         if not _SQLITE_VEC_AVAILABLE:
-            return self._brute_force_vector(query_embedding, k)
+            return self._brute_force_vector(
+                query_embedding,
+                k,
+                source_organizations=source_organizations,
+                year_window=year_window,
+            )
 
         q_blob = _pack_embedding(query_embedding)
-        dim = len(query_embedding)
+        params: list[Any] = [q_blob]
+        where_clauses = ["embedding IS NOT NULL"]
+        if source_organizations:
+            placeholders = ",".join("?" * len(source_organizations))
+            where_clauses.append(f"source_organization IN ({placeholders})")
+            params.extend(source_organizations)
+        if year_window is not None:
+            min_year, max_year = year_window
+            where_clauses.append("source_year BETWEEN ? AND ?")
+            params.extend([min_year, max_year])
+        params.append(k)
+        where_sql = " AND ".join(where_clauses)
         try:
             # sqlite-vec uses vec_distance_cosine (lower = more similar).
             cur = self.conn.execute(
@@ -261,22 +314,44 @@ class Corpus:
                 SELECT id,
                        1.0 - vec_distance_cosine(embedding, ?) AS score
                 FROM chunks
-                WHERE embedding IS NOT NULL
+                WHERE {where_sql}
                 ORDER BY score DESC
                 LIMIT ?
                 """,
-                (q_blob, k),
+                params,
             )
             return [(r[0], float(r[1])) for r in cur]
         except Exception:  # noqa: BLE001 — extension may lack the function
-            return self._brute_force_vector(query_embedding, k)
+            return self._brute_force_vector(
+                query_embedding,
+                k,
+                source_organizations=source_organizations,
+                year_window=year_window,
+            )
 
     def _brute_force_vector(
-        self, query_embedding: list[float], k: int
+        self,
+        query_embedding: list[float],
+        k: int,
+        *,
+        source_organizations: list[str] | None = None,
+        year_window: tuple[int, int] | None = None,
     ) -> list[tuple[str, float]]:
-        """Pure-Python cosine similarity fallback."""
+        """Pure-Python cosine similarity fallback. AgDR-0080 filters honored."""
+        params: list[Any] = []
+        where_clauses = ["embedding IS NOT NULL"]
+        if source_organizations:
+            placeholders = ",".join("?" * len(source_organizations))
+            where_clauses.append(f"source_organization IN ({placeholders})")
+            params.extend(source_organizations)
+        if year_window is not None:
+            min_year, max_year = year_window
+            where_clauses.append("source_year BETWEEN ? AND ?")
+            params.extend([min_year, max_year])
+        where_sql = " AND ".join(where_clauses)
         cur = self.conn.execute(
-            "SELECT id, embedding FROM chunks WHERE embedding IS NOT NULL"
+            f"SELECT id, embedding FROM chunks WHERE {where_sql}",
+            params,
         )
         scored: list[tuple[str, float]] = []
         q = query_embedding

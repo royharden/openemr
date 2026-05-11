@@ -135,11 +135,59 @@ def intake_extractor_node(state: CopilotState) -> dict[str, Any]:
     }
 
 
+# AgDR-0080 — deterministic keyword-based question classifier for
+# domain-specific source filtering. The intent is a cheap quality lever
+# (vaccine questions should not consider openFDA drug labels; drug-safety
+# questions should not consider CDC ACIP) without paying for an LLM
+# classifier. The triplet of regexes is the entire policy — extending or
+# changing the policy requires (a) a code change here, (b) a unit test
+# update, and (c) an AgDR if the change is durable.
+import re
+
+_VACCINE_QUESTION_RE = re.compile(
+    r"\b(vaccin\w*|immuniz\w*|booster|inoculat\w*)\b", re.IGNORECASE
+)
+_DRUG_SAFETY_QUESTION_RE = re.compile(
+    r"\b(safe|safety|contraindicat\w*|interact\w*|adverse|reaction|allerg\w*|"
+    r"dose|dosing|dosage|titrat\w*|escalat\w*|discontinu\w*|taper|hold)\b",
+    re.IGNORECASE,
+)
+
+_VACCINE_FILTER_SOURCES: list[str] = ["CDC-ACIP"]
+_DRUG_SAFETY_FILTER_SOURCES: list[str] = [
+    "FDA",
+    "ACC-AHA",
+    "ADA",
+    "HMS-LOE",
+]
+
+
+def _classify_question_for_filter(question: str) -> tuple[str, list[str] | None]:
+    """Map a natural-language question to a retrieval-filter source set.
+
+    Returns a ``(category, source_organizations | None)`` tuple. Category
+    is one of ``vaccine`` / ``drug_safety`` / ``broad`` and is logged
+    so the Langfuse trace shows which classification path fired.
+    LLM-based classifier deferred to Wk3 (AgDR-0080 follow-up).
+
+    The order matters when both regexes match: vaccine wins because the
+    canonical Wk2 vaccine questions ("is the patient due for a Tdap
+    booster — is it safe given her history?") would otherwise route to
+    drug-safety on the "safe" keyword.
+    """
+    if _VACCINE_QUESTION_RE.search(question):
+        return ("vaccine", _VACCINE_FILTER_SOURCES)
+    if _DRUG_SAFETY_QUESTION_RE.search(question):
+        return ("drug_safety", _DRUG_SAFETY_FILTER_SOURCES)
+    return ("broad", None)
+
+
 def evidence_retriever_node(state: CopilotState) -> dict[str, Any]:
     """Retrieve guideline evidence via hybrid RAG (Team B).
 
     In eval mode returns deterministic empty guideline packets.
-    In live mode delegates to app.rag (Team B).
+    In live mode delegates to app.rag (Team B), with AgDR-0080 source
+    filtering applied based on the question's classified category.
     """
     started = time.monotonic()
     question = state.get("question", "")
@@ -149,16 +197,32 @@ def evidence_retriever_node(state: CopilotState) -> dict[str, Any]:
         from app.rag import retrieve_guidelines
 
         sanitized_question = _strip_phi_from_query(question, patient_uuid_hash)
-        chunks = retrieve_guidelines(sanitized_question)
+        category, filter_sources = _classify_question_for_filter(sanitized_question)
+        if filter_sources is not None:
+            logger.info(
+                "evidence_retriever_node: classified question as %s, "
+                "restricting to %s",
+                category,
+                filter_sources,
+            )
+        chunks = retrieve_guidelines(
+            sanitized_question, source_organizations=filter_sources
+        )
         guideline_packets = [_guideline_chunk_to_packet(c, patient_uuid_hash) for c in chunks]
         retrieval_status = "done"
     except Exception as e:
         logger.error("evidence_retriever_node error: %s", e)
         guideline_packets = []
         retrieval_status = "error"
+        category = "broad"
 
     elapsed_ms = (time.monotonic() - started) * 1000
-    logger.info("evidence_retriever_node: done in %.1fms, chunks=%d", elapsed_ms, len(guideline_packets))
+    logger.info(
+        "evidence_retriever_node: done in %.1fms, chunks=%d, category=%s",
+        elapsed_ms,
+        len(guideline_packets),
+        category,
+    )
 
     path = list(state.get("graph_path", []))
     path.append("evidence_retriever")
@@ -172,7 +236,7 @@ def evidence_retriever_node(state: CopilotState) -> dict[str, Any]:
             state,
             state.get("current_node", "start"),
             "evidence_retriever",
-            f"retrieval_status={retrieval_status}",
+            f"retrieval_status={retrieval_status} category={category}",
         ),
     }
 

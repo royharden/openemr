@@ -18,7 +18,7 @@ from pathlib import Path
 from .contracts import GuidelineChunk, RecommendationGrade, SourceOrganization
 from .corpus import DEFAULT_CORPUS_PATH, Corpus
 from .phi_filter import strip_phi
-from .retriever import HybridRetriever
+from .retriever import HybridRetriever, RetrievalFilters
 
 logger = logging.getLogger(__name__)
 
@@ -76,24 +76,50 @@ def _fallback_retrieve(query: str, top_k: int) -> list[GuidelineChunk]:
     return [chunk.model_copy() for chunk in ranked[:top_k]]
 
 
-def retrieve_guidelines(query: str, top_k: int = 5) -> list[GuidelineChunk]:
+def retrieve_guidelines(
+    query: str,
+    top_k: int = 5,
+    *,
+    source_organizations: list[str] | None = None,
+    min_grade: str | None = None,
+    year_window: tuple[int, int] | None = None,
+) -> list[GuidelineChunk]:
     """Retrieve guideline chunks via hybrid BM25 + vector retrieval + reranker.
 
     Pipeline (AgDR-0062 — restores live path to design intent of AgDR-0032/0033/0034):
       1. ``strip_phi(query)`` — sanitize before any retrieval.
       2. ``HybridRetriever(corpus, embedder=get_embedder())`` — BM25 ∪ vector
-         candidates, k=``CANDIDATE_POOL_K`` (20).
+         candidates, k=``CANDIDATE_POOL_K`` (20). RRF-fused per AgDR-0078.
       3. ``CohereReranker().rerank(...)`` — Cohere Rerank 3.5 (or local
          cross-encoder fallback) trims the pool to top_k.
+
+    AgDR-0080 — domain-specific filters:
+      * ``source_organizations`` — restrict to chunks from the supplied
+        canonical organization names (e.g., ``['CDC-ACIP']`` for vaccine
+        questions, ``['FDA','ACC-AHA','ADA','HMS-LOE']`` for drug-safety).
+      * ``min_grade`` — strongest acceptable recommendation grade on
+        the A-B-C-D ordering. Ungraded sources (openFDA labels, ACIP
+        schedules) bypass this filter.
+      * ``year_window`` — ``(min_year, max_year)`` inclusive on
+        ``source_year``. Pushed down to SQL on the vector leg.
 
     Each stage degrades gracefully:
       - Embedder init failure → log + BM25-only retrieval (vector leg disabled).
       - Reranker failure → log + return retriever order truncated to top_k.
       - Corpus unavailable → fallback chunks (or raise if
         ``COPILOT_RAG_REQUIRE_CORPUS=1``).
+      - Filters yield zero candidates → empty list (callers should NOT
+        retry without filters silently — that would defeat the filter's
+        intent; the eval-case ``min_candidates`` floor catches over-tight
+        filter configurations).
     """
 
     sanitized_query = strip_phi(query)
+    filters = RetrievalFilters(
+        source_organizations=tuple(source_organizations) if source_organizations else None,
+        min_grade=min_grade,
+        year_window=year_window,
+    )
     corpus_path = Path(os.getenv("COPILOT_RAG_CORPUS_PATH", str(DEFAULT_CORPUS_PATH)))
     if corpus_path.exists():
         try:
@@ -110,7 +136,9 @@ def retrieve_guidelines(query: str, top_k: int = 5) -> list[GuidelineChunk]:
 
             with Corpus(corpus_path) as corpus:
                 retriever = HybridRetriever(corpus, embedder=embedder)
-                candidates = retriever.query(sanitized_query, k=CANDIDATE_POOL_K)
+                candidates = retriever.query(
+                    sanitized_query, k=CANDIDATE_POOL_K, filters=filters
+                )
                 if not candidates:
                     return []
 
@@ -131,12 +159,26 @@ def retrieve_guidelines(query: str, top_k: int = 5) -> list[GuidelineChunk]:
     if os.getenv("COPILOT_RAG_REQUIRE_CORPUS") == "1":
         raise RuntimeError(f"RAG corpus unavailable at {corpus_path}")
 
-    return _fallback_retrieve(sanitized_query, max(top_k, 1))
+    fallback = _fallback_retrieve(sanitized_query, max(top_k, 1))
+    if filters.is_noop():
+        return fallback
+    # Apply filters to the fallback chunks too so behavior is consistent
+    # whether the corpus is available or not.
+    out: list[GuidelineChunk] = []
+    for chunk in fallback:
+        if (
+            filters.source_organizations is not None
+            and chunk.source_organization not in filters.source_organizations
+        ):
+            continue
+        out.append(chunk)
+    return out
 
 __all__ = [
     "GuidelineChunk",
     "RecommendationGrade",
     "SourceOrganization",
+    "RetrievalFilters",
     "retrieve_guidelines",
     "strip_phi",
 ]

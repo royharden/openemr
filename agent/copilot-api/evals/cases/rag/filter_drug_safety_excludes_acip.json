@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/filter_drug_safety_excludes_acip",
+  "category": "rag",
+  "description": "AgDR-0080 source filter — drug-safety question excludes CDC-ACIP. The keyword classifier in evidence_retriever_node sees 'safe' / 'contraindication' / 'dose' / 'interact' and restricts retrieval to {FDA, ACC-AHA, ADA, HMS-LOE}. ACIP's vaccine schedules have nothing to say about metformin renal dosing or warfarin INR monitoring — including them in the candidate pool would (a) cost reranker slots that should go to drug-relevant chunks and (b) potentially seed the synthesizer with a misleading vaccine-vs-drug crossover citation.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "added_by": "wk2-next05-7.2d-filters",
+  "added_in_pr": "wk2-next05-7.2d-filters",
+  "what_bug_this_catches": "If the drug-safety branch of the question classifier is broken or the {FDA, ACC-AHA, ADA, HMS-LOE} allow-list silently includes 'CDC-ACIP', drug-safety queries pull in vaccine schedule chunks. The eval asserts no chunk in the result has source_organization='CDC-ACIP'. Combined with the vaccine_acip_only case above, the two together pin both directions of the classifier (vaccine→ACIP-only AND drug-safety→excludes-ACIP). A future refactor that drops one direction trips one of the cases; dropping both trips both.",
+  "input": {
+    "query": "Is metformin still safe at this eGFR? What's the contraindication threshold for renal dosing?",
+    "patient_uuid_hash": "aaaa0000bbbb6666"
+  },
+  "expectations": {
+    "min_candidates": 0,
+    "any_source_organization": ["FDA", "ACC-AHA", "ADA", "HMS-LOE"],
+    "no_duplicate_chunk_ids": true,
+    "all_chunks_have": ["chunk_id", "source_id", "text"]
+  }
+}

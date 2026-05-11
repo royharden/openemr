@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/filter_vaccine_acip_only",
+  "category": "rag",
+  "description": "AgDR-0080 source filter — vaccine question yields only CDC-ACIP chunks. The keyword classifier in evidence_retriever_node sees 'vaccine' / 'immunization' / 'booster' and restricts retrieval to source_organization='CDC-ACIP'. Without this filter, openFDA drug labels and HMS-LOE evidence summaries would clutter the candidate pool with non-vaccine material that the synthesizer would have to disambiguate at higher cost.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "added_by": "wk2-next05-7.2d-filters",
+  "added_in_pr": "wk2-next05-7.2d-filters",
+  "what_bug_this_catches": "If the question classifier is bypassed or the source_organizations filter is dropped from the retrieval call, vaccine queries return chunks from FDA / HMS-LOE / ADA / ACC-AHA — sources that have nothing to say about vaccine schedules. The synthesizer then either ignores the irrelevant chunks (wasted retrieval cost) or worse, fabricates a vaccine recommendation citing an FDA drug label as a source. This case asserts that all returned chunks (when any are returned) are from CDC-ACIP.",
+  "input": {
+    "query": "Is the patient due for a Tdap vaccine booster this year? Check her immunization schedule.",
+    "patient_uuid_hash": "aaaa0000bbbb5555"
+  },
+  "expectations": {
+    "min_candidates": 0,
+    "any_source_organization": ["CDC-ACIP"],
+    "no_duplicate_chunk_ids": true,
+    "all_chunks_have": ["chunk_id", "source_id", "text"]
+  }
+}
