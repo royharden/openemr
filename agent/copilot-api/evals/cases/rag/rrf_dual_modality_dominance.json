@@ -1,0 +1,20 @@
+{
+  "case_id": "rag/rrf_dual_modality_dominance",
+  "category": "rag",
+  "description": "RRF correctly ranks dual-modality chunks above single-modality outliers. Query 'metformin renal dosing CKD' should retrieve at least one chunk that the corpus indexes via BOTH BM25 (lexical 'metformin', 'renal') and vector embedding (semantic 'CKD' / 'creatinine clearance'). Under the prior max-score fusion, a single high-BM25 outlier could outrank chunks present in both legs because BM25 scores are unbounded while cosine scores cap near 1.0. RRF normalizes this by ranking each modality independently and summing 1/(K+rank) terms.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "added_by": "wk2-next05-7.2a-rrf",
+  "added_in_pr": "wk2-next05-7.2a-rrf",
+  "what_bug_this_catches": "If the retriever regresses to max-score dedup (or any fusion that uses raw BM25/cosine values directly), a single high-BM25 outlier outranks chunks that appear strongly in both modalities. The dual-modality chunk still appears in the candidate list, but it ranks below the single-modality outlier, which means the reranker burns a top-K slot on a less-relevant result. RRF guarantees that any chunk appearing in BOTH legs accumulates two 1/(K+rank) contributions and therefore outranks any chunk appearing in only one leg, regardless of raw score magnitude.",
+  "input": {
+    "query": "metformin renal dosing CKD creatinine clearance threshold",
+    "patient_uuid_hash": "aaaa0000bbbb4444"
+  },
+  "expectations": {
+    "min_candidates": 1,
+    "any_source_organization": ["FDA", "HMS-LOE", "CDC-ACIP"],
+    "no_duplicate_chunk_ids": true,
+    "all_chunks_have": ["chunk_id", "source_id", "text"]
+  }
+}

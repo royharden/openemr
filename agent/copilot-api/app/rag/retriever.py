@@ -2,10 +2,11 @@
 
 Decision #5 (AgDR-0032): SQLite + sqlite-vec embedded retrieval.
 Decision #6 (AgDR-0032): rank-bm25 in-process sparse retrieval.
+Decision (AgDR-0078): Reciprocal Rank Fusion (RRF) for hybrid score merge.
 
 The retriever holds an in-memory BM25Index built from the corpus on first
-query.  Vector search goes to the Corpus.  Results are union-merged and
-returned as a flat list of ``GuidelineChunk`` candidates (k=20 total).
+query.  Vector search goes to the Corpus.  Results are union-merged via RRF
+and returned as a flat list of ``GuidelineChunk`` candidates (k=20 total).
 
 The ``HybridRetriever`` is instantiated once at sidecar startup and reused;
 ``_bm25_index`` is rebuilt only when the corpus changes (checked via
@@ -22,6 +23,12 @@ from .contracts import GuidelineChunk
 from .corpus import Corpus, _tokenize
 
 logger = logging.getLogger(__name__)
+
+# Standard RRF constant from Cormack, Clarke & Buettcher (SIGIR 2009).
+# Larger values dampen the contribution of top-ranked items relative to
+# tail items; 60 is the widely-cited default and the value Anthropic /
+# Pinecone / Weaviate use.
+RRF_K = 60
 
 
 class BM25Index:
@@ -85,14 +92,23 @@ class HybridRetriever:
             except Exception as exc:
                 logger.warning("Vector search failed (%s) — BM25 only", exc)
 
-        # --- Union (max score wins for dedup) ---
-        all_ids: dict[str, float] = {}
-        for cid, score in bm25_hits.items():
-            all_ids[cid] = max(all_ids.get(cid, 0.0), score)
-        for cid, score in vec_hits.items():
-            all_ids[cid] = max(all_ids.get(cid, 0.0), score)
+        # --- Reciprocal Rank Fusion (AgDR-0078) ---
+        # BM25 scores (TF-IDF-ish, unbounded positive) and vector cosine
+        # scores (roughly [-1, 1]) live on incompatible scales — taking
+        # max() across them gave whichever modality had the more aggressive
+        # tail too much weight. RRF discards raw scores, ranks each modality
+        # independently, and sums 1/(K + rank) contributions. Chunks that
+        # appear in BOTH legs naturally outrank single-modality chunks
+        # because they accumulate two RRF terms.
+        fused: dict[str, float] = {}
+        bm25_ranked = sorted(bm25_hits.items(), key=lambda x: x[1], reverse=True)
+        for rank, (cid, _score) in enumerate(bm25_ranked):
+            fused[cid] = fused.get(cid, 0.0) + 1.0 / (RRF_K + rank + 1)
+        vec_ranked = sorted(vec_hits.items(), key=lambda x: x[1], reverse=True)
+        for rank, (cid, _score) in enumerate(vec_ranked):
+            fused[cid] = fused.get(cid, 0.0) + 1.0 / (RRF_K + rank + 1)
 
-        ranked = sorted(all_ids.items(), key=lambda x: x[1], reverse=True)[:k]
+        ranked = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:k]
 
         chunks: list[GuidelineChunk] = []
         for chunk_id, _ in ranked:
