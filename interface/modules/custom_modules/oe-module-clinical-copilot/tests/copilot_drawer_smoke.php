@@ -52,141 +52,138 @@ $copilotCssPath = $moduleRoot . '/public/assets/css/copilot.css';
 /** @var array<string, array<string, mixed>> $results */
 $results = [];
 
-/**
- * @param array<string, array<string, mixed>> $report
- */
-$record = static function (array &$report, string $name, bool $passed, string $detail) use ($jsonMode): void {
-    $report[$name] = ['passed' => $passed, 'detail' => $detail];
-    if (!$jsonMode) {
-        $tag = $passed ? '[PASS]' : '[FAIL]';
-        echo $tag . ' ' . $name . "\n        " . $detail . "\n";
+// AgDR-0082 phpstan discipline: print-side helper is a closure (no
+// global-namespace named function). It does NOT take $results by reference
+// because the @var annotation on $results is widened to mixed when phpstan
+// analyzes a closure call that mutates by reference. Each test below
+// assigns into $results directly and calls $printRecord for human output.
+$printRecord = static function (string $name, bool $passed, string $detail) use ($jsonMode): void {
+    if ($jsonMode) {
+        return;
     }
+    $tag = $passed ? '[PASS]' : '[FAIL]';
+    echo $tag . ' ' . $name . "\n        " . $detail . "\n";
 };
 
 // ---------------------------------------------------------------------------
 // Test 1: copilot.js exists and is readable.
 // ---------------------------------------------------------------------------
 if (!is_file($copilotJsPath) || !is_readable($copilotJsPath)) {
-    $record($results, 'copilot_js_present', false, "expected copilot.js at $copilotJsPath");
+    $detail = "expected copilot.js at $copilotJsPath";
+    $results['copilot_js_present'] = ['passed' => false, 'detail' => $detail];
+    $printRecord('copilot_js_present', false, $detail);
     if ($jsonMode) {
         echo json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
     }
     exit(1);
 }
 $jsSource = (string) file_get_contents($copilotJsPath);
-$record($results, 'copilot_js_present', true, "copilot.js found (" . strlen($jsSource) . " bytes)");
+$detail = "copilot.js found (" . strlen($jsSource) . " bytes)";
+$results['copilot_js_present'] = ['passed' => true, 'detail' => $detail];
+$printRecord('copilot_js_present', true, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 2: drawer DOM class literal present.
 // ---------------------------------------------------------------------------
 $drawerClassLiteral = 'class="copilot-preview-drawer"';
 $drawerClassHits = substr_count($jsSource, $drawerClassLiteral);
-$record(
-    $results,
-    'drawer_dom_class_present',
-    $drawerClassHits >= 1,
-    $drawerClassHits >= 1
-        ? "found $drawerClassHits occurrence(s) of $drawerClassLiteral"
-        : "copilot.js does not emit the drawer DOM class — JS/CSS contract broken"
-);
+$passed = $drawerClassHits >= 1;
+$detail = $passed
+    ? "found $drawerClassHits occurrence(s) of $drawerClassLiteral"
+    : "copilot.js does not emit the drawer DOM class — JS/CSS contract broken";
+$results['drawer_dom_class_present'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('drawer_dom_class_present', $passed, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 3: currentDrawerSource state variable present.
 // ---------------------------------------------------------------------------
 $stateVarHits = substr_count($jsSource, 'currentDrawerSource');
-$record(
-    $results,
-    'drawer_state_variable_present',
-    $stateVarHits >= 1,
-    $stateVarHits >= 1
-        ? "found $stateVarHits reference(s) to currentDrawerSource"
-        : "copilot.js missing currentDrawerSource — drawer cannot pin a chip"
-);
+$passed = $stateVarHits >= 1;
+$detail = $passed
+    ? "found $stateVarHits reference(s) to currentDrawerSource"
+    : "copilot.js missing currentDrawerSource — drawer cannot pin a chip";
+$results['drawer_state_variable_present'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('drawer_state_variable_present', $passed, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 4: openOrUpdateDrawer function present.
 // ---------------------------------------------------------------------------
 $openFnHits = preg_match('/function\s+openOrUpdateDrawer\s*\(/', $jsSource);
-$record(
-    $results,
-    'open_or_update_drawer_fn_present',
-    $openFnHits === 1,
-    $openFnHits === 1
-        ? "openOrUpdateDrawer() defined in copilot.js"
-        : "copilot.js missing openOrUpdateDrawer() — chip click handler has no entry point"
-);
+$passed = $openFnHits === 1;
+$detail = $passed
+    ? "openOrUpdateDrawer() defined in copilot.js"
+    : "copilot.js missing openOrUpdateDrawer() — chip click handler has no entry point";
+$results['open_or_update_drawer_fn_present'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('open_or_update_drawer_fn_present', $passed, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 5: closeDrawer function present.
 // ---------------------------------------------------------------------------
 $closeFnHits = preg_match('/function\s+closeDrawer\s*\(/', $jsSource);
-$record(
-    $results,
-    'close_drawer_fn_present',
-    $closeFnHits === 1,
-    $closeFnHits === 1
-        ? "closeDrawer() defined in copilot.js"
-        : "copilot.js missing closeDrawer() — × button has no teardown handler"
-);
+$passed = $closeFnHits === 1;
+$detail = $passed
+    ? "closeDrawer() defined in copilot.js"
+    : "copilot.js missing closeDrawer() — × button has no teardown handler";
+$results['close_drawer_fn_present'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('close_drawer_fn_present', $passed, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 6: showBboxOverlay regression canary — old function name MUST NOT
 // appear (the modal was superseded, not kept alongside the drawer).
 // ---------------------------------------------------------------------------
 $oldFnHits = substr_count($jsSource, 'showBboxOverlay');
-$record(
-    $results,
-    'old_modal_fn_removed',
-    $oldFnHits === 0,
-    $oldFnHits === 0
-        ? "no showBboxOverlay references — modal pattern fully superseded by drawer"
-        : "found $oldFnHits showBboxOverlay reference(s) — partial rollback risk; spec calls for full supersession"
-);
+$passed = $oldFnHits === 0;
+$detail = $passed
+    ? "no showBboxOverlay references — modal pattern fully superseded by drawer"
+    : "found $oldFnHits showBboxOverlay reference(s) — partial rollback risk; spec calls for full supersession";
+$results['old_modal_fn_removed'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('old_modal_fn_removed', $passed, $detail);
 
 // ---------------------------------------------------------------------------
-// Test 7: copilot.css contains the drawer selector.
+// Test 7 + 8: copilot.css selector + media query.
 // ---------------------------------------------------------------------------
 if (!is_file($copilotCssPath) || !is_readable($copilotCssPath)) {
-    $record($results, 'drawer_css_selector_present', false, "expected copilot.css at $copilotCssPath");
+    $detail = "expected copilot.css at $copilotCssPath";
+    $results['drawer_css_selector_present'] = ['passed' => false, 'detail' => $detail];
+    $printRecord('drawer_css_selector_present', false, $detail);
 } else {
     $cssSource = (string) file_get_contents($copilotCssPath);
-    $cssSelectorHits = substr_count($cssSource, '.copilot-preview-drawer');
-    $record(
-        $results,
-        'drawer_css_selector_present',
-        $cssSelectorHits >= 1,
-        $cssSelectorHits >= 1
-            ? "found $cssSelectorHits .copilot-preview-drawer selector occurrence(s)"
-            : "copilot.css missing .copilot-preview-drawer — drawer would render unstyled"
-    );
 
-    // -----------------------------------------------------------------------
-    // Test 8: copilot.css contains a media query for mobile collapse.
-    // -----------------------------------------------------------------------
+    $cssSelectorHits = substr_count($cssSource, '.copilot-preview-drawer');
+    $passed = $cssSelectorHits >= 1;
+    $detail = $passed
+        ? "found $cssSelectorHits .copilot-preview-drawer selector occurrence(s)"
+        : "copilot.css missing .copilot-preview-drawer — drawer would render unstyled";
+    $results['drawer_css_selector_present'] = ['passed' => $passed, 'detail' => $detail];
+    $printRecord('drawer_css_selector_present', $passed, $detail);
+
     $mqHits = preg_match('/@media\s*\([^)]*max-width\s*:\s*768px/', $cssSource);
-    $record(
-        $results,
-        'drawer_css_media_query_present',
-        $mqHits === 1,
-        $mqHits === 1
-            ? "found @media (max-width: 768px) block for mobile collapse"
-            : "copilot.css missing mobile collapse media query — drawer would clip on phones"
-    );
+    $passed = $mqHits === 1;
+    $detail = $passed
+        ? "found @media (max-width: 768px) block for mobile collapse"
+        : "copilot.css missing mobile collapse media query — drawer would clip on phones";
+    $results['drawer_css_media_query_present'] = ['passed' => $passed, 'detail' => $detail];
+    $printRecord('drawer_css_media_query_present', $passed, $detail);
 }
 
 // ---------------------------------------------------------------------------
 // Summary.
 // ---------------------------------------------------------------------------
-$passed = count(array_filter($results, static fn(array $r): bool => (bool) $r['passed']));
+$passedCount = 0;
+foreach ($results as $r) {
+    if (isset($r['passed']) && $r['passed'] === true) {
+        $passedCount++;
+    }
+}
 $total = count($results);
 
 if ($jsonMode) {
     echo json_encode(
-        ['summary' => ['passed' => $passed, 'total' => $total], 'tests' => $results],
+        ['summary' => ['passed' => $passedCount, 'total' => $total], 'tests' => $results],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
     ) . "\n";
 } else {
-    echo "\n--- $passed/$total passed ---\n";
+    echo "\n--- $passedCount/$total passed ---\n";
 }
 
-exit($passed === $total ? 0 : 1);
+exit($passedCount === $total ? 0 : 1);

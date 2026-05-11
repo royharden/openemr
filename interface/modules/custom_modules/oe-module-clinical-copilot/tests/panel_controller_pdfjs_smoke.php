@@ -61,70 +61,70 @@ $licenseNoticePath = $vendorDir . '/LICENSE-NOTICE';
 /** @var array<string, array<string, mixed>> $results */
 $results = [];
 
-/**
- * @param array<string, array<string, mixed>> $report
- */
-$record = static function (array &$report, string $name, bool $passed, string $detail) use ($jsonMode): void {
-    $report[$name] = ['passed' => $passed, 'detail' => $detail];
-    if (!$jsonMode) {
-        $tag = $passed ? '[PASS]' : '[FAIL]';
-        echo $tag . ' ' . $name . "\n        " . $detail . "\n";
+// AgDR-0082 phpstan discipline: the print-side helper is a closure (no
+// global-namespace named function). It does NOT take $results by reference
+// because the @var annotation on $results is widened to mixed when phpstan
+// analyzes a closure call that mutates by reference. Each test below
+// assigns into $results directly and calls $printRecord for human output.
+$printRecord = static function (string $name, bool $passed, string $detail) use ($jsonMode): void {
+    if ($jsonMode) {
+        return;
     }
+    $tag = $passed ? '[PASS]' : '[FAIL]';
+    echo $tag . ' ' . $name . "\n        " . $detail . "\n";
 };
 
 // ---------------------------------------------------------------------------
 // Test 1: PanelController.php exists and is readable.
 // ---------------------------------------------------------------------------
 if (!is_file($panelControllerPath) || !is_readable($panelControllerPath)) {
-    $record($results, 'controller_present', false, "expected PanelController.php at $panelControllerPath");
+    $detail = "expected PanelController.php at $panelControllerPath";
+    $results['controller_present'] = ['passed' => false, 'detail' => $detail];
+    $printRecord('controller_present', false, $detail);
     if ($jsonMode) {
         echo json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
     }
     exit(1);
 }
 $controllerSource = (string) file_get_contents($panelControllerPath);
-$record($results, 'controller_present', true, "PanelController.php found (" . strlen($controllerSource) . " bytes)");
+$detail = "PanelController.php found (" . strlen($controllerSource) . " bytes)";
+$results['controller_present'] = ['passed' => true, 'detail' => $detail];
+$printRecord('controller_present', true, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 2: No cdnjs URL remains in the controller source.
 // ---------------------------------------------------------------------------
 $cdnjsHits = substr_count($controllerSource, 'cdnjs.cloudflare.com');
-$record(
-    $results,
-    'no_cdnjs_url',
-    $cdnjsHits === 0,
-    $cdnjsHits === 0
-        ? "no cdnjs.cloudflare.com references in PanelController.php"
-        : "found $cdnjsHits cdnjs.cloudflare.com reference(s) — Phase 3.1 mandate (AgDR-0072) violated"
-);
+$passed = $cdnjsHits === 0;
+$detail = $passed
+    ? "no cdnjs.cloudflare.com references in PanelController.php"
+    : "found $cdnjsHits cdnjs.cloudflare.com reference(s) — Phase 3.1 mandate (AgDR-0072) violated";
+$results['no_cdnjs_url'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('no_cdnjs_url', $passed, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 3: Vendored pdf.min.js path appears in the script tag.
 // ---------------------------------------------------------------------------
 $expectedPathFragment = 'vendor/pdfjs/pdf.min.js';
 $pathHits = substr_count($controllerSource, $expectedPathFragment);
-$record(
-    $results,
-    'vendored_path_referenced',
-    $pathHits >= 1,
-    $pathHits >= 1
-        ? "found $pathHits reference(s) to $expectedPathFragment"
-        : "PanelController.php does not reference $expectedPathFragment — vendor swap incomplete"
-);
+$passed = $pathHits >= 1;
+$detail = $passed
+    ? "found $pathHits reference(s) to $expectedPathFragment"
+    : "PanelController.php does not reference $expectedPathFragment — vendor swap incomplete";
+$results['vendored_path_referenced'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('vendored_path_referenced', $passed, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 4: Worker source points at vendored path (not cdnjs).
 // ---------------------------------------------------------------------------
 $workerPathFragment = 'vendor/pdfjs/pdf.worker.min.js';
 $workerPathHits = substr_count($controllerSource, $workerPathFragment);
-$record(
-    $results,
-    'vendored_worker_path_referenced',
-    $workerPathHits >= 1,
-    $workerPathHits >= 1
-        ? "found $workerPathHits reference(s) to $workerPathFragment"
-        : "PanelController.php does not reference $workerPathFragment — runtime worker load would still hit a CDN"
-);
+$passed = $workerPathHits >= 1;
+$detail = $passed
+    ? "found $workerPathHits reference(s) to $workerPathFragment"
+    : "PanelController.php does not reference $workerPathFragment — runtime worker load would still hit a CDN";
+$results['vendored_worker_path_referenced'] = ['passed' => $passed, 'detail' => $detail];
+$printRecord('vendored_worker_path_referenced', $passed, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 5: integrity="sha384-..." attribute present on pdf.min.js.
@@ -132,53 +132,41 @@ $record(
 $integrityRegex = '/integrity="sha384-([A-Za-z0-9+\/=]{56,})"/';
 $integrityMatched = preg_match($integrityRegex, $controllerSource, $integrityMatch) === 1;
 $declaredIntegrity = $integrityMatched ? $integrityMatch[1] : null;
-$record(
-    $results,
-    'sri_attribute_present',
-    $integrityMatched,
-    $integrityMatched
-        ? 'integrity="sha384-' . substr((string) $declaredIntegrity, 0, 16) . '..." present in PanelController.php'
-        : 'no integrity="sha384-..." attribute found — SRI defense-in-depth missing'
-);
+$detail = $integrityMatched
+    ? 'integrity="sha384-' . substr((string) $declaredIntegrity, 0, 16) . '..." present in PanelController.php'
+    : 'no integrity="sha384-..." attribute found — SRI defense-in-depth missing';
+$results['sri_attribute_present'] = ['passed' => $integrityMatched, 'detail' => $detail];
+$printRecord('sri_attribute_present', $integrityMatched, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 6: pdf.min.js exists on disk at the expected vendored location.
 // ---------------------------------------------------------------------------
 $pdfMinExists = is_file($pdfMinPath) && is_readable($pdfMinPath);
-$record(
-    $results,
-    'pdf_min_js_present',
-    $pdfMinExists,
-    $pdfMinExists
-        ? "pdf.min.js found at $pdfMinPath (" . filesize($pdfMinPath) . " bytes)"
-        : "expected pdf.min.js at $pdfMinPath — vendoring incomplete"
-);
+$detail = $pdfMinExists
+    ? "pdf.min.js found at $pdfMinPath (" . filesize($pdfMinPath) . " bytes)"
+    : "expected pdf.min.js at $pdfMinPath — vendoring incomplete";
+$results['pdf_min_js_present'] = ['passed' => $pdfMinExists, 'detail' => $detail];
+$printRecord('pdf_min_js_present', $pdfMinExists, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 7: pdf.worker.min.js exists on disk at the expected vendored location.
 // ---------------------------------------------------------------------------
 $pdfWorkerExists = is_file($pdfWorkerPath) && is_readable($pdfWorkerPath);
-$record(
-    $results,
-    'pdf_worker_min_js_present',
-    $pdfWorkerExists,
-    $pdfWorkerExists
-        ? "pdf.worker.min.js found at $pdfWorkerPath (" . filesize($pdfWorkerPath) . " bytes)"
-        : "expected pdf.worker.min.js at $pdfWorkerPath — runtime worker load would 404"
-);
+$detail = $pdfWorkerExists
+    ? "pdf.worker.min.js found at $pdfWorkerPath (" . filesize($pdfWorkerPath) . " bytes)"
+    : "expected pdf.worker.min.js at $pdfWorkerPath — runtime worker load would 404";
+$results['pdf_worker_min_js_present'] = ['passed' => $pdfWorkerExists, 'detail' => $detail];
+$printRecord('pdf_worker_min_js_present', $pdfWorkerExists, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 8: LICENSE-NOTICE present alongside vendored files (Apache-2.0).
 // ---------------------------------------------------------------------------
 $licenseExists = is_file($licenseNoticePath) && is_readable($licenseNoticePath);
-$record(
-    $results,
-    'license_notice_present',
-    $licenseExists,
-    $licenseExists
-        ? "LICENSE-NOTICE found at $licenseNoticePath"
-        : "missing LICENSE-NOTICE — Apache-2.0 attribution requirement unmet"
-);
+$detail = $licenseExists
+    ? "LICENSE-NOTICE found at $licenseNoticePath"
+    : "missing LICENSE-NOTICE — Apache-2.0 attribution requirement unmet";
+$results['license_notice_present'] = ['passed' => $licenseExists, 'detail' => $detail];
+$printRecord('license_notice_present', $licenseExists, $detail);
 
 // ---------------------------------------------------------------------------
 // Test 9: integrity hash in PanelController.php matches the actual
@@ -187,42 +175,43 @@ $record(
 if ($pdfMinExists && $declaredIntegrity !== null) {
     $actualHashBinary = hash_file('sha384', $pdfMinPath, true);
     if (!is_string($actualHashBinary) || strlen($actualHashBinary) !== 48) {
-        $record($results, 'sri_hash_matches_file', false, 'hash_file failed for pdf.min.js');
+        $detail = 'hash_file failed for pdf.min.js';
+        $results['sri_hash_matches_file'] = ['passed' => false, 'detail' => $detail];
+        $printRecord('sri_hash_matches_file', false, $detail);
     } else {
         $actualBase64 = base64_encode($actualHashBinary);
         $hashesMatch = hash_equals($actualBase64, (string) $declaredIntegrity);
-        $record(
-            $results,
-            'sri_hash_matches_file',
-            $hashesMatch,
-            $hashesMatch
-                ? "SRI in PanelController.php matches actual SHA-384 of pdf.min.js"
-                : "SRI MISMATCH — controller declares 'sha384-" . substr((string) $declaredIntegrity, 0, 16) . "...'"
-                    . " but file SHA-384 is 'sha384-" . substr($actualBase64, 0, 16) . "...' (browser would refuse to execute)"
-        );
+        $detail = $hashesMatch
+            ? "SRI in PanelController.php matches actual SHA-384 of pdf.min.js"
+            : "SRI MISMATCH — controller declares 'sha384-" . substr((string) $declaredIntegrity, 0, 16) . "...'"
+                . " but file SHA-384 is 'sha384-" . substr($actualBase64, 0, 16) . "...' (browser would refuse to execute)";
+        $results['sri_hash_matches_file'] = ['passed' => $hashesMatch, 'detail' => $detail];
+        $printRecord('sri_hash_matches_file', $hashesMatch, $detail);
     }
 } else {
-    $record(
-        $results,
-        'sri_hash_matches_file',
-        false,
-        'cannot verify SRI hash — either pdf.min.js missing or integrity attribute absent'
-    );
+    $detail = 'cannot verify SRI hash — either pdf.min.js missing or integrity attribute absent';
+    $results['sri_hash_matches_file'] = ['passed' => false, 'detail' => $detail];
+    $printRecord('sri_hash_matches_file', false, $detail);
 }
 
 // ---------------------------------------------------------------------------
 // Summary.
 // ---------------------------------------------------------------------------
-$passed = count(array_filter($results, static fn(array $r): bool => (bool) $r['passed']));
+$passedCount = 0;
+foreach ($results as $r) {
+    if (isset($r['passed']) && $r['passed'] === true) {
+        $passedCount++;
+    }
+}
 $total = count($results);
 
 if ($jsonMode) {
     echo json_encode(
-        ['summary' => ['passed' => $passed, 'total' => $total], 'tests' => $results],
+        ['summary' => ['passed' => $passedCount, 'total' => $total], 'tests' => $results],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
     ) . "\n";
 } else {
-    echo "\n--- $passed/$total passed ---\n";
+    echo "\n--- $passedCount/$total passed ---\n";
 }
 
-exit($passed === $total ? 0 : 1);
+exit($passedCount === $total ? 0 : 1);
