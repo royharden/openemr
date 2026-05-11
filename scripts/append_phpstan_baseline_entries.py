@@ -63,6 +63,18 @@ Preferred workflow: refactor at the source. Patterns by error type:
   Parameter #N $X of function Y expects T, U given
     → narrow U at the call site before passing.
 
+  Parameter #1 $X of CLOSURE expects array, mixed given (after &$X by-ref pass)
+    → A typed local array passed BY REFERENCE into a closure that mutates it
+      gets WIDENED to mixed for every subsequent call site, even when the local
+      has a /** @var */ annotation. Refactor: drop the by-ref pattern; have
+      the closure RETURN the entry; assign directly: `$results[$key] = $closure(...)`.
+      Or split into a print-only closure (echoes; doesn't mutate) plus direct
+      `$results[$key] = [...]` assignment at the call site. See AgDR / commit
+      3e0841ab0 and the canonical example in
+      interface/.../tests/panel_controller_pdfjs_smoke.php (post-refactor).
+      Same widening hits array_filter($results, ...) callbacks — replace
+      with a foreach that uses the @var-typed $results directly.
+
   Method X() should return T but returns U
     → narrow U or change the return type to match reality.
 
