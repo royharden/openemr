@@ -2,7 +2,8 @@
 const config = {
     modulePathIgnorePatterns: [
         'public/assets',
-        'vendor'
+        'vendor',
+        'dashboard-modern'
     ],
     coverageDirectory: 'coverage/js-unit',
     collectCoverageFrom: ['**/*.js'],

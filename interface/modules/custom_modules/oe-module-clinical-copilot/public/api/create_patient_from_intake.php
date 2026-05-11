@@ -55,7 +55,6 @@ use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentUploadController;
 use OpenEMR\Modules\ClinicalCopilot\Repository\DocumentFactsRepository;
-use OpenEMR\Services\BaseService;
 use OpenEMR\Services\PatientService;
 
 header('Content-Type: application/json; charset=utf-8');

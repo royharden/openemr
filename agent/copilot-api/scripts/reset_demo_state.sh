@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2310
 #
 # Week-2 Clinical Co-Pilot demo reset.
 #
