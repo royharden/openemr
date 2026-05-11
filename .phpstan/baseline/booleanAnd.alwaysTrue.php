@@ -32,11 +32,4 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../src/Services/Qdm/Measure.php',
 ];
 
-$ignoreErrors[] = [
-    'message' => '#^Result of && is always true\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/create_patient_from_intake.php',
-];
-
-
 return ['parameters' => ['ignoreErrors' => $ignoreErrors]];

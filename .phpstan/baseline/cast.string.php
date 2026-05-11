@@ -4082,11 +4082,4 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../tests/Tests/Unit/ClinicalDecisionRules/CommonTest.php',
 ];
 
-$ignoreErrors[] = [
-    'message' => '#^Cannot cast mixed to string\\.$#',
-    'count' => 2,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/public/api/upload_common.php',
-];
-
-
 return ['parameters' => ['ignoreErrors' => $ignoreErrors]];
