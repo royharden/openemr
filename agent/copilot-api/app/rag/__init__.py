@@ -117,6 +117,14 @@ def retrieve_guidelines(
     """
 
     sanitized_query = strip_phi(query)
+    # Empty-query short-circuit (AgDR-0087 follow-up): chip-click use cases
+    # like `recent_abnormal_labs` carry no `question`, so evidence_retriever_node
+    # passes "" here. Without this guard, the retriever would still try the
+    # vector leg with an empty embed input — Voyage rejects that with
+    # "Input cannot contain empty strings" and the warning pollutes the log.
+    # No retrieval is meaningful for an empty query anyway; return [].
+    if not sanitized_query.strip():
+        return []
     filters = RetrievalFilters(
         source_organizations=tuple(source_organizations) if source_organizations else None,
         min_grade=min_grade,

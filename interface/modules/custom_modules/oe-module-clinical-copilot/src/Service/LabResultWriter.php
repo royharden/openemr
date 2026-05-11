@@ -588,8 +588,14 @@ final class LabResultWriter
      * Accepts strings already in "low-high" form, structured dicts with
      * low/high keys, or nulls.
      */
-    private function normalizeReferenceRange(mixed $range): ?string
+    private function normalizeReferenceRange(mixed $range): string
     {
+        // AgDR-0088 (Phase 5.1 verification 2026-05-11): return string, never null.
+        // procedure_result.range is varchar(255) NOT NULL with empty default;
+        // a null bind produces SqlQueryException("Column 'range' cannot be null")
+        // and the writer best-effort-skips every fact for that upload.
+        // Empty string is the schema-accepted "no reference range available"
+        // sentinel — the Lab Review UI already handles it gracefully.
         if (is_string($range) && $range !== '') {
             return $range;
         }
@@ -605,7 +611,7 @@ final class LabResultWriter
                 return $range['text'];
             }
         }
-        return null;
+        return '';
     }
 
     /**
