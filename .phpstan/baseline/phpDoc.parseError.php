@@ -12,7 +12,7 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../custom/code_types.inc.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string optional \\$desc description of the timer\\)\\: Unexpected token "optional", expected variable at offset 177 on line 5$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string optional \\$desc description of the timer\\)\\: Unexpected token "optional", expected variable at offset 173 on line 5$#',
     'count' => 1,
     'path' => __DIR__ . '/../../gacl/profiler.inc.php',
 ];
@@ -1893,42 +1893,42 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../library/smarty/plugins/function.xlt.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\? \\$delayed_loading\\)\\: Unexpected token "\\?", expected variable at offset 109 on line 6$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\? \\$delayed_loading\\)\\: Unexpected token "\\?", expected variable at offset 104 on line 6$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/Smarty_Compiler_Legacy.class.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string the closing tag\'s name\\)\\: Unexpected token "the", expected variable at offset 131 on line 4$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string the closing tag\'s name\\)\\: Unexpected token "the", expected variable at offset 128 on line 4$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/Smarty_Compiler_Legacy.class.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string the opening tag\'s name\\)\\: Unexpected token "the", expected variable at offset 100 on line 3$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string the opening tag\'s name\\)\\: Unexpected token "the", expected variable at offset 98 on line 3$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/Smarty_Compiler_Legacy.class.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n ", expected variable at offset 219 on line 8$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n ", expected variable at offset 212 on line 8$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/internals/core.assign_smarty_interface.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array Format\\: null\\)\\: Unexpected token "Format", expected variable at offset 189 on line 7$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array Format\\: null\\)\\: Unexpected token "Format", expected variable at offset 183 on line 7$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/internals/core.assign_smarty_interface.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n ", expected variable at offset 217 on line 8$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n ", expected variable at offset 210 on line 8$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/internals/core.display_debug_console.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array Format\\: null\\)\\: Unexpected token "Format", expected variable at offset 187 on line 7$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array Format\\: null\\)\\: Unexpected token "Format", expected variable at offset 181 on line 7$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/internals/core.display_debug_console.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty clever simulation of a method\\)\\: Unexpected token "clever", expected variable at offset 717 on line 21$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty clever simulation of a method\\)\\: Unexpected token "clever", expected variable at offset 697 on line 21$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/block.textformat.php',
 ];
@@ -1941,38 +1941,38 @@ Params\\:   style\\: string \\(email\\)
           wrap_char string \\("\\\\n"\\)
           indent_char\\: string \\(" "\\)
           wrap_boundary\\: boolean \\(true\\)
-\\</pre\\>\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 365 on line 10$#',
+\\</pre\\>\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 356 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/block.textformat.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string contents of the block\\)\\: Unexpected token "contents", expected variable at offset 677 on line 20$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string contents of the block\\)\\: Unexpected token "contents", expected variable at offset 658 on line 20$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/block.textformat.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty_Compiler_Legacy\\)\\: Unexpected token "\\\\r\\\\n ", expected variable at offset 558 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty_Compiler_Legacy\\)\\: Unexpected token "\\\\n ", expected variable at offset 547 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/compiler.assign.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string containing var\\-attribute and value\\-attribute\\)\\: Unexpected token "containing", expected variable at offset 480 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string containing var\\-attribute and value\\-attribute\\)\\: Unexpected token "containing", expected variable at offset 470 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/compiler.assign.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n ", expected variable at offset 401 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n ", expected variable at offset 392 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.assign_debug_info.php',
 ];
 $ignoreErrors[] = [
     'message' => '#^PHPDoc tag @param has invalid value \\(array unused in this plugin, this plugin uses \\{@link Smarty\\:\\:\\$_config\\},
-             \\{@link Smarty\\:\\:\\$_tpl_vars\\} and \\{@link Smarty\\:\\:\\$_smarty_debug_info\\}\\)\\: Unexpected token "unused", expected variable at offset 234 on line 8$#',
+             \\{@link Smarty\\:\\:\\$_tpl_vars\\} and \\{@link Smarty\\:\\:\\$_smarty_debug_info\\}\\)\\: Unexpected token "unused", expected variable at offset 227 on line 8$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.assign_debug_info.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n ", expected variable at offset 673 on line 18$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n ", expected variable at offset 656 on line 18$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.config_load.php',
 ];
@@ -1983,417 +1983,417 @@ array\\(\'file\' \\=\\> required config file name,
       \'section\' \\=\\> optional config file section to load
       \'scope\' \\=\\> local/parent/global
       \'global\' \\=\\> overrides scope, setting to parent if true\\)
-\\</pre\\>\\)\\: Unexpected token "Format", expected variable at offset 413 on line 11$#',
+\\</pre\\>\\)\\: Unexpected token "Format", expected variable at offset 403 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.config_load.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 345 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 335 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.counter.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array parameters\\)\\: Unexpected token "parameters", expected variable at offset 317 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array parameters\\)\\: Unexpected token "parameters", expected variable at offset 308 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.counter.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1298 on line 34$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1265 on line 34$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.cycle.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1280 on line 33$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1248 on line 33$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.cycle.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 370 on line 13$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 358 on line 13$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.debug.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 352 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 341 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.debug.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n ", expected variable at offset 343 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n ", expected variable at offset 333 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.eval.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 325 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 316 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.eval.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 339 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 329 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.fetch.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 321 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 312 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.fetch.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1278 on line 29$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1250 on line 29$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_checkboxes.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1260 on line 28$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1233 on line 28$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_checkboxes.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1116 on line 28$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1089 on line 28$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_image.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1098 on line 27$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1072 on line 27$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_image.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 770 on line 18$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 753 on line 18$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_options.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 752 on line 17$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 736 on line 17$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_options.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1244 on line 29$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1216 on line 29$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_radios.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1226 on line 28$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1199 on line 28$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_radios.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1176 on line 28$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1149 on line 28$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_select_date.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1158 on line 27$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1132 on line 27$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_select_date.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 434 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 423 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_select_time.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 416 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 406 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_select_time.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1614 on line 38$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1577 on line 38$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_table.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1596 on line 37$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1560 on line 37$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.html_table.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1682 on line 39$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1644 on line 39$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.mailto.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 1661 on line 38$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 1624 on line 38$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.mailto.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\*", expected variable at offset 387 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\*", expected variable at offset 376 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.math.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 345 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 335 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.popup.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 327 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 318 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.popup.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 344 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 334 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.popup_init.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 326 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 317 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/function.popup_init.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 350 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 341 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.capitalize.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 415 on line 14$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 402 on line 14$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.cat.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 433 on line 15$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 419 on line 15$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.cat.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(boolean include whitespace in the character count\\)\\: Unexpected token "include", expected variable at offset 390 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(boolean include whitespace in the character count\\)\\: Unexpected token "include", expected variable at offset 380 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.count_characters.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 370 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 361 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.count_characters.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 369 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 360 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.count_paragraphs.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 361 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 352 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.count_sentences.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 344 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 335 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.count_words.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 508 on line 14$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 495 on line 14$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.date_format.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 526 on line 15$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 512 on line 15$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.date_format.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 544 on line 16$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 529 on line 16$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.date_format.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(array\\|object\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 383 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(array\\|object\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 374 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.debug_print_var.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 402 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 392 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.debug_print_var.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 421 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 410 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.debug_print_var.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 336 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 327 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.default.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 354 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 344 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.default.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(html\\|htmlall\\|url\\|quotes\\|hex\\|hexentity\\|javascript\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 395 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(html\\|htmlall\\|url\\|quotes\\|hex\\|hexentity\\|javascript\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 385 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.escape.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 335 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 326 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.escape.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 328 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 318 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.indent.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 309 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 300 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.indent.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 346 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 335 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.indent.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 312 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 303 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.lower.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 533 on line 17$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 517 on line 17$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.nl2br.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 350 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 341 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.regex_replace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\|array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 374 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\|array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 364 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.regex_replace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\|array\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 398 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\|array\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 387 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.regex_replace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 314 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 305 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.replace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 332 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 322 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.replace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 350 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 339 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.replace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 334 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 325 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.spacify.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 352 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 342 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.spacify.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 343 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 334 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.string_format.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 361 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 351 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.string_format.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 500 on line 14$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 487 on line 14$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.strip.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 518 on line 15$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 504 on line 15$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.strip.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 349 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 339 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.strip_tags.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 330 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 321 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.strip_tags.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 543 on line 15$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 529 on line 15$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.truncate.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 562 on line 16$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 547 on line 16$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.truncate.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 506 on line 13$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 494 on line 13$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.truncate.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 487 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 476 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.truncate.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 524 on line 14$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 511 on line 14$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.truncate.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 312 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 303 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.upper.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 392 on line 13$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(boolean\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 380 on line 13$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.wordwrap.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 355 on line 11$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(integer\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 345 on line 11$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.wordwrap.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 336 on line 10$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 327 on line 10$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.wordwrap.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 373 on line 12$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 362 on line 12$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/modifier.wordwrap.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\r\\\\n ", expected variable at offset 783 on line 19$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(Smarty\\)\\: Unexpected token "\\\\n ", expected variable at offset 765 on line 19$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/outputfilter.trimwhitespace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 765 on line 18$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 748 on line 18$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/outputfilter.trimwhitespace.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 285 on line 8$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 278 on line 8$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/shared.escape_special_chars.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\r\\\\n \\* ", expected variable at offset 204 on line 6$#',
+    'message' => '#^PHPDoc tag @param has invalid value \\(string\\)\\: Unexpected token "\\\\n \\* ", expected variable at offset 199 on line 6$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/plugins/shared.make_timestamp.php',
 ];
