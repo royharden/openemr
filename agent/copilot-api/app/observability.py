@@ -7,6 +7,26 @@ import re as _re
 from typing import Any
 
 # ---------------------------------------------------------------------------
+# Canonical trace + span names emitted by this module.
+#
+# Plan_wk2_Claude_Next05 §5.3 (Codex finding #26): the original
+# `agentdocs/latency_percentiles.py` was authored against
+# `clinical_copilot.brief` trace names, but the production path now emits
+# `clinical_copilot.graph` traces with `graph.<node>` spans (LangGraph
+# supervisor + workers). Exporting the names as module-level constants
+# lets external consumers (the latency script, future canary tools,
+# unit tests) import the canonical strings instead of hardcoding them
+# and silently drifting. Tests assert that `record_graph_span` / `record_brief`
+# / `record_local_refusal` actually emit these names, so a future rename
+# fails CI rather than the cost report.
+# ---------------------------------------------------------------------------
+
+GRAPH_TRACE_NAME = "clinical_copilot.graph"
+GRAPH_SPAN_PREFIX = "graph."
+BRIEF_TRACE_NAME = "clinical_copilot.brief"
+LOCAL_REFUSAL_TRACE_NAME = "clinical_copilot.local_refusal"
+
+# ---------------------------------------------------------------------------
 # PHI scrubbing (AgDR-0055)
 # ---------------------------------------------------------------------------
 
@@ -136,7 +156,7 @@ def record_local_refusal(
     try:
         client.trace(
             id=trace_id,
-            name="clinical_copilot.local_refusal",
+            name=LOCAL_REFUSAL_TRACE_NAME,
             metadata={
                 "use_case": use_case,
                 "router_family": router_family,
@@ -200,7 +220,7 @@ def record_brief(
             ]
         trace = client.trace(
             id=trace_id,
-            name="clinical_copilot.brief",
+            name=BRIEF_TRACE_NAME,
             metadata=metadata,
         )
         trace.generation(
@@ -236,9 +256,9 @@ def record_graph_span(
         return
     try:
         safe_reason = scrub_phi(decision_reason)
-        trace = client.trace(id=trace_id, name="clinical_copilot.graph")
+        trace = client.trace(id=trace_id, name=GRAPH_TRACE_NAME)
         trace.span(
-            name=f"graph.{node_name}",
+            name=f"{GRAPH_SPAN_PREFIX}{node_name}",
             metadata={
                 "graph_path": graph_path,
                 "worker_handoffs": worker_handoffs,

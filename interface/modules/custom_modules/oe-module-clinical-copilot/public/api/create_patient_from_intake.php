@@ -321,9 +321,6 @@ function copilot_create_lookup_existing_patient_by_usertext1(string $usertext1):
             return null;
         }
         $row = $rows[0];
-        if (!is_array($row)) {
-            return null;
-        }
         $pidRaw = $row['pid'] ?? null;
         $uuidBin = $row['uuid'] ?? null;
         if (!is_numeric($pidRaw)) {
