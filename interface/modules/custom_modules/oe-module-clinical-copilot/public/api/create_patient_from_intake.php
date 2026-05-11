@@ -5,6 +5,9 @@
  *
  * AgDR-0066 — closes plan item 3 ("demonstrate an upload creates a new patient")
  * of Plan_wk2_Claude_Next04_2026-05-10_demo-and-fhir-closure.md §4.5.
+ * AgDR-0068 — closes audit finding #4 of Plan_wk2_Claude_Next05_*: re-uploading
+ * the same intake fixture must return the existing pid + `duplicate_intake: true`
+ * rather than colliding on patient_data.pubpid UNIQUE.
  *
  * Triple safety gate:
  *   1. COPILOT_DEMO_MODE=1 must be set in the API container's environment.
@@ -53,6 +56,7 @@ require_once(__DIR__ . "/upload_common.php");
 use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Csrf\CsrfUtils;
+use OpenEMR\Common\Database\QueryUtils;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentUploadController;
@@ -219,6 +223,54 @@ function copilot_create_normalize_dob(?string $raw): ?string
 }
 
 /**
+ * Look up an existing demo-intake patient by its deterministic-from-SHA
+ * usertext1 tag. Returns [pid, patient_uuid_string] on hit, null on miss.
+ *
+ * AgDR-0068: closes audit finding #4 — the demo-intake patient row's
+ * usertext1 is computed deterministically from the intake document SHA
+ * (`wk2-demo-intake-<8-char-SHA>`), so two uploads of the same fixture
+ * always resolve to the same usertext1 value. A pre-insert SELECT on
+ * that value lets us return the existing pid + uuid on the second
+ * upload rather than colliding on `patient_data.pubpid UNIQUE` and
+ * surfacing a 500. Best-effort: any DB error is logged at WARNING and
+ * treated as a miss so the caller falls through to the normal insert
+ * path (which will then surface the real DB error from PatientService).
+ *
+ * @return array{0: int, 1: string}|null  [pid, patient_uuid_string] or null on miss
+ */
+function copilot_create_lookup_existing_patient_by_usertext1(string $usertext1): ?array
+{
+    try {
+        $rows = QueryUtils::fetchRecords(
+            'SELECT pid, uuid FROM patient_data WHERE usertext1 = ? LIMIT 1',
+            [$usertext1],
+        );
+        if (count($rows) === 0) {
+            return null;
+        }
+        $row = $rows[0];
+        if (!is_array($row)) {
+            return null;
+        }
+        $pidRaw = $row['pid'] ?? null;
+        $uuidBin = $row['uuid'] ?? null;
+        if (!is_numeric($pidRaw)) {
+            return null;
+        }
+        if (!is_string($uuidBin) || strlen($uuidBin) !== 16) {
+            return null;
+        }
+        return [(int) $pidRaw, UuidRegistry::uuidToString($uuidBin)];
+    } catch (\RuntimeException | \PDOException $exc) {
+        ServiceContainer::getLogger()->warning(
+            'ClinicalCopilot: duplicate-intake usertext1 lookup failed (treating as miss)',
+            ['exception' => $exc],
+        );
+        return null;
+    }
+}
+
+/**
  * Normalize a sex/gender string into a single token PatientService accepts.
  */
 function copilot_create_normalize_sex(?string $raw): string
@@ -326,7 +378,9 @@ try {
         }
 
         // 7. Build tagging fields tied to the file SHA so re-running the same
-        //    file produces a recognizable, traceable pubpid suffix.
+        //    file produces a recognizable, traceable pubpid suffix. The
+        //    deterministic `usertext1` also doubles as our idempotency key
+        //    for the duplicate-upload pre-check in step 8.
         $docShaRaw = $payload['document_sha256'] ?? null;
         if (is_string($docShaRaw) && $docShaRaw !== '') {
             $docSha = $docShaRaw;
@@ -341,48 +395,63 @@ try {
         $pubpid = sprintf('WK2-DEMO-INTAKE-%s', $shortSha);
         $usertext1 = sprintf('wk2-demo-intake-%s', strtolower($shortSha));
 
-        // 8. PatientService::insert. We keep the data array minimal and
-        //    deterministic; missing optional fields are left null.
-        $patientService = new PatientService();
-        $insertResult = $patientService->insert([
-            'fname' => $fname,
-            'lname' => $lname,
-            'DOB' => $dob,
-            'sex' => copilot_create_normalize_sex($demographics['sex'] ?? null),
-            'pubpid' => $pubpid,
-            'usertext1' => $usertext1,
-            'street' => $demographics['street'] ?? null,
-            'city' => $demographics['city'] ?? null,
-            'state' => $demographics['state'] ?? null,
-            'postal_code' => $demographics['postal_code'] ?? null,
-            'phone_home' => $demographics['phone_home'] ?? null,
-            'email' => $demographics['email'] ?? null,
-        ]);
-
-        if (!$insertResult->isValid()) {
-            copilot_create_send_json(422, [
-                'error' => 'patient_validation_failed',
-                'validation' => $insertResult->getValidationMessages(),
+        // 8. Duplicate-intake pre-check (AgDR-0068, audit finding #4).
+        //    Re-uploading the same intake file must NOT collide on
+        //    `patient_data.pubpid UNIQUE` and bubble up a 500. Look up the
+        //    existing demo-intake patient by its deterministic-from-SHA
+        //    `usertext1` value and reuse its pid/uuid if present. Facts +
+        //    raw-document storage below are already SHA-idempotent, so the
+        //    rest of the flow degrades cleanly into a "re-extract under
+        //    existing pid" no-op for second uploads.
+        $duplicateIntake = false;
+        $existingPatient = copilot_create_lookup_existing_patient_by_usertext1($usertext1);
+        if ($existingPatient !== null) {
+            [$newPid, $newPatientUuid] = $existingPatient;
+            $duplicateIntake = true;
+        } else {
+            // 8a. PatientService::insert. We keep the data array minimal and
+            //     deterministic; missing optional fields are left null.
+            $patientService = new PatientService();
+            $insertResult = $patientService->insert([
+                'fname' => $fname,
+                'lname' => $lname,
+                'DOB' => $dob,
+                'sex' => copilot_create_normalize_sex($demographics['sex'] ?? null),
+                'pubpid' => $pubpid,
+                'usertext1' => $usertext1,
+                'street' => $demographics['street'] ?? null,
+                'city' => $demographics['city'] ?? null,
+                'state' => $demographics['state'] ?? null,
+                'postal_code' => $demographics['postal_code'] ?? null,
+                'phone_home' => $demographics['phone_home'] ?? null,
+                'email' => $demographics['email'] ?? null,
             ]);
-        }
-        $rows = $insertResult->getData();
-        $newPid = null;
-        $newPatientUuid = null;
-        if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
-            $pidRow = $rows[0]['pid'] ?? null;
-            if (is_numeric($pidRow)) {
-                $newPid = (int) $pidRow;
-            }
-            $rawUuid = $rows[0]['uuid'] ?? null;
-            if (is_string($rawUuid) && strlen($rawUuid) === 16) {
-                $newPatientUuid = UuidRegistry::uuidToString($rawUuid);
-            } elseif (is_string($rawUuid) && $rawUuid !== '') {
-                $newPatientUuid = $rawUuid;
-            }
-        }
 
-        if ($newPid === null || $newPatientUuid === null) {
-            throw new \RuntimeException('patient_insert_did_not_return_pid_uuid');
+            if (!$insertResult->isValid()) {
+                copilot_create_send_json(422, [
+                    'error' => 'patient_validation_failed',
+                    'validation' => $insertResult->getValidationMessages(),
+                ]);
+            }
+            $rows = $insertResult->getData();
+            $newPid = null;
+            $newPatientUuid = null;
+            if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
+                $pidRow = $rows[0]['pid'] ?? null;
+                if (is_numeric($pidRow)) {
+                    $newPid = (int) $pidRow;
+                }
+                $rawUuid = $rows[0]['uuid'] ?? null;
+                if (is_string($rawUuid) && strlen($rawUuid) === 16) {
+                    $newPatientUuid = UuidRegistry::uuidToString($rawUuid);
+                } elseif (is_string($rawUuid) && $rawUuid !== '') {
+                    $newPatientUuid = $rawUuid;
+                }
+            }
+
+            if ($newPid === null || $newPatientUuid === null) {
+                throw new \RuntimeException('patient_insert_did_not_return_pid_uuid');
+            }
         }
 
         // 9. Store raw document under the new patient. We reuse the SHA dedup
@@ -416,6 +485,7 @@ try {
             'patient_uuid' => $newPatientUuid,
             'pubpid' => $pubpid,
             'usertext1' => $usertext1,
+            'duplicate_intake' => $duplicateIntake,
             'document_id' => $documentId,
             'document_sha256' => $docSha,
             'extracted_field_count' => is_int($extractedCount) ? $extractedCount : 0,
