@@ -149,16 +149,21 @@ class PanelController
                 demoMode: <?php echo $demoModeEnabled ? 'true' : 'false'; ?>,
                 csrfToken: <?php echo js_escape($csrfToken); ?>,
                 pid: <?php echo $pid; ?>,
-                pdfWorkerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+                pdfWorkerSrc: <?php echo js_escape($assetBase . '/vendor/pdfjs/pdf.worker.min.js'); ?>
             };
         </script>
         <!-- AgDR-0062: PDF.js required for the source-chip bbox overlay in copilot.js;
              without this include window.pdfjsLib is undefined and the overlay
              silently returns from showBboxOverlay(). Version pinned to match
              the API surface copilot.js targets (getDocument, GlobalWorkerOptions).
-             SRI hash intentionally omitted until a verified hash is captured
-             from the CDN response and committed; demo target is local-only. -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+             AgDR-0072: pdf.min.js + pdf.worker.min.js@3.11.174 are vendored under
+             public/assets/vendor/pdfjs/ — eliminates the cdnjs supply-chain vector
+             that the prior CDN-only load posed. Subresource Integrity (SRI) hash
+             stays as defense-in-depth — if the vendored file is ever swapped for
+             a tampered copy, the browser refuses to execute it. See LICENSE-NOTICE
+             alongside the vendored files for Apache-2.0 attribution. -->
+        <script src="<?php echo attr($assetBase); ?>/vendor/pdfjs/pdf.min.js"
+                integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e"
                 crossorigin="anonymous"
                 referrerpolicy="no-referrer"></script>
         <script src="<?php echo attr($assetBase); ?>/js/copilot.js"></script>
