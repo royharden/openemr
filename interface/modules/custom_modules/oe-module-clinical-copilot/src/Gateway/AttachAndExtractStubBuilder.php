@@ -88,8 +88,17 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
                 $procedureResultUuid = UuidRegistry::uuidToString($procedureResultUuidBin);
             }
             $webRoot = OEGlobalsBag::getInstance()->getWebRoot();
+            // AgDR-0083 / Plan §3.8 — point at the authenticated module-level
+            // FHIR Observation preview proxy instead of `/apis/default/fhir/Observation/...`.
+            // The OAuth-protected FHIR endpoint does not carry a Bearer token
+            // when clicked from an authenticated OpenEMR HTML session (the
+            // browser does not auto-attach OAuth headers to `<a target="_blank">`
+            // clicks), so the link 401'd and broke the source-chip demo beat.
+            // The proxy uses the OpenEMR session cookie + ACL + puuidBind
+            // patient-scope check instead.
             $fhirObservationUrl = $procedureResultUuid !== null
-                ? $webRoot . '/apis/default/fhir/Observation/' . rawurlencode($procedureResultUuid)
+                ? $webRoot . '/interface/modules/custom_modules/oe-module-clinical-copilot/public/api/fhir_observation_preview.php?observation_uuid='
+                  . rawurlencode($procedureResultUuid)
                 : null;
             $procedureOrderId = self::idStringOrNull($row['procedure_order_id'] ?? null);
             $labReviewUrl = $procedureOrderId !== null
