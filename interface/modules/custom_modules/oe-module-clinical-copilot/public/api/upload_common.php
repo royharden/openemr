@@ -10,23 +10,20 @@
 
 declare(strict_types=1);
 
-namespace OpenEMR\Modules\ClinicalCopilot\Api;
-
 require_once(__DIR__ . "/../../../../../globals.php");
 require_once(\OpenEMR\Core\OEGlobalsBag::getInstance()->getProjectDir() . "/library/documents.php");
 
-use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Common\Database\QueryUtils;
+use OpenEMR\Common\Logging\SystemLogger;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentUploadController;
 use OpenEMR\Modules\ClinicalCopilot\Repository\DocumentFactsRepository;
+use OpenEMR\Modules\ClinicalCopilot\Service\LabResultWriter;
 use OpenEMR\Services\BaseService;
-use Symfony\Component\HttpFoundation\File\UploadedFile;
-use Symfony\Component\HttpFoundation\Request;
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -46,15 +43,6 @@ function copilot_upload_string(mixed $value, string $default = ''): string
     return is_string($value) ? $value : $default;
 }
 
-function copilot_upload_int(mixed $value): int
-{
-    if (is_int($value)) {
-        return $value;
-    }
-
-    return is_numeric($value) ? (int) $value : 0;
-}
-
 function copilot_upload_detect_mime(string $tmpPath, string $fallback): string
 {
     if (class_exists(\finfo::class)) {
@@ -66,6 +54,77 @@ function copilot_upload_detect_mime(string $tmpPath, string $fallback): string
     }
 
     return $fallback;
+}
+
+/**
+ * Look up an existing document for (patient_id, sha256). Returns null on miss.
+ *
+ * AgDR-0063: closes the raw-document duplicate hole in the PRD's "without
+ * creating duplicate or untraceable records" obligation. Same SHA across
+ * different patients is intentionally independent (different chart visibility);
+ * the unique index is on (patient_id, sha256).
+ *
+ * The lookup is best-effort: if the index table does not exist yet
+ * (migration not applied) or any other DB error occurs, return null and
+ * let the caller fall through to the normal addNewDocument() path. The
+ * exception is logged so the missing-migration case is visible without
+ * breaking uploads.
+ *
+ * @return array{0: string, 1: string}|null  [document_id, document_uuid_bin] or null on miss
+ */
+function copilot_upload_lookup_existing_document(int $pid, string $sha256): ?array
+{
+    try {
+        $documentId = QueryUtils::fetchSingleValue(
+            'SELECT document_id FROM copilot_document_sha_index WHERE patient_id = ? AND sha256 = ?',
+            'document_id',
+            [$pid, $sha256],
+        );
+        if ($documentId === null || $documentId === false) {
+            return null;
+        }
+        $documentIdStr = (string) $documentId;
+        $documentUuidBin = QueryUtils::fetchSingleValue(
+            'SELECT uuid FROM documents WHERE id = ?',
+            'uuid',
+            [$documentIdStr],
+        );
+        if (!is_string($documentUuidBin) || strlen($documentUuidBin) !== 16) {
+            // Index points at a missing document — treat as a miss so we
+            // re-store. A janitor task could reconcile orphans later.
+            return null;
+        }
+        return [$documentIdStr, $documentUuidBin];
+    } catch (\Throwable $exc) {
+        (new SystemLogger())->warning(
+            'ClinicalCopilot: SHA dedup lookup failed (treating as miss)',
+            ['exception' => $exc],
+        );
+        return null;
+    }
+}
+
+/**
+ * Record a (patient_id, sha256) → document_id mapping for future dedup.
+ *
+ * INSERT IGNORE so a concurrent upload of the same SHA cannot fail the
+ * second writer. If the index table does not exist (migration not applied),
+ * log and continue — the upload still succeeded, only future dedup is
+ * temporarily disabled until the migration runs.
+ */
+function copilot_upload_record_sha(int $pid, string $sha256, string $documentId): void
+{
+    try {
+        QueryUtils::sqlStatementThrowException(
+            'INSERT IGNORE INTO copilot_document_sha_index (patient_id, sha256, document_id) VALUES (?, ?, ?)',
+            [$pid, $sha256, $documentId],
+        );
+    } catch (\Throwable $exc) {
+        (new SystemLogger())->warning(
+            'ClinicalCopilot: SHA dedup index write failed (upload still succeeded)',
+            ['exception' => $exc],
+        );
+    }
 }
 
 /**
@@ -99,10 +158,7 @@ function copilot_upload_store_document(
         throw new \RuntimeException('openemr_document_store_failed');
     }
 
-    $documentId = copilot_upload_string($stored['doc_id']);
-    if ($documentId === '') {
-        throw new \RuntimeException('openemr_document_id_missing');
-    }
+    $documentId = (string) $stored['doc_id'];
     $documentUuidBin = QueryUtils::fetchSingleValue(
         'SELECT uuid FROM documents WHERE id = ?',
         'uuid',
@@ -126,12 +182,8 @@ function copilot_upload_doc_url(int $pid, string $documentId): string
 
 function copilot_upload_handle(string $docType): void
 {
-    $request = Request::createFromGlobals();
     $session = SessionWrapperFactory::getInstance()->getActiveSession();
-    $csrf = $request->request->get('csrf_token_form');
-    if (!is_string($csrf) || $csrf === '') {
-        $csrf = $request->headers->get('APICSRFTOKEN');
-    }
+    $csrf = $_POST['csrf_token_form'] ?? $_SERVER['HTTP_APICSRFTOKEN'] ?? null;
     if (!is_string($csrf) || !CsrfUtils::verifyCsrfToken($csrf, $session, 'ClinicalCopilot')) {
         copilot_upload_send_json(403, ['error' => 'csrf_failure']);
     }
@@ -140,22 +192,22 @@ function copilot_upload_handle(string $docType): void
         copilot_upload_send_json(403, ['error' => 'acl_denied']);
     }
 
-    $pid = copilot_upload_int($session->get('pid'));
+    $pid = (int) ($session->get('pid') ?? 0);
     if ($pid <= 0) {
         copilot_upload_send_json(400, ['error' => 'missing_patient']);
     }
 
-    $upload = $request->files->get('file');
-    if (!$upload instanceof UploadedFile) {
+    $upload = $_FILES['file'] ?? null;
+    if (!is_array($upload) || !isset($upload['tmp_name'], $upload['name'], $upload['error'])) {
         copilot_upload_send_json(400, ['error' => 'missing_file']);
     }
-    if ($upload->getError() !== UPLOAD_ERR_OK) {
-        copilot_upload_send_json(400, ['error' => 'upload_error', 'code' => $upload->getError()]);
+    if ((int) $upload['error'] !== UPLOAD_ERR_OK) {
+        copilot_upload_send_json(400, ['error' => 'upload_error', 'code' => (int) $upload['error']]);
     }
 
-    $tmpName = $upload->getPathname();
-    $originalName = basename($upload->getClientOriginalName() !== '' ? $upload->getClientOriginalName() : 'upload.bin');
-    if ($tmpName === '' || !$upload->isValid()) {
+    $tmpName = copilot_upload_string($upload['tmp_name'] ?? null);
+    $originalName = basename(copilot_upload_string($upload['name'] ?? null, 'upload.bin'));
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
         copilot_upload_send_json(400, ['error' => 'invalid_upload']);
     }
 
@@ -170,17 +222,35 @@ function copilot_upload_handle(string $docType): void
             throw new \RuntimeException('patient_uuid_missing');
         }
         $patientUuid = UuidRegistry::uuidToString($patientUuidBin);
-        $userId = copilot_upload_int($session->get('authUserID'));
-        $clientMimeType = $upload->getClientMimeType();
-        $mimeType = copilot_upload_detect_mime($scratch, $clientMimeType !== '' ? $clientMimeType : 'application/octet-stream');
+        $userId = (int) ($session->get('authUserID') ?? 0);
+        $mimeType = copilot_upload_detect_mime($scratch, copilot_upload_string($upload['type'] ?? null, 'application/octet-stream'));
 
-        [$documentId, $documentUuidBin] = copilot_upload_store_document(
-            $tmpName,
-            $originalName,
-            $mimeType,
-            $pid,
-            $userId,
-        );
+        // AgDR-0063 — raw-document SHA dedup. Compute the file SHA before
+        // storage and look up an existing documents.id for this
+        // (patient_id, sha256). On hit, skip addNewDocument() and reuse the
+        // existing document; the sidecar extraction still runs because
+        // copilot_document_facts has its own idempotency key — any new facts
+        // are added, repeats are silent no-ops. The "duplicate" flag goes
+        // back to the UI so the panel can show "Document already on file".
+        $sha256 = hash_file('sha256', $scratch);
+        if (!is_string($sha256) || strlen($sha256) !== 64) {
+            throw new \RuntimeException('sha256_compute_failed');
+        }
+        $duplicate = false;
+        $existing = copilot_upload_lookup_existing_document($pid, $sha256);
+        if ($existing !== null) {
+            [$documentId, $documentUuidBin] = $existing;
+            $duplicate = true;
+        } else {
+            [$documentId, $documentUuidBin] = copilot_upload_store_document(
+                $tmpName,
+                $originalName,
+                $mimeType,
+                $pid,
+                $userId,
+            );
+            copilot_upload_record_sha($pid, $sha256, $documentId);
+        }
 
         $sidecarBaseUrl = getenv('COPILOT_API_BASE_URL');
         $sidecarSecret = getenv('COPILOT_OPENEMR_GATEWAY_SHARED_SECRET');
@@ -188,7 +258,7 @@ function copilot_upload_handle(string $docType): void
             throw new \RuntimeException('sidecar_not_configured');
         }
 
-        $logger = ServiceContainer::getLogger();
+        $logger = new SystemLogger();
         $controller = new DocumentUploadController(
             $sidecarBaseUrl,
             $sidecarSecret,
@@ -202,12 +272,44 @@ function copilot_upload_handle(string $docType): void
             $payload = $controller->uploadLabPdf($scratch, $originalName, $mimeType, $patientUuid, $documentUuidBin, (string) $userId);
         }
 
+        // AgDR-0065 — for lab uploads, project newly-persisted facts onto
+        // OpenEMR's native lab chain so FhirObservationLaboratoryService
+        // surfaces them. Best-effort: if the writer throws, the upload still
+        // succeeds with the extracted facts intact in copilot_document_facts.
+        $labWriteSummary = ['written' => 0, 'skipped' => 0];
+        if ($docType === 'lab_pdf') {
+            try {
+                $writer = new LabResultWriter($logger);
+                $documentUuidStr = UuidRegistry::uuidToString($documentUuidBin);
+                $summary = $writer->writeLabFactsForDocument(
+                    $pid,
+                    $patientUuid,
+                    (int) $documentId,
+                    $documentUuidStr,
+                    $sha256,
+                    $userId,
+                );
+                $labWriteSummary = [
+                    'written' => $summary['written'],
+                    'skipped' => $summary['skipped'],
+                ];
+            } catch (\Throwable $exc) {
+                $logger->error(
+                    'ClinicalCopilot: native lab chain write-back failed (upload still succeeded)',
+                    ['exception' => $exc],
+                );
+            }
+        }
+
         $payload['document_id'] = $documentId;
         $payload['document_uuid'] = UuidRegistry::uuidToString($documentUuidBin);
         $payload['doc_url'] = copilot_upload_doc_url($pid, $documentId);
+        $payload['duplicate'] = $duplicate;
+        $payload['document_sha256'] = $sha256;
+        $payload['native_lab_writeback'] = $labWriteSummary;
         copilot_upload_send_json(200, $payload);
-    } catch (\RuntimeException $e) {
-        ServiceContainer::getLogger()->error('ClinicalCopilot: document upload failed', [
+    } catch (\Exception $e) {
+        (new SystemLogger())->error('ClinicalCopilot: document upload failed', [
             'exception' => $e,
         ]);
         copilot_upload_send_json(500, [

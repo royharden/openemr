@@ -1,11 +1,16 @@
 -- Wk2 Workstream 0.5 — contract-freeze migration
--- Plan §3 #11 (AgDR-0037), §5 step 7, §6 Workstream A
+-- Plan §3 #11 (originally AgDR-0037, superseded by AgDR-0065 on 2026-05-10)
 --
 -- Module-owned table for derived facts extracted from lab PDFs and intake
--- forms by the Clinical Co-Pilot sidecar. Native FHIR Observation /
--- procedure_result writes are deferred to Week 3 (decision pinned at #11);
--- this table is the round-trip persistence target until a clinician-review
--- workflow exists in OpenEMR.
+-- forms by the Clinical Co-Pilot sidecar. Lab-PDF rows now ALSO get
+-- written to OpenEMR's native lab chain (procedure_order /
+-- procedure_order_code / procedure_report / procedure_result) via
+-- LabResultWriter — see migration 2026_05_10_copilot_fact_to_result_map.sql
+-- and AgDR-0065. copilot_document_facts remains the authoritative source
+-- for non-lab fields (intake demographics, allergies, etc.) and for fact-
+-- level metadata (page index, bbox, quote, extraction confidence) that the
+-- native lab tables do not carry. The map table makes the relationship
+-- explicit and exactly-once.
 --
 -- The Wk1 Co-Pilot module already established the convention that the PHP
 -- gateway is the only writer to module-owned tables. The sidecar returns the

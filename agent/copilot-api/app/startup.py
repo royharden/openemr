@@ -101,8 +101,13 @@ def _ping_cohere() -> None:
     except ImportError:  # pragma: no cover
         logger.info("cohere SDK not installed; skipping cohere ping")
         return
+    # Use the same model ID the live reranker uses (app/rag/reranker.py
+    # COHERE_MODEL). A drift here previously caused startup to crash with a
+    # 404 ("model 'rerank-3.5' not found") even though the live path was fine.
+    from app.rag.reranker import COHERE_MODEL
+
     cohere.Client(api_key=api_key).rerank(
-        model="rerank-3.5",
+        model=COHERE_MODEL,
         query="ok",
         documents=["ok"],
         top_n=1,

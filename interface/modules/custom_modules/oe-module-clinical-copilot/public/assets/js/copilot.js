@@ -119,11 +119,31 @@
         }
         html += '</dl>';
 
+        // AgDR-0065 — for DocumentFact packets that have been written to the
+        // native lab chain, render dual links: OpenEMR Lab Review (clinician
+        // surface) and FHIR Observation (machine-readable surface).
+        var footerLinks = [];
+        if (meta && meta.openemr_lab_review_url) {
+            footerLinks.push(
+                '<a href="' + escapeHtml(meta.openemr_lab_review_url)
+                + '" target="_blank" rel="noopener">View in OpenEMR Lab Review</a>'
+            );
+        }
+        if (meta && meta.fhir_observation_url) {
+            footerLinks.push(
+                '<a href="' + escapeHtml(meta.fhir_observation_url)
+                + '" target="_blank" rel="noopener">View as FHIR Observation</a>'
+            );
+        }
         var recordPath = meta && POPOVER_RECORD_PATHS[meta.source_table];
-        if (recordPath) {
-            html += '<div class="copilot-popover-footer">';
-            html += '<a href="' + escapeHtml(recordPath) + '" target="_blank" rel="noopener">Open record</a>';
-            html += '</div>';
+        if (recordPath && footerLinks.length === 0) {
+            footerLinks.push(
+                '<a href="' + escapeHtml(recordPath)
+                + '" target="_blank" rel="noopener">Open record</a>'
+            );
+        }
+        if (footerLinks.length > 0) {
+            html += '<div class="copilot-popover-footer">' + footerLinks.join(' · ') + '</div>';
         }
         pop.innerHTML = html;
 
@@ -487,13 +507,28 @@
             }
             var file = fileInput.files[0];
             var docType = docTypeSelect ? docTypeSelect.value : 'lab_pdf';
-            var url = docType === 'intake_form' ? cfg.uploadIntakeUrl : cfg.uploadLabUrl;
+            // AgDR-0066 — three upload modes:
+            //   lab_pdf                       → upload_lab.php          (existing patient)
+            //   intake_form                   → upload_intake.php       (existing patient)
+            //   intake_form_create_patient    → create_patient_from_intake.php (demo mode)
+            var isCreatePatient = (docType === 'intake_form_create_patient');
+            var url;
+            if (isCreatePatient) {
+                url = cfg.createPatientUrl;
+            } else if (docType === 'intake_form') {
+                url = cfg.uploadIntakeUrl;
+            } else {
+                url = cfg.uploadLabUrl;
+            }
 
             var formData = new FormData();
             formData.append('file', file, file.name);
             formData.append('csrf_token_form', cfg.csrfToken || '');
 
-            showUploadStatus('Uploading…', false);
+            var startMsg = isCreatePatient
+                ? 'Extracting intake → creating demo patient…'
+                : 'Uploading…';
+            showUploadStatus(startMsg, false);
             uploadForm.querySelector('button[type="submit"]').disabled = true;
 
             fetch(url, {
@@ -508,8 +543,26 @@
                     showUploadStatus('Upload failed: ' + escapeHtml(JSON.stringify(resp.body.detail || resp.body)), true);
                     return;
                 }
+                if (isCreatePatient && resp.body && resp.body.redirect_url) {
+                    var demo = resp.body.demographics || {};
+                    var label = [demo.fname, demo.lname].filter(Boolean).join(' ') || 'new patient';
+                    showUploadStatus(
+                        'Created demo patient ' + escapeHtml(label) + ' (pid ' + resp.body.pid + '). Redirecting…',
+                        false
+                    );
+                    // Give the user a beat to read the status before navigating.
+                    setTimeout(function () { window.location.href = resp.body.redirect_url; }, 1500);
+                    return;
+                }
                 var count = (resp.body && resp.body.extracted_field_count) || 0;
-                showUploadStatus('Extracted ' + count + ' field(s). Refreshing brief…', false);
+                // AgDR-0063 — raw-doc SHA dedup: surface the duplicate signal so
+                // the user understands the upload was idempotent. Extraction
+                // still runs against the existing document body.
+                var isDuplicate = !!(resp.body && resp.body.duplicate);
+                var prefix = isDuplicate
+                    ? 'Document already on file — using existing copy. '
+                    : '';
+                showUploadStatus(prefix + 'Extracted ' + count + ' field(s). Refreshing brief…', false);
                 setTimeout(function () { fetchBrief('pre_room_brief'); }, 1200);
             }).catch(function () {
                 uploadForm.querySelector('button[type="submit"]').disabled = false;

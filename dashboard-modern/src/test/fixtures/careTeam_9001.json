@@ -1,0 +1,84 @@
+{
+  "resourceType": "Bundle",
+  "id": "care-team-bundle-9001",
+  "type": "searchset",
+  "total": 2,
+  "entry": [
+    {
+      "fullUrl": "https://localhost:9300/apis/default/fhir/CareTeam/ct-001",
+      "resource": {
+        "resourceType": "CareTeam",
+        "id": "ct-001",
+        "status": "active",
+        "name": "Primary Care Team",
+        "participant": [
+          {
+            "role": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "59058001",
+                    "display": "General physician"
+                  }
+                ],
+                "text": "Primary Care Physician"
+              }
+            ],
+            "member": {
+              "reference": "Practitioner/pract-001",
+              "display": "Dr. Sarah Johnson"
+            }
+          },
+          {
+            "role": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "224535009",
+                    "display": "Registered nurse"
+                  }
+                ],
+                "text": "Registered Nurse"
+              }
+            ],
+            "member": {
+              "reference": "Practitioner/pract-002",
+              "display": "Nurse Patricia Lopez"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "https://localhost:9300/apis/default/fhir/CareTeam/ct-002",
+      "resource": {
+        "resourceType": "CareTeam",
+        "id": "ct-002",
+        "status": "inactive",
+        "name": "Cardiology Consult Team (Discharged)",
+        "participant": [
+          {
+            "role": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "17561000",
+                    "display": "Cardiologist"
+                  }
+                ],
+                "text": "Cardiologist"
+              }
+            ],
+            "member": {
+              "reference": "Practitioner/pract-003",
+              "display": "Dr. Michael Chen"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
