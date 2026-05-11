@@ -45,7 +45,8 @@ try {
     $patientUuid = $patientUuidBin !== false && $patientUuidBin !== ''
         ? UuidRegistry::uuidToString($patientUuidBin)
         : (string)$pid;
-} catch (Throwable $e) {
+} catch (\RuntimeException | \PDOException $e) {
+    // Plan §4.2 / AgDR-0082 — enumerated catch (matches brief.php:243 pattern).
     $patientUuid = (string)$pid;
 }
 
