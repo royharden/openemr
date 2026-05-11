@@ -11,6 +11,7 @@ Workstream B (wk2-team-b-rag) implements:
   - phi_filter.py   — strip_phi() helper for query sanitisation
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -18,6 +19,10 @@ from .contracts import GuidelineChunk, RecommendationGrade, SourceOrganization
 from .corpus import DEFAULT_CORPUS_PATH, Corpus
 from .phi_filter import strip_phi
 from .retriever import HybridRetriever
+
+logger = logging.getLogger(__name__)
+
+CANDIDATE_POOL_K = 20
 
 
 _FALLBACK_CHUNKS = [
@@ -72,17 +77,53 @@ def _fallback_retrieve(query: str, top_k: int) -> list[GuidelineChunk]:
 
 
 def retrieve_guidelines(query: str, top_k: int = 5) -> list[GuidelineChunk]:
-    """Retrieve guideline chunks from corpus.db, with deterministic local fallback."""
+    """Retrieve guideline chunks via hybrid BM25 + vector retrieval + reranker.
+
+    Pipeline (AgDR-0062 — restores live path to design intent of AgDR-0032/0033/0034):
+      1. ``strip_phi(query)`` — sanitize before any retrieval.
+      2. ``HybridRetriever(corpus, embedder=get_embedder())`` — BM25 ∪ vector
+         candidates, k=``CANDIDATE_POOL_K`` (20).
+      3. ``CohereReranker().rerank(...)`` — Cohere Rerank 3.5 (or local
+         cross-encoder fallback) trims the pool to top_k.
+
+    Each stage degrades gracefully:
+      - Embedder init failure → log + BM25-only retrieval (vector leg disabled).
+      - Reranker failure → log + return retriever order truncated to top_k.
+      - Corpus unavailable → fallback chunks (or raise if
+        ``COPILOT_RAG_REQUIRE_CORPUS=1``).
+    """
 
     sanitized_query = strip_phi(query)
     corpus_path = Path(os.getenv("COPILOT_RAG_CORPUS_PATH", str(DEFAULT_CORPUS_PATH)))
     if corpus_path.exists():
         try:
+            embedder = None
+            try:
+                from .embedder import get_embedder
+
+                embedder = get_embedder()
+            except Exception as exc:  # noqa: BLE001 — best-effort init
+                logger.warning(
+                    "Embedder init failed (%s) — BM25-only retrieval for this query",
+                    exc,
+                )
+
             with Corpus(corpus_path) as corpus:
-                retriever = HybridRetriever(corpus)
-                chunks = retriever.query(sanitized_query, k=max(top_k, 1))
-                if chunks:
-                    return chunks[:top_k]
+                retriever = HybridRetriever(corpus, embedder=embedder)
+                candidates = retriever.query(sanitized_query, k=CANDIDATE_POOL_K)
+                if not candidates:
+                    return []
+
+                try:
+                    from .reranker import CohereReranker
+
+                    reranker = CohereReranker(top_n=top_k)
+                    return reranker.rerank(sanitized_query, candidates)
+                except Exception as exc:  # noqa: BLE001 — best-effort rerank
+                    logger.warning(
+                        "Reranker failed (%s) — returning hybrid-retriever order", exc
+                    )
+                    return candidates[:top_k]
         except Exception:
             if os.getenv("COPILOT_RAG_REQUIRE_CORPUS") == "1":
                 raise

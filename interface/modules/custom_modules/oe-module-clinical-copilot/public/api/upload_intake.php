@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace OpenEMR\Modules\ClinicalCopilot\Api\Internal;
+
 require_once(__DIR__ . '/upload_common.php');
 
-\OpenEMR\Modules\ClinicalCopilot\Api\copilot_upload_handle('intake_form');
+copilot_upload_handle('intake_form');

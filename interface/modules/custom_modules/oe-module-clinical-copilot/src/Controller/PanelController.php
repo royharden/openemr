@@ -32,6 +32,7 @@ class PanelController
         $apiFeedbackUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/feedback.php';
         $apiUploadLabUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_lab.php';
         $apiUploadIntakeUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_intake.php';
+        $apiCreatePatientUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/create_patient_from_intake.php';
 
         ob_start();
         ?>
@@ -48,12 +49,16 @@ class PanelController
                     <i class="fa fa-spinner fa-spin"></i>
                     <?php echo xlt('Co-Pilot loading…'); ?>
                 </div>
+                <?php $demoModeEnabled = getenv('COPILOT_DEMO_MODE') === '1'; ?>
                 <form class="copilot-upload-form mb-3" id="copilot-upload-form" enctype="multipart/form-data">
                     <div class="form-row align-items-center">
                         <div class="col-auto">
                             <select class="form-control form-control-sm" id="copilot-upload-doc-type" name="doc_type" aria-label="<?php echo attr(xl('Document type')); ?>">
                                 <option value="lab_pdf"><?php echo xlt('Lab PDF'); ?></option>
                                 <option value="intake_form"><?php echo xlt('Intake form'); ?></option>
+                                <?php if ($demoModeEnabled) : ?>
+                                <option value="intake_form_create_patient"><?php echo xlt('Intake form — CREATE NEW DEMO PATIENT'); ?></option>
+                                <?php endif; ?>
                             </select>
                         </div>
                         <div class="col">
@@ -140,10 +145,22 @@ class PanelController
                 feedbackUrl: <?php echo js_escape($apiFeedbackUrl); ?>,
                 uploadLabUrl: <?php echo js_escape($apiUploadLabUrl); ?>,
                 uploadIntakeUrl: <?php echo js_escape($apiUploadIntakeUrl); ?>,
+                createPatientUrl: <?php echo js_escape($apiCreatePatientUrl); ?>,
+                demoMode: <?php echo $demoModeEnabled ? 'true' : 'false'; ?>,
                 csrfToken: <?php echo js_escape($csrfToken); ?>,
-                pid: <?php echo $pid; ?>
+                pid: <?php echo $pid; ?>,
+                pdfWorkerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
             };
         </script>
+        <!-- AgDR-0062: PDF.js required for the source-chip bbox overlay in copilot.js;
+             without this include window.pdfjsLib is undefined and the overlay
+             silently returns from showBboxOverlay(). Version pinned to match
+             the API surface copilot.js targets (getDocument, GlobalWorkerOptions).
+             SRI hash intentionally omitted until a verified hash is captured
+             from the CDN response and committed; demo target is local-only. -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+                crossorigin="anonymous"
+                referrerpolicy="no-referrer"></script>
         <script src="<?php echo attr($assetBase); ?>/js/copilot.js"></script>
         <?php
         return (string)ob_get_clean();

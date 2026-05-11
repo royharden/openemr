@@ -1,0 +1,57 @@
+REGRESSION DRY-RUN — FAILING OUTPUT
+====================================
+Date: 2026-05-10
+Spec: tests/contracts/_dryrun_fail.spec.ts (temporary plant file, reverted after capture)
+Command: npx playwright test tests/contracts/_dryrun_fail.spec.ts --reporter=list
+
+--- STDOUT / STDERR ---
+
+Running 1 test using 1 worker
+
+  x  1 [chromium] › tests/contracts/_dryrun_fail.spec.ts:12:1 › DRYRUN-FAIL — production assertion FAILS when POST is planted (1.2s)
+
+
+  1) [chromium] › tests/contracts/_dryrun_fail.spec.ts:12:1 › DRYRUN-FAIL — production assertion FAILS when POST is planted
+
+    Error: No non-GET requests to /apis/default/ are allowed.
+    Violations:
+    POST http://localhost:5173/apis/default/fhir/Patient
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "POST http://localhost:5173/apis/default/fhir/Patient",
+    + ]
+
+      40 |     violations,
+      41 |     `No non-GET requests to /apis/default/ are allowed.\nViolations:\n${violations.join('\n')}`,
+    > 42 |   ).toEqual([])
+         |     ^
+      43 | })
+      44 |
+
+  1 failed
+
+--- SUMMARY ---
+
+Exit code: 1
+The contract test CORRECTLY catches and FAILS on the deliberate POST.
+Violation detected: "POST http://localhost:5173/apis/default/fhir/Patient"
+
+--- WHAT WAS PLANTED ---
+
+In tests/contracts/_dryrun_fail.spec.ts (temp file, now reverted):
+  await page.evaluate(() => {
+    void fetch('/apis/default/fhir/Patient', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceType: 'Patient' }),
+    }).catch(() => undefined)
+  })
+
+This simulates a developer accidentally adding a mutation somewhere in the SPA code.
+The contract test detects it immediately on the next CI run.

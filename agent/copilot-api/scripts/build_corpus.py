@@ -65,7 +65,7 @@ if str(_PKG_ROOT) not in sys.path:
 
 from app.rag.corpus import Corpus
 from app.rag.embedder import get_embedder
-from app.rag.ingestion import cdc_acip, openfda, hms_loe
+from app.rag.ingestion import cdc_acip, openfda, hms_loe, ada_2026, acc_aha_2026
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,6 +103,20 @@ def build(corpus_path: Path | None = None, force: bool = False) -> None:
         t0 = time.monotonic()
         n_hms = hms_loe.ingest(corpus, embedder)
         logger.info("HMS-LOE: %d chunks upserted (%.1fs)", n_hms, time.monotonic() - t0)
+
+        # --- ADA 2026 Standards of Care (locally-authored summaries) ---
+        t0 = time.monotonic()
+        n_ada = ada_2026.ingest(corpus, embedder)
+        logger.info("ADA-SoC-2026: %d chunks upserted (%.1fs)", n_ada, time.monotonic() - t0)
+
+        # --- ACC/AHA 2026 Dyslipidemia (locally-authored summaries) ---
+        t0 = time.monotonic()
+        n_acc = acc_aha_2026.ingest(corpus, embedder)
+        logger.info(
+            "ACC-AHA-Lipid-2026: %d chunks upserted (%.1fs)",
+            n_acc,
+            time.monotonic() - t0,
+        )
 
         hash_after = corpus.content_hash()
         count_after = corpus.count()

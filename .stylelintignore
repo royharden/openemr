@@ -14,6 +14,8 @@ swagger/**/*.css
 swagger/**/*.scss
 coverage/**/*.css
 coverage/**/*.scss
+dashboard-modern/**/*.css
+dashboard-modern/**/*.scss
 
 # To be fixed and removed from this list
 interface/forms/**/*.css

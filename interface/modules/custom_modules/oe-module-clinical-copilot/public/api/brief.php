@@ -161,6 +161,10 @@ function copilot_packets_summary(array $packets): array
             'recommendation_grade',
             'source_year',
             'source_organization',
+            // AgDR-0065 — native lab chain links for DocumentFact packets.
+            'procedure_result_uuid',
+            'fhir_observation_url',
+            'openemr_lab_review_url',
         ] as $key) {
             if (array_key_exists($key, $p)) {
                 $item[$key] = $p[$key];

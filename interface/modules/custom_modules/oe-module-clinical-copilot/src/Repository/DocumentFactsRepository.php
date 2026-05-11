@@ -166,7 +166,7 @@ final class DocumentFactsRepository
                     $params,
                 );
                 $inserted += max(0, (int) $affected);
-            } catch (\RuntimeException $e) {
+            } catch (\Exception $e) {
                 $this->logger->error('DocumentFactsRepository: insert failed', [
                     'field_path' => $fieldPath,
                     'exception'  => $e,
@@ -215,7 +215,7 @@ final class DocumentFactsRepository
 
         try {
             QueryUtils::sqlStatementThrowException($sql);
-        } catch (\RuntimeException $e) {
+        } catch (\Exception $e) {
             $this->logger->error('DocumentFactsRepository: schema bootstrap failed', [
                 'exception' => $e,
             ]);
