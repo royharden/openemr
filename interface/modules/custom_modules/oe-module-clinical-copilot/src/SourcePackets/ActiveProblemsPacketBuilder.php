@@ -59,7 +59,8 @@ final class ActiveProblemsPacketBuilder implements PacketBuilder
             $when = new \DateTimeImmutable($observed);
             $diff = (new \DateTimeImmutable('now'))->diff($when)->days;
             return ($diff !== false && $diff > self::STALE_DAYS) ? 'stale' : 'recent';
-        } catch (\Throwable $e) {
+        } catch (\DateMalformedStringException) {
+            // Plan §4.2 / AgDR-0082 — enumerated catch.
             return 'unknown';
         }
     }

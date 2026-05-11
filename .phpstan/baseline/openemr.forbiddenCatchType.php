@@ -139,46 +139,6 @@ $ignoreErrors[] = [
 $ignoreErrors[] = [
     'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
     'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Gateway/LocalTraceLogger.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 2,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Gateway/SidecarClient.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ActiveMedicationsPacketBuilder.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ActiveProblemsPacketBuilder.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/AllergiesPacketBuilder.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/IdentityPacketBuilder.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/ImmunizationsPacketBuilder.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/SourcePackets/RecentLabsPacketBuilder.php',
-];
-$ignoreErrors[] = [
-    'message' => '#^catch \\(Throwable\\) would suppress Error, which is forbidden\\.$#',
-    'count' => 1,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/tests/packet_builders_smoke.php',
 ];
 $ignoreErrors[] = [

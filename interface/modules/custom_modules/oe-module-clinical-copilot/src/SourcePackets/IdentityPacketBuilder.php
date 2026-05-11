@@ -35,7 +35,12 @@ final class IdentityPacketBuilder implements PacketBuilder
                 $dob = new \DateTimeImmutable((string)$row['DOB']);
                 $now = new \DateTimeImmutable('now');
                 $age = (int)$dob->diff($now)->y;
-            } catch (\Throwable $e) {
+            } catch (\DateMalformedStringException) {
+                // Plan §4.2 / AgDR-0082 — enumerated catch. DOB string can be
+                // malformed for legacy patient_data rows (e.g. '0000-00-00'
+                // was filtered above but other corrupt forms remain). Return
+                // null age rather than treating the bad date as a clinical
+                // signal.
                 $age = null;
             }
         }

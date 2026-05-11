@@ -58,7 +58,12 @@ final class LocalTraceLogger
                     'patient_uuid_hash' => $patientUuidHash,
                 ], JSON_UNESCAPED_SLASHES),
             ]);
-        } catch (\Throwable $e) {
+        } catch (\GuzzleHttp\Exception\GuzzleException | \RuntimeException $e) {
+            // Plan §4.2 / AgDR-0082 — enumerated exception union. Guzzle
+            // network errors implement GuzzleException; \RuntimeException
+            // covers JSON_THROW_ON_ERROR-style boundary failures even though
+            // we don't pass the flag here (defensive against a future
+            // refactor that adds it).
             error_log('ClinicalCopilot LocalTraceLogger error: ' . $e->getMessage());
         }
     }

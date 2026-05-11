@@ -176,7 +176,13 @@ final class SidecarClient
                 'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ]);
             return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
-        } catch (\Throwable $e) {
+        } catch (\GuzzleHttp\Exception\GuzzleException | \RuntimeException $e) {
+            // Plan §4.2 / AgDR-0082 — enumerated exception union instead of
+            // bare \Throwable. Guzzle's transfer errors implement
+            // GuzzleException; the remaining \RuntimeException covers
+            // JSON_THROW_ON_ERROR-style runtime failures upstream of the
+            // Guzzle call and any host environment misconfiguration that
+            // turns json_encode() into a \RuntimeException at the boundary.
             return [
                 '__sidecar_error' => 'request_failed',
                 '__sidecar_message' => $e->getMessage(),
@@ -247,7 +253,13 @@ final class SidecarClient
                 'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ]);
             return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
-        } catch (\Throwable $e) {
+        } catch (\GuzzleHttp\Exception\GuzzleException | \RuntimeException $e) {
+            // Plan §4.2 / AgDR-0082 — enumerated exception union instead of
+            // bare \Throwable. Guzzle's transfer errors implement
+            // GuzzleException; the remaining \RuntimeException covers
+            // JSON_THROW_ON_ERROR-style runtime failures upstream of the
+            // Guzzle call and any host environment misconfiguration that
+            // turns json_encode() into a \RuntimeException at the boundary.
             return [
                 '__sidecar_error' => 'request_failed',
                 '__sidecar_message' => $e->getMessage(),
