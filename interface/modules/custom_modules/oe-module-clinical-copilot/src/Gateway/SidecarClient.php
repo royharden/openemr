@@ -20,7 +20,14 @@ final class SidecarClient
     public function __construct(
         private readonly string $baseUrl,
         private readonly string $sharedSecret,
-        private readonly float $timeoutSeconds = 12.0,
+        // AgDR-0087: bumped 12.0 -> 60.0 after Phase 5.1 verification on
+        // 2026-05-11 timed out a real /v1/brief call at 15.98s. The default
+        // covers /v1/brief and /v1/copilot/answer (both do LLM synthesis
+        // via Sonnet, which routinely takes 10-30s for a fresh brief).
+        // Tool-plan + feedback paths still use their own shorter local
+        // overrides (lines below: 8.0s and 4.0s respectively) since they
+        // do not perform LLM calls on the critical path.
+        private readonly float $timeoutSeconds = 60.0,
     ) {
     }
 
