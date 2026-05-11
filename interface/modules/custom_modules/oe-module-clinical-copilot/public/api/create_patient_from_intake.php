@@ -132,6 +132,19 @@ try {
             $uploadedFile->getClientMimeType() ?: 'application/octet-stream',
         );
 
+        // AgDR-0084 / Plan §3.7 — strip PHI from the upload filename
+        // BEFORE the sidecar receives it (multipart Content-Disposition
+        // header), before addNewDocument stores it (documents.name), and
+        // before any log line interpolates it. Same shape as the matching
+        // redaction in upload_common.php: deterministic "upload-{sha8}.{ext}".
+        // The SHA we compute here is from the scratch file's body; if the
+        // sidecar later returns its own `document_sha256` it must match.
+        $preExtractSha = hash_file('sha256', $scratch);
+        if (!is_string($preExtractSha) || strlen($preExtractSha) !== 64) {
+            throw new \RuntimeException('sha256_compute_failed');
+        }
+        $originalName = copilot_upload_redact_filename($originalName, $preExtractSha);
+
         // 5. Sidecar extraction — no DB writes yet. extractIntakeFormForCreateEndpoint()
         //    is the @internal, this-endpoint-only extraction sibling of uploadIntakeForm()
         //    (DocumentUploadController). Plan §3.6 renamed it to make accidental misuse
@@ -191,7 +204,7 @@ try {
             $docSha = $docShaRaw;
         } else {
             $computed = hash_file('sha256', $scratch);
-            if ($computed === false) {
+            if (!is_string($computed) || strlen($computed) !== 64) {
                 throw new \RuntimeException('sha256_compute_failed');
             }
             $docSha = $computed;

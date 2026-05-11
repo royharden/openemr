@@ -70,6 +70,7 @@ foreach (array_slice($cliArgs, 1) as $arg) {
     }
 }
 
+/** @var array<string, array<string, mixed>> $report */
 $report = [];
 $failures = 0;
 
@@ -281,22 +282,27 @@ if ($json) {
     echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } else {
     foreach ($report as $name => $row) {
-        if (isset($row['skip'])) {
-            echo "[SKIP] {$name}: {$row['skip']}\n";
+        /** @var array<string, mixed> $row */
+        if (array_key_exists('skip', $row)) {
+            $skip = $row['skip'];
+            echo "[SKIP] {$name}: " . (is_string($skip) ? $skip : '') . "\n";
             continue;
         }
-        $status = ($row['pass'] ?? false) ? 'PASS' : 'FAIL';
+        $passVal = $row['pass'] ?? false;
+        $status = ($passVal === true) ? 'PASS' : 'FAIL';
         $count = $row['cases_tested'] ?? null;
         echo "[{$status}] {$name}";
-        if ($count !== null) {
+        if (is_int($count)) {
             echo " ({$count} cases)";
-        } elseif (isset($row['result'])) {
-            echo " (result={$row['result']})";
+        } elseif (array_key_exists('result', $row)) {
+            $r = $row['result'];
+            echo " (result=" . (is_string($r) ? $r : '?') . ")";
         }
         echo "\n";
-        if (!($row['pass'] ?? false) && isset($row['failures'])) {
-            foreach ($row['failures'] as $f) {
-                echo "    - {$f}\n";
+        $failuresList = $row['failures'] ?? null;
+        if ($passVal !== true && is_array($failuresList)) {
+            foreach ($failuresList as $f) {
+                echo "    - " . (is_string($f) ? $f : '') . "\n";
             }
         }
     }

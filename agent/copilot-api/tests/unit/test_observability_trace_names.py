@@ -121,6 +121,82 @@ def test_record_brief_uses_brief_trace_name(captured_client: MagicMock) -> None:
     assert kwargs.get("name") == observability.BRIEF_TRACE_NAME
 
 
+def test_strip_filename_from_metadata_replaces_unsafe_value_wholesale() -> None:
+    """Filename-like keys with anything other than the safe redacted form
+    get replaced with ``[REDACTED-FILENAME]`` wholesale."""
+    md = {
+        "filename": "smith_anne_dob_1962-04-14_lipid.pdf",
+        "trace_id": "trace-123",  # NOT filename-like — should pass through.
+    }
+    out = observability.strip_filename_from_metadata(md)
+    # Every PHI token is gone because the WHOLE value is replaced.
+    assert out["filename"] == "[REDACTED-FILENAME]"
+    for phi in ("smith", "anne", "1962", "04-14", "lipid"):
+        assert phi.lower() not in out["filename"].lower()
+    # Non-filename keys pass through unchanged.
+    assert out["trace_id"] == "trace-123"
+
+
+def test_strip_filename_from_metadata_preserves_safe_redacted_form() -> None:
+    """A value already in the gateway-redacted ``upload-{sha8}.{ext}`` form
+    is preserved as-is so traceability via the SHA prefix still works."""
+    md = {
+        "filename": "upload-a1b2c3d4.pdf",
+        "file_name": "upload-deadbeef.png",
+        "original_filename": "upload-cafef00d.jpeg",
+    }
+    out = observability.strip_filename_from_metadata(md)
+    assert out["filename"] == "upload-a1b2c3d4.pdf"
+    assert out["file_name"] == "upload-deadbeef.png"
+    assert out["original_filename"] == "upload-cafef00d.jpeg"
+
+
+def test_strip_filename_from_metadata_recurses_into_nested_dicts() -> None:
+    """Nested metadata dicts get recursed; filename keys at any depth scrub."""
+    md = {
+        "outer_key": "untouched",
+        "nested": {
+            "filename": "MRN: 8453 patient_name: Smith",
+            "depth_2": {
+                "original_filename": "file_2026-05-11.pdf",
+            },
+        },
+    }
+    out = observability.strip_filename_from_metadata(md)
+    assert out["nested"]["filename"] == "[REDACTED-FILENAME]"
+    assert out["nested"]["depth_2"]["original_filename"] == "[REDACTED-FILENAME]"
+    assert out["outer_key"] == "untouched"
+
+
+def test_strip_filename_from_metadata_returns_new_dict() -> None:
+    """The helper does not mutate the caller's dict."""
+    md = {"filename": "smith_anne_1962-04-14.pdf"}
+    out = observability.strip_filename_from_metadata(md)
+    # Caller's input is unchanged.
+    assert md["filename"] == "smith_anne_1962-04-14.pdf"
+    # Output is scrubbed.
+    assert out["filename"] == "[REDACTED-FILENAME]"
+
+
+def test_strip_filename_from_metadata_non_string_filename_passes_through() -> None:
+    """A filename-like key with a non-string value (None, int, dict) is left alone."""
+    md = {
+        "filename": None,  # not a string
+        "file_name": 42,    # not a string
+    }
+    out = observability.strip_filename_from_metadata(md)
+    assert out == md
+
+
+def test_strip_filename_from_metadata_covers_every_known_filename_key() -> None:
+    """Locks the filename-like key allowlist. A future emitter that adds a
+    new filename-like key MUST add it to ``_FILENAME_LIKE_KEYS`` AND to
+    this test so the scrubber catches it.
+    """
+    expected = {"filename", "file_name", "original_filename", "raw_filename", "upload_filename"}
+    assert observability._FILENAME_LIKE_KEYS == expected
+
+
 def test_no_stale_string_literals_in_record_functions() -> None:
     """Belt-and-suspenders: scan observability.py source for stale literal
     occurrences of the canonical strings outside the constant definitions.

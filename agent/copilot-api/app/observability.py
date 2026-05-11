@@ -38,12 +38,62 @@ _PHI_PATTERNS = [
     _re.compile(r"\bpatient[_\s]?name[:\s]\s*\S+", _re.IGNORECASE),
 ]
 
+# AgDR-0084 / Plan §3.7 — keys whose values are "filename-like" and whose
+# values must be either redacted at source or scrubbed before emission.
+# A future Langfuse span emitter that adds a new filename-like key should
+# add the key here so the helper below can redact it without per-call
+# inspection of the metadata dict.
+_FILENAME_LIKE_KEYS = frozenset({
+    "filename",
+    "file_name",
+    "original_filename",
+    "raw_filename",
+    "upload_filename",
+})
+
 
 def scrub_phi(text: str) -> str:
     """Replace PHI-like patterns with [REDACTED] before Langfuse emission."""
     for pattern in _PHI_PATTERNS:
         text = pattern.sub("[REDACTED]", text)
     return text
+
+
+# Pre-redacted filename pattern emitted by ``copilot_upload_redact_filename``
+# (PHP) and ``redact_filename`` (Python, ``app/routes.py``). Matches the
+# whole string ``upload-{8 hex chars}.{1-8 lowercase-alnum chars}``.
+_SAFE_REDACTED_FILENAME = _re.compile(r"^upload-[a-f0-9]{8}\.[a-z0-9]{1,8}$")
+
+
+def strip_filename_from_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    """AgDR-0084 / Plan §3.7 — defensively scrub filename-like keys from a
+    metadata dict before it lands in Langfuse trace + span emission.
+
+    The PHP gateway redacts uploaded filenames to ``"upload-{sha8}.{ext}"``
+    at the boundary, so a well-behaved emission path already carries the
+    safe form. This helper is the last line of defense: if a value at a
+    filename-like key does NOT match the ``upload-{sha8}.{ext}`` shape,
+    replace it wholesale with ``"[REDACTED-FILENAME]"`` rather than
+    relying on regex pattern matching against arbitrary PHI shapes
+    (``scrub_phi`` uses ``\\b`` word boundaries which silently miss ISO
+    dates embedded in underscore-separated filenames). The replacement
+    is intentionally information-free — if a future audit needs to
+    correlate a redacted log line back to a document, the
+    co-emitted ``document_sha256`` field is the right pivot.
+
+    Returns a NEW dict (not mutated in place) so callers can safely pass
+    the result to ``client.trace(metadata=...)`` without affecting the
+    caller's local state.
+    """
+    out: dict[str, Any] = {}
+    for key, value in metadata.items():
+        if key in _FILENAME_LIKE_KEYS and isinstance(value, str):
+            out[key] = value if _SAFE_REDACTED_FILENAME.match(value) else "[REDACTED-FILENAME]"
+        elif isinstance(value, dict):
+            out[key] = strip_filename_from_metadata(value)
+        else:
+            out[key] = value
+    return out
 
 try:
     from langfuse import Langfuse

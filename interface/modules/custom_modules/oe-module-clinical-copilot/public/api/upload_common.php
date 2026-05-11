@@ -47,6 +47,35 @@ function copilot_upload_string(mixed $value, string $default = ''): string
     return is_string($value) ? $value : $default;
 }
 
+/**
+ * AgDR-0084 / Plan §3.7 — produce a PHI-free filename for the uploaded
+ * document. The original filename from the multipart upload commonly
+ * carries patient name + MRN + DOB; using it as documents.name or in
+ * log lines would leak PHI into clinician-visible surfaces, audit logs,
+ * sidecar tracebacks, and Langfuse trace metadata.
+ *
+ * The replacement is deterministic per document body
+ * (`upload-{sha256_prefix_8}.{ext}`) so:
+ *   * the same content uploaded twice produces the same redacted name,
+ *     matching the AgDR-0063 SHA-dedup invariant;
+ *   * a future audit pivoting from the documents table to the
+ *     copilot_document_facts table via document SHA still works (the
+ *     SHA prefix in the name uniquely identifies the document);
+ *   * the extension is preserved so OpenEMR's mime/icon UI still works.
+ *
+ * The extension is restricted to a small allowlist of safe characters
+ * to avoid path-traversal or injection at any downstream consumer
+ * (`safe' to interpolate into log lines and SQL).
+ */
+function copilot_upload_redact_filename(string $rawName, string $sha256): string
+{
+    $ext = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
+    if ($ext === '' || preg_match('/^[a-z0-9]{1,8}$/', $ext) !== 1) {
+        $ext = 'bin';
+    }
+    return sprintf('upload-%s.%s', substr($sha256, 0, 8), $ext);
+}
+
 function copilot_upload_detect_mime(string $tmpPath, string $fallback): string
 {
     if (class_exists(\finfo::class)) {
@@ -254,6 +283,18 @@ function copilot_upload_handle(string $docType): void
         if (!is_string($sha256) || strlen($sha256) !== 64) {
             throw new \RuntimeException('sha256_compute_failed');
         }
+
+        // AgDR-0084 / Plan §3.7 — strip PHI from the uploaded filename
+        // BEFORE it lands in OpenEMR's `documents` table, the sidecar
+        // multipart request, or any log line. The user's filename can
+        // carry patient name + MRN + DOB (e.g. "smith_anne_dob_1962-04-14_lipid.pdf").
+        // Replacing with a SHA-prefixed shape gives us a deterministic-per-doc,
+        // PHI-free identifier that's still traceable via the SHA lookup. The
+        // doc_type is preserved separately in documents.foreign_id /
+        // copilot_document_facts.doc_type so the UI can still classify the
+        // file without seeing the original name.
+        $originalName = copilot_upload_redact_filename($originalName, $sha256);
+
         $duplicate = false;
         $existing = copilot_upload_lookup_existing_document($pid, $sha256);
         if ($existing !== null) {

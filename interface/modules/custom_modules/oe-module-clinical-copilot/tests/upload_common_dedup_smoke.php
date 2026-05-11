@@ -61,8 +61,18 @@ foreach (array_slice($cliArgs, 1) as $arg) {
     }
 }
 
+/** @var array<string, array<string, mixed>> $report */
 $report = [];
 $failures = 0;
+
+/**
+ * Narrow a phpstan-`mixed` QueryUtils::fetchSingleValue result to int per
+ * AgDR-0082's "narrow before cast" discipline.
+ */
+function _dedup_smoke_int(mixed $raw): int
+{
+    return is_numeric($raw) ? (int) $raw : 0;
+}
 
 // ----------------------------------------------------------------------
 // Prereq: does the sha_index table exist?
@@ -148,10 +158,10 @@ try {
     // Lookup should still return null because documents.id=999999999 doesn't exist.
     $orphanLookup = copilot_upload_lookup_existing_document($testPid, $testSha);
 
-    $test2Pass = ((int) $indexCount === 1) && ($orphanLookup === null);
+    $test2Pass = (_dedup_smoke_int($indexCount) === 1) && ($orphanLookup === null);
     $report['test_2_orphan_row_returns_null'] = [
         'pass' => $test2Pass,
-        'index_count' => (int) $indexCount,
+        'index_count' => _dedup_smoke_int($indexCount),
         'lookup_result' => $orphanLookup === null ? 'null (orphan branch)' : 'non-null (BUG)',
     ];
     if (!$test2Pass) {
@@ -174,10 +184,10 @@ try {
         'c',
         [$testPid, $testSha],
     );
-    $test3Pass = (int) $indexCountAfterDup === 1;
+    $test3Pass = _dedup_smoke_int($indexCountAfterDup) === 1;
     $report['test_3_record_sha_idempotent'] = [
         'pass' => $test3Pass,
-        'index_count' => (int) $indexCountAfterDup,
+        'index_count' => _dedup_smoke_int($indexCountAfterDup),
     ];
     if (!$test3Pass) {
         $failures++;
@@ -212,22 +222,31 @@ if ($json) {
     echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } else {
     foreach ($report as $name => $row) {
-        if (isset($row['skip'])) {
-            echo "[SKIP] {$name}: {$row['skip']}\n";
+        /** @var array<string, mixed> $row */
+        if (array_key_exists('skip', $row)) {
+            $skip = $row['skip'];
+            echo "[SKIP] {$name}: " . (is_string($skip) ? $skip : '') . "\n";
             continue;
         }
-        $status = ($row['pass'] ?? false) ? 'PASS' : 'FAIL';
+        $passVal = $row['pass'] ?? false;
+        $status = ($passVal === true) ? 'PASS' : 'FAIL';
         echo "[{$status}] {$name}";
-        if (isset($row['index_count'])) {
-            echo " (index_count={$row['index_count']}";
-            if (isset($row['lookup_result'])) {
-                echo ", lookup={$row['lookup_result']}";
+        if (array_key_exists('index_count', $row)) {
+            $ic = $row['index_count'];
+            echo " (index_count=" . (is_scalar($ic) ? (string) $ic : '?');
+            if (array_key_exists('lookup_result', $row)) {
+                $lr = $row['lookup_result'];
+                echo ", lookup=" . (is_string($lr) ? $lr : '?');
             }
             echo ")";
-        } elseif (isset($row['result'])) {
-            echo " (result={$row['result']})";
-        } elseif (isset($row['fail'])) {
-            echo " — {$row['fail']}: " . ($row['message'] ?? '');
+        } elseif (array_key_exists('result', $row)) {
+            $r = $row['result'];
+            echo " (result=" . (is_string($r) ? $r : '?') . ")";
+        } elseif (array_key_exists('fail', $row)) {
+            $fail = $row['fail'];
+            $msg = $row['message'] ?? '';
+            echo " — " . (is_string($fail) ? $fail : '?') . ": "
+                . (is_string($msg) ? $msg : '');
         }
         echo "\n";
     }

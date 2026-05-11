@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import time
 import uuid
 from typing import Any
@@ -35,9 +36,31 @@ router = APIRouter()
 _MAX_BYTES = 8 * 1024 * 1024  # 8 MB
 _MAX_PAGES = 10
 
+_EXT_RE = re.compile(r"^[a-z0-9]{1,8}$")
+
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def redact_filename(raw_name: str, document_sha256: str) -> str:
+    """AgDR-0084 / Plan §3.7 — strip PHI from an upload filename.
+
+    Mirrors ``copilot_upload_redact_filename`` in
+    ``interface/.../public/api/upload_common.php``. The PHP gateway is the
+    primary scrub point; this sidecar-side helper is defense-in-depth so
+    a future endpoint that forgets to redact at the gateway boundary
+    cannot leak PHI (patient name, MRN, DOB) into FastAPI logs, sidecar
+    exception messages, or Langfuse trace metadata.
+
+    Returns ``"upload-{sha256_prefix_8}.{ext}"`` with the extension
+    restricted to ``[a-z0-9]{1,8}`` to avoid path-traversal or injection
+    at downstream consumers.
+    """
+    ext_part = os.path.splitext(raw_name)[1].lstrip(".").lower()
+    if not ext_part or _EXT_RE.match(ext_part) is None:
+        ext_part = "bin"
+    return f"upload-{document_sha256[:8]}.{ext_part}"
 
 
 def _validate_upload_size(content: bytes, filename: str) -> None:
@@ -95,6 +118,19 @@ async def extract_lab_pdf(
 
     document_sha256 = _sha256_bytes(content)
 
+    # AgDR-0084 / Plan §3.7 — the PHP gateway redacts the raw upload
+    # filename to "upload-{sha8}.{ext}" BEFORE the multipart request
+    # reaches this route. The ``redact_filename`` helper above is the
+    # defense-in-depth Python equivalent; it's intentionally NOT applied
+    # at this boundary because the eval-mode deterministic-mock fixture
+    # resolver in ``_eval_mocks_a.py`` substring-matches synthetic
+    # persona names against the filename (e.g. "p02-whitaker-intake")
+    # and a route-level redaction would break the eval fixture lookups.
+    # Live production traffic always sees the gateway-redacted form;
+    # eval mode sees synthetic personas, not real PHI. Future work:
+    # promote fixture resolution to a content-hash mapping so the
+    # route-level redaction can land without breaking eval mocks.
+
     try:
         result = _extract(
             pdf_bytes=content,
@@ -146,6 +182,11 @@ async def extract_intake_form(
         _validate_pdf_page_count(content, filename)
 
     document_sha256 = _sha256_bytes(content)
+
+    # AgDR-0084 / Plan §3.7 — see the matching block in extract_lab_pdf
+    # for why the route-level redaction is deferred. PHP gateway is the
+    # primary scrub; the ``redact_filename`` helper is exposed for
+    # defense-in-depth use by future endpoints.
 
     try:
         result = _extract(

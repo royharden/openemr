@@ -68,8 +68,18 @@ foreach (array_slice($cliArgs, 1) as $arg) {
     }
 }
 
+/** @var array<string, array<string, mixed>> $report */
 $report = [];
 $failures = 0;
+
+/**
+ * Narrow a phpstan-`mixed` QueryUtils::fetchSingleValue result to int per
+ * AgDR-0082's "narrow before cast" discipline.
+ */
+function _dfr_smoke_int(mixed $raw): int
+{
+    return is_numeric($raw) ? (int) $raw : 0;
+}
 
 // ----------------------------------------------------------------------
 // Prereq: does the table exist? If not, SKIP all three tests.
@@ -170,11 +180,11 @@ try {
         'c',
         [$idempotencyKey1],
     );
-    $test1Pass = ($insertedFirst > 0) && ((int) $countAfterFirst === 1);
+    $test1Pass = ($insertedFirst > 0) && (_dfr_smoke_int($countAfterFirst) === 1);
     $report['test_1_first_insert'] = [
         'pass' => $test1Pass,
         'last_insert_id' => $insertedFirst,
-        'db_count' => (int) $countAfterFirst,
+        'db_count' => _dfr_smoke_int($countAfterFirst),
     ];
     if (!$test1Pass) {
         $failures++;
@@ -200,11 +210,11 @@ try {
         'c',
         [$idempotencyKey1],
     );
-    $test2Pass = ($insertedSecond === 0) && ((int) $countAfterSecond === 1);
+    $test2Pass = ($insertedSecond === 0) && (_dfr_smoke_int($countAfterSecond) === 1);
     $report['test_2_idempotent_reinsert'] = [
         'pass' => $test2Pass,
         'last_insert_id' => $insertedSecond,
-        'db_count' => (int) $countAfterSecond,
+        'db_count' => _dfr_smoke_int($countAfterSecond),
     ];
     if (!$test2Pass) {
         $failures++;
@@ -230,11 +240,11 @@ try {
         'c',
         [$idempotencyKey2],
     );
-    $test3Pass = ($insertedThird > 0) && ((int) $countForKey2 === 1);
+    $test3Pass = ($insertedThird > 0) && (_dfr_smoke_int($countForKey2) === 1);
     $report['test_3_new_fieldpath_inserts'] = [
         'pass' => $test3Pass,
         'last_insert_id' => $insertedThird,
-        'db_count' => (int) $countForKey2,
+        'db_count' => _dfr_smoke_int($countForKey2),
     ];
     if (!$test3Pass) {
         $failures++;
@@ -272,16 +282,28 @@ if ($json) {
     echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } else {
     foreach ($report as $name => $row) {
-        if (isset($row['skip'])) {
-            echo "[SKIP] {$name}: {$row['skip']}\n";
+        // phpstan-friendly accessor: keys vary per branch (skip / pass / fail);
+        // re-type as a plain string-keyed map so phpstan doesn't lock the
+        // union shape and complain about offsets it can't see in every arm.
+        /** @var array<string, mixed> $row */
+        if (array_key_exists('skip', $row)) {
+            $skip = $row['skip'];
+            echo "[SKIP] {$name}: " . (is_string($skip) ? $skip : '') . "\n";
             continue;
         }
-        $status = ($row['pass'] ?? false) ? 'PASS' : 'FAIL';
+        $passVal = $row['pass'] ?? false;
+        $status = ($passVal === true) ? 'PASS' : 'FAIL';
         echo "[{$status}] {$name}";
-        if (isset($row['last_insert_id'])) {
-            echo " (last_insert_id={$row['last_insert_id']}, db_count={$row['db_count']})";
-        } elseif (isset($row['fail'])) {
-            echo " — {$row['fail']}: " . ($row['message'] ?? '');
+        if (array_key_exists('last_insert_id', $row)) {
+            $lid = $row['last_insert_id'];
+            $dbc = $row['db_count'] ?? '?';
+            echo " (last_insert_id=" . (is_scalar($lid) ? (string) $lid : '?')
+                . ", db_count=" . (is_scalar($dbc) ? (string) $dbc : '?') . ")";
+        } elseif (array_key_exists('fail', $row)) {
+            $fail = $row['fail'];
+            $msg = $row['message'] ?? '';
+            echo " — " . (is_string($fail) ? $fail : '?') . ": "
+                . (is_string($msg) ? $msg : '');
         }
         echo "\n";
     }
