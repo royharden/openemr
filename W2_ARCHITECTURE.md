@@ -318,7 +318,7 @@ trace_id: <UUID>
 
 **Cost tracking:**
 - Per-turn: track Sonnet (extraction), Haiku (synthesis), Voyage (embedding), Cohere (rerank) usage.
-- Aggregate: p50/p95 latencies, cost per extraction, cost per answer.
+- Aggregate: p50/p95 latencies, cost per extraction, cost per answer. Full Wk2 breakdown + canary methodology in [`agentdocs/cost_analysis_Wk2.md`](agentdocs/cost_analysis_Wk2.md) (see `latency_percentiles.py` for the p50/p95 helper).
 
 ### 7.2 Startup Validation
 

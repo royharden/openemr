@@ -34,11 +34,21 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
         $patientHash = hash('sha256', $patientUuid);
 
         try {
+            // AgDR-0065 — LEFT JOIN copilot_fact_to_result_map so DocumentFact
+            // packets can surface the FHIR Observation URL and OpenEMR Lab Review
+            // URL on the source chip. The join is nullable: intake facts (and
+            // any lab fact whose LabResultWriter run failed) will simply have
+            // procedure_result_uuid_bin = NULL and the chip falls back to the
+            // bbox overlay only.
             /** @var list<array<string, mixed>> $rows */
             $rows = QueryUtils::fetchRecords(
-                'SELECT f.*, d.id AS document_id, d.uuid AS source_uuid_bin, d.url AS document_url, d.name AS document_name
+                'SELECT f.*, d.id AS document_id, d.uuid AS source_uuid_bin,
+                        d.url AS document_url, d.name AS document_name,
+                        m.procedure_result_id, m.procedure_result_uuid AS procedure_result_uuid_bin,
+                        m.procedure_order_id, m.procedure_report_id
                    FROM `copilot_document_facts` f
               LEFT JOIN `documents` d ON d.uuid = f.document_uuid
+              LEFT JOIN `copilot_fact_to_result_map` m ON m.copilot_document_fact_id = f.id
                   WHERE f.patient_uuid_hash = ?
                ORDER BY f.extracted_at DESC, f.id DESC
                   LIMIT 40',
@@ -68,6 +78,24 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
                 $sourceUuid = UuidRegistry::uuidToString($sourceUuidBin);
             }
 
+            // AgDR-0065 — if this fact has been written to the native lab chain,
+            // surface its FHIR Observation UUID and Lab Review URL so the chip
+            // popover can render the dual "View in OpenEMR Lab Review" /
+            // "View as FHIR Observation" links.
+            $procedureResultUuid = null;
+            $procedureResultUuidBin = $row['procedure_result_uuid_bin'] ?? null;
+            if (is_string($procedureResultUuidBin) && strlen($procedureResultUuidBin) === 16) {
+                $procedureResultUuid = UuidRegistry::uuidToString($procedureResultUuidBin);
+            }
+            $webRoot = OEGlobalsBag::getInstance()->getWebRoot();
+            $fhirObservationUrl = $procedureResultUuid !== null
+                ? $webRoot . '/apis/default/fhir/Observation/' . rawurlencode($procedureResultUuid)
+                : null;
+            $procedureOrderId = self::idStringOrNull($row['procedure_order_id'] ?? null);
+            $labReviewUrl = $procedureOrderId !== null
+                ? $webRoot . '/interface/orders/orders_results.php?procedure_order_id=' . rawurlencode($procedureOrderId)
+                : null;
+
             $extra = [
                 'source_type' => 'document_extract',
                 'field_or_chunk_id' => $fieldPath,
@@ -80,6 +108,9 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
                 'document_sha256' => self::stringOrNull($row['document_sha256'] ?? null),
                 'document_name' => self::stringOrNull($row['document_name'] ?? null),
                 'doc_url' => self::documentUrl($pid, self::idStringOrNull($row['document_id'] ?? null)),
+                'procedure_result_uuid' => $procedureResultUuid,
+                'fhir_observation_url' => $fhirObservationUrl,
+                'openemr_lab_review_url' => $labReviewUrl,
             ];
 
             $packets[] = new PacketDto(

@@ -137,6 +137,42 @@ final class DocumentUploadController
     }
 
     /**
+     * Extraction-only path for the demo-mode intake-create endpoint (AgDR-0066).
+     *
+     * The standard uploadIntakeForm() expects an existing patient_uuid because
+     * it persists facts immediately. For the "create patient FROM intake"
+     * flow we need to inspect the extracted demographics before a patient
+     * record exists. This method runs the sidecar extraction with a stable
+     * placeholder hash and returns the payload without writing to
+     * copilot_document_facts. The caller is responsible for invoking
+     * DocumentFactsRepository::persistExtractedDocument() once a patient
+     * has been created.
+     *
+     * The placeholder hash is deterministic per upload (SHA-256 of the file
+     * content) so re-running the same file produces the same trace IDs and
+     * Langfuse correlation. The sidecar treats it as an opaque tag.
+     *
+     * @param string $tmpPath
+     * @param string $originalName
+     * @param string $mimeType
+     * @return array<string, mixed>  ExtractedDocument payload, no DB writes
+     * @throws \RuntimeException on sidecar failure or size/page/MIME violation
+     */
+    public function extractIntakeForm(
+        string $tmpPath,
+        string $originalName,
+        string $mimeType,
+    ): array {
+        $this->validateMimeType($mimeType, $originalName);
+        $content = $this->readAndValidate($tmpPath, $originalName);
+        $contentHash = hash('sha256', $content);
+        // The sidecar wants a patient_uuid_hash purely as a correlation tag —
+        // use the document hash so the same file always hits the same trace
+        // bucket pre-patient. The real patient hash is set when facts persist.
+        return $this->callSidecar('/v1/extract/intake-form', $content, $originalName, $contentHash);
+    }
+
+    /**
      * Validate that the declared MIME type is in the allowed list.
      *
      * @throws \RuntimeException if the MIME type is not permitted.

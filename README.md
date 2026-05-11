@@ -23,7 +23,7 @@
 > | Eval cases + runner | `agent/copilot-api/evals/` |
 > | Demo data seed (synthetic) | [`agent/copilot-api/demo/seed_demo_patient.sql`](agent/copilot-api/demo/seed_demo_patient.sql) |
 > | Project planning & architecture | `planning/` |
-> | **AI Cost Analysis** (per-turn + 100 / 1K / 10K / 100K users) | [`planning/cost_analysis.md`](planning/cost_analysis.md) |
+> | **AI Cost Analysis** (per-turn + 100 / 1K / 10K / 100K users) | [`planning/cost_analysis.md`](planning/cost_analysis.md); Wk2 multimodal breakdown + latency canary in [`agentdocs/cost_analysis_Wk2.md`](agentdocs/cost_analysis_Wk2.md) |
 > | Audit & user docs | [`AUDIT.md`](AUDIT.md), [`Users.md`](Users.md) |
 > | Agent work logs & decisions | `agentdocs/` |
 > |                                                              |                                                              |
