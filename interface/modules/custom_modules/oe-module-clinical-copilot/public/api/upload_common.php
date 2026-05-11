@@ -293,8 +293,19 @@ function copilot_upload_handle(string $docType): void
         // OpenEMR's native lab chain so FhirObservationLaboratoryService
         // surfaces them. Best-effort: if the writer throws, the upload still
         // succeeds with the extracted facts intact in copilot_document_facts.
+        //
+        // Plan §4.3 (audit finding #18): gate explicitly on !$duplicate.
+        // Previously the writer ran on every lab upload and avoided
+        // double-writes only as an emergent property of
+        // `LabResultWriter::loadUnmappedLabFacts` returning zero rows on a
+        // re-upload (the AgDR-0067 SELECT-FOR-UPDATE + map re-check also
+        // catches the race). Making the invariant explicit here means the
+        // intent — "writer runs only when this upload is the first one
+        // for the (patient_id, sha256) pair" — is visible at the call site,
+        // and a future refactor of `loadUnmappedLabFacts` cannot silently
+        // turn a duplicate upload into a partial-rewrite.
         $labWriteSummary = ['written' => 0, 'skipped' => 0];
-        if ($docType === 'lab_pdf') {
+        if ($docType === 'lab_pdf' && !$duplicate) {
             try {
                 $writer = new LabResultWriter($logger);
                 $documentUuidStr = UuidRegistry::uuidToString($documentUuidBin);

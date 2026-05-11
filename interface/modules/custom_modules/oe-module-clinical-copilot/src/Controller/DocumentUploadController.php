@@ -152,13 +152,25 @@ final class DocumentUploadController
      * content) so re-running the same file produces the same trace IDs and
      * Langfuse correlation. The sidecar treats it as an opaque tag.
      *
+     * @internal AUTHORIZED CALLER ONLY: `public/api/create_patient_from_intake.php`
+     *           (the demo-mode intake → patient-create flow, AgDR-0066/0068).
+     *           This method bypasses the normal `uploadIntakeForm` patient-uuid
+     *           gate because it runs BEFORE the patient row exists. Calling
+     *           it from any other route would leak sidecar extraction without
+     *           the triple-gate (COPILOT_DEMO_MODE env var + CSRF +
+     *           admin/super ACL) that `create_patient_from_intake.php`
+     *           enforces. Plan_wk2_Claude_Next05 §3.6 (audit finding "Verified
+     *           Safe" — paper-trail). Renamed from `extractIntakeForm` to
+     *           `extractIntakeFormForCreateEndpoint` to make the misuse
+     *           visible at every call site.
+     *
      * @param string $tmpPath
      * @param string $originalName
      * @param string $mimeType
      * @return array<string, mixed>  ExtractedDocument payload, no DB writes
      * @throws \RuntimeException on sidecar failure or size/page/MIME violation
      */
-    public function extractIntakeForm(
+    public function extractIntakeFormForCreateEndpoint(
         string $tmpPath,
         string $originalName,
         string $mimeType,

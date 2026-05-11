@@ -194,8 +194,47 @@ function copilot_create_demographics_from_extract(array $payload): array
 }
 
 /**
- * Coerce a raw DOB string to OpenEMR's "Y-m-d" shape. Accepts the most
- * common formats handwritten on intake forms. Returns null on failure.
+ * Thrown by copilot_create_normalize_dob when the raw DOB parses validly
+ * as BOTH m/d/Y and d/m/Y AND the two interpretations yield different
+ * dates. Caller surfaces a 422 with both candidates so the operator can
+ * clarify rather than the parser silently picking one (Plan §4.1, audit
+ * finding #16).
+ */
+final class AmbiguousDobException extends \RuntimeException
+{
+    /**
+     * @param list<string> $candidates ISO YYYY-MM-DD strings, one per
+     *                                 valid interpretation.
+     */
+    public function __construct(public readonly array $candidates)
+    {
+        parent::__construct('ambiguous_dob');
+    }
+}
+
+/**
+ * Coerce a raw DOB string to OpenEMR's "Y-m-d" shape. Accepts ISO,
+ * unambiguous wordy formats, and (strict-mode) numeric formats.
+ *
+ * Plan §4.1 (audit finding #16): the previous implementation tried
+ * m/d/Y before d/m/Y in a fall-through loop, silently coercing
+ * "05/03/1962" to May 3 even when a European-handwritten intake meant
+ * March 5. The permissive \DateTimeImmutable fallback compounded the
+ * silent-coercion risk. Replaced with an explicit ambiguity check:
+ *
+ *   1. Y-m-d ISO first — unambiguous.
+ *   2. Wordy English ("Aug 14, 1962" / "August 14, 1962") — unambiguous.
+ *   3. d-m-Y (dash-separated European) — strict (must round-trip).
+ *   4. Numeric slash forms: try BOTH m/d/Y AND d/m/Y; if both parse and
+ *      yield distinct dates, throw AmbiguousDobException so the caller
+ *      can 422 with both candidates.
+ *
+ * Returns null when no parser matches — caller surfaces "insufficient
+ * demographics" so the operator can correct the form rather than
+ * accepting a silently wrong date.
+ *
+ * @throws AmbiguousDobException when the raw value parses as both
+ *                                m/d/Y AND d/m/Y with different results.
  */
 function copilot_create_normalize_dob(?string $raw): ?string
 {
@@ -203,22 +242,55 @@ function copilot_create_normalize_dob(?string $raw): ?string
         return null;
     }
     $trimmed = trim($raw);
-    foreach (['Y-m-d', 'm/d/Y', 'n/j/Y', 'd-m-Y', 'd/m/Y', 'M j, Y', 'F j, Y'] as $format) {
-        $dt = \DateTime::createFromFormat($format, $trimmed);
-        if ($dt instanceof \DateTime && $dt->format($format) === $trimmed) {
+
+    // 1. ISO Y-m-d first — unambiguous.
+    $iso = \DateTime::createFromFormat('Y-m-d', $trimmed);
+    if ($iso instanceof \DateTime && $iso->format('Y-m-d') === $trimmed) {
+        return $iso->format('Y-m-d');
+    }
+
+    // 2. Wordy English ("Aug 14, 1962" / "August 14, 1962") — unambiguous.
+    foreach (['M j, Y', 'F j, Y'] as $wordyFormat) {
+        $dt = \DateTime::createFromFormat($wordyFormat, $trimmed);
+        if ($dt instanceof \DateTime && $dt->format($wordyFormat) === $trimmed) {
             return $dt->format('Y-m-d');
         }
     }
-    // Last-chance permissive parse.
-    try {
-        $dt = new \DateTimeImmutable($trimmed);
-        $isoLike = $dt->format('Y-m-d');
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $isoLike) === 1) {
-            return $isoLike;
-        }
-    } catch (\DateMalformedStringException) {
-        // fall through
+
+    // 3. d-m-Y (dash-separated European) — explicit enough to accept.
+    $dashEu = \DateTime::createFromFormat('d-m-Y', $trimmed);
+    if ($dashEu instanceof \DateTime && $dashEu->format('d-m-Y') === $trimmed) {
+        return $dashEu->format('Y-m-d');
     }
+
+    // 4. Numeric slash forms — try BOTH conventions and surface ambiguity.
+    //    A value like "05/03/1962" is May 3 (US) or March 5 (EU); we cannot
+    //    pick safely without operator input.
+    $usDt = \DateTime::createFromFormat('m/d/Y', $trimmed);
+    $usValid = $usDt instanceof \DateTime && $usDt->format('m/d/Y') === $trimmed;
+    $euDt = \DateTime::createFromFormat('d/m/Y', $trimmed);
+    $euValid = $euDt instanceof \DateTime && $euDt->format('d/m/Y') === $trimmed;
+
+    if ($usValid && $euValid) {
+        $usIso = $usDt->format('Y-m-d');
+        $euIso = $euDt->format('Y-m-d');
+        if ($usIso !== $euIso) {
+            throw new AmbiguousDobException([$usIso, $euIso]);
+        }
+        return $usIso; // Both conventions agree (e.g. "12/12/1962").
+    }
+    if ($usValid) {
+        return $usDt->format('Y-m-d');
+    }
+    if ($euValid) {
+        return $euDt->format('Y-m-d');
+    }
+
+    // Permissive \DateTimeImmutable fallback intentionally REMOVED per
+    //    Plan §4.1 audit finding #16. A handwritten intake form whose DOB
+    //    none of the strict parsers handle should surface as
+    //    "insufficient_demographics" so the operator can correct it,
+    //    rather than silently coercing into a probable-wrong date.
     return null;
 }
 
@@ -293,11 +365,15 @@ function copilot_create_normalize_sex(?string $raw): string
 $logger = ServiceContainer::getLogger();
 try {
     // 1. Demo-mode gate — primary safety control. Production has this unset.
+    //
+    //    Plan §3.5 (audit finding #15): when the env var is off, the endpoint
+    //    is INVISIBLE to attackers. Return a generic 404 rather than a 403
+    //    that leaks the existence + env-var name of a privileged demo flow.
+    //    The gating rationale (env var + CSRF + admin ACL) is preserved in
+    //    the file-header docblock and AgDR-0066 — the response body is
+    //    generic by design.
     if (getenv('COPILOT_DEMO_MODE') !== '1') {
-        copilot_create_send_json(403, [
-            'error' => 'demo_mode_disabled',
-            'detail' => 'This endpoint requires COPILOT_DEMO_MODE=1 in the API container env.',
-        ]);
+        copilot_create_send_json(404, ['error' => 'not_found']);
     }
 
     $request = Request::createFromGlobals();
@@ -341,8 +417,10 @@ try {
             $uploadedFile->getClientMimeType() ?: 'application/octet-stream',
         );
 
-        // 5. Sidecar extraction — no DB writes yet. extractIntakeForm() is the
-        //    extraction-only sibling of uploadIntakeForm() (DocumentUploadController).
+        // 5. Sidecar extraction — no DB writes yet. extractIntakeFormForCreateEndpoint()
+        //    is the @internal, this-endpoint-only extraction sibling of uploadIntakeForm()
+        //    (DocumentUploadController). Plan §3.6 renamed it to make accidental misuse
+        //    visible at every call site.
         $sidecarBaseUrl = getenv('COPILOT_API_BASE_URL');
         $sidecarSecret = getenv('COPILOT_OPENEMR_GATEWAY_SHARED_SECRET');
         if (!is_string($sidecarBaseUrl) || $sidecarBaseUrl === '' || !is_string($sidecarSecret) || $sidecarSecret === '') {
@@ -356,14 +434,26 @@ try {
             $logger,
         );
 
-        $payload = $controller->extractIntakeForm($scratch, $originalName, $mimeType);
+        $payload = $controller->extractIntakeFormForCreateEndpoint($scratch, $originalName, $mimeType);
 
         // 6. Parse + validate demographics. Without name + DOB we cannot create
         //    a patient — return 422 so the caller can decide what to do.
+        //    Plan §4.1 (audit finding #16): a DOB that parses as both m/d/Y
+        //    and d/m/Y with distinct results surfaces as `ambiguous_dob`
+        //    with both candidates so the operator can clarify.
         $demographics = copilot_create_demographics_from_extract($payload);
         $fname = $demographics['fname'] ?? null;
         $lname = $demographics['lname'] ?? null;
-        $dob = copilot_create_normalize_dob($demographics['DOB'] ?? null);
+        try {
+            $dob = copilot_create_normalize_dob($demographics['DOB'] ?? null);
+        } catch (AmbiguousDobException $ambiguous) {
+            copilot_create_send_json(422, [
+                'error' => 'ambiguous_dob',
+                'detail' => 'Intake DOB parsed as both US (m/d/Y) and European (d/m/Y) with distinct dates. Please clarify.',
+                'raw' => $demographics['DOB'] ?? null,
+                'candidates' => $ambiguous->candidates,
+            ]);
+        }
 
         if ($fname === null || $lname === null || $dob === null) {
             copilot_create_send_json(422, [
