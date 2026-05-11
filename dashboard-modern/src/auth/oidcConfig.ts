@@ -11,6 +11,8 @@
  * getRevocationEndpoint() will return null for this deployment.
  */
 
+import { toDevProxyUrl } from '@/config/openemrUrl'
+
 export type OidcConfig = Readonly<{
   issuer: string
   authorization_endpoint: string
@@ -27,7 +29,7 @@ export async function getOidcConfig(): Promise<OidcConfig> {
   if (cached !== null) return cached
 
   const baseUrl = import.meta.env.VITE_OPENEMR_BASE_URL as string
-  const url = `${baseUrl}/oauth2/default/.well-known/openid-configuration`
+  const url = toDevProxyUrl(`${baseUrl}/oauth2/default/.well-known/openid-configuration`)
 
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },

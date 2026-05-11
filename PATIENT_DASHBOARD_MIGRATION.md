@@ -179,24 +179,16 @@ gathering:
    AllergyIntolerance / Condition** — silently honored, silently
    ignored, or rejected?
 
-Both probes were **deferred to W-A's first session**. The probe
-driver at `dashboard-modern/scripts/probe.mjs` successfully drives the
-PKCE auth code flow through OpenEMR's login screen and stalls at
-`/oauth2/default/smart/patient-select` — the headless click-through
-on that picker was more reverse-engineering than W0's budget allowed.
+Both probes were completed after the first scaffold pass. The probe
+driver at `dashboard-modern/scripts/probe.mjs` now drives the
+PKCE auth code flow through OpenEMR's login, patient selection, consent,
+token exchange, and bound FHIR queries. The final artifact is committed
+at `dashboard-modern/agentdocs/probe-results/probe.json`.
 
-The defaults that were locked regardless of probe outcome are the
-load-bearing implementation:
-- **Adapter-side status filtering is canonical** (AgDR-0087). Even if
-  a future probe shows server-side filters work, the client-side
-  filter stays the source of truth — it's the defense against the
-  documented OpenEMR pattern of silently ignoring unknown search
-  parameters.
-- **Per-participant Practitioner follow-up reads default** (master
-  plan §5 W-C). Parallelism cap of 3. `_include` is filed under
-  AgDR-0086 only after a confirmed live probe. Until then, all
-  CareTeam Practitioner names are resolved by per-participant reads,
-  with backoff on missing IDs.
+Final outcomes:
+- **MedicationRequest intent split confirmed live.** Maria G.'s data returned 3 `intent=order` prescriptions and 1 `intent=plan` medication-list entry, validating the FHIR-only split.
+- **Server-side `clinical-status=active` is broken for this OpenEMR.** `AllergyIntolerance?patient=<id>` returned the active allergy, while adding `&clinical-status=active` returned zero rows. Adapter-side status filtering is therefore load-bearing, not just defensive.
+- **FHIR `_include` is not enabled for this dashboard.** Maria G. had no CareTeam rows, so the direct include probe was inconclusive; the surrogate `MedicationRequest:requester` include reduced a 4-entry query to zero. CareTeam continues to resolve Practitioner names with per-participant follow-up reads capped at 3 concurrent requests.
 
 Full report: `dashboard-modern/FHIR_QUERY_PROBES.md`.
 

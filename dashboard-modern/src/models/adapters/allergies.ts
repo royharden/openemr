@@ -2,6 +2,7 @@ import type { AllergyIntolerance } from '@/fhir/schemas/allergyIntolerance'
 import type { AllergiesView, AllergyDisplay, Criticality } from '@/models/dashboard'
 
 const NKDA_SNOMED_CODE = '716186003'
+const DATA_ABSENT_REASON_SYSTEM = 'http://terminology.hl7.org/CodeSystem/data-absent-reason'
 
 function getClinicalStatusCode(resource: AllergyIntolerance): string {
   return resource.clinicalStatus?.coding?.find((c) => c.code != null)?.code ?? 'unknown'
@@ -29,8 +30,33 @@ function getCriticality(resource: AllergyIntolerance): Criticality {
 
 function getSubstance(resource: AllergyIntolerance): string {
   const code = resource.code
-  if (code == null) return 'Unknown substance'
-  return code.text ?? code.coding?.[0]?.display ?? code.coding?.[0]?.code ?? 'Unknown substance'
+  const coding = code?.coding?.[0]
+  const codingDisplay = coding?.display ?? coding?.code
+  const narrativeText = stripNarrativeText(resource.text?.div)
+  const isDataAbsentUnknown =
+    coding?.system === DATA_ABSENT_REASON_SYSTEM &&
+    (coding.code?.toLowerCase() === 'unknown' || coding.display?.toLowerCase() === 'unknown')
+
+  if (code?.text != null && code.text.trim() !== '') return code.text
+  if (!isDataAbsentUnknown && codingDisplay != null && codingDisplay.trim() !== '') return codingDisplay
+  if (narrativeText != null) return narrativeText
+  if (codingDisplay != null && codingDisplay.trim() !== '') return codingDisplay
+  return 'Unknown substance'
+}
+
+function stripNarrativeText(html: string | undefined): string | null {
+  if (html == null) return null
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text === '' ? null : text
 }
 
 function getReactions(resource: AllergyIntolerance): ReadonlyArray<string> {

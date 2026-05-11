@@ -9,15 +9,24 @@
 import type Client from 'fhirclient/lib/Client'
 import { ready } from '@/auth/smartClient'
 import { redact } from '@/auth/redact'
+import { toDevProxyUrl } from '@/config/openemrUrl'
 import { z } from 'zod'
 
 export type FhirGet = <T>(path: string, schema: z.ZodType<T>) => Promise<T>
 
 let cached: Client | null = null
 
+function applyDevProxy(client: Client): Client {
+  client.state.serverUrl = toDevProxyUrl(client.state.serverUrl)
+  if (client.state.tokenUri != null) {
+    client.state.tokenUri = toDevProxyUrl(client.state.tokenUri)
+  }
+  return client
+}
+
 export async function getClient(): Promise<Client> {
   if (cached !== null) return cached
-  cached = await ready()
+  cached = applyDevProxy(await ready())
   return cached
 }
 

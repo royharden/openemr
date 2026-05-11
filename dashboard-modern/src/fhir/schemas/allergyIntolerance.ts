@@ -15,6 +15,13 @@ const CodeableConceptSchema = z
   })
   .passthrough()
 
+const NarrativeSchema = z
+  .object({
+    status: z.string().optional(),
+    div: z.string().optional(),
+  })
+  .passthrough()
+
 const ReactionSchema = z
   .object({
     substance: CodeableConceptSchema.optional(),
@@ -31,6 +38,7 @@ export const AllergyIntoleranceSchema = z
     clinicalStatus: CodeableConceptSchema.optional(),
     verificationStatus: CodeableConceptSchema.optional(),
     criticality: z.enum(['low', 'high', 'unable-to-assess']).optional(),
+    text: NarrativeSchema.optional(),
     code: CodeableConceptSchema.optional(),
     recordedDate: z.string().optional(),
     reaction: z.array(ReactionSchema).optional(),

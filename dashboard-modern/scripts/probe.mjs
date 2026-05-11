@@ -296,9 +296,13 @@ async function fhirGet(path) {
   } catch {
     // leave as text
   }
+  const responseHeaders = Object.fromEntries(res.headers.entries())
+  if (responseHeaders['set-cookie'] != null) {
+    responseHeaders['set-cookie'] = '[REDACTED_COOKIE]'
+  }
   return {
     status: res.status,
-    headers: Object.fromEntries(res.headers.entries()),
+    headers: responseHeaders,
     body: json ?? text,
   }
 }
@@ -354,6 +358,11 @@ console.log('[probe] running status-filter probe…')
 results.allergyPlain = await fhirGet(`/AllergyIntolerance?patient=${encodeURIComponent(pid)}`)
 results.allergyFiltered = await fhirGet(
   `/AllergyIntolerance?patient=${encodeURIComponent(pid)}&clinical-status=active`,
+)
+
+console.log('[probe] running laboratory Observation probe...')
+results.observationLabs = await fhirGet(
+  `/Observation?patient=${encodeURIComponent(pid)}&category=laboratory&_count=10&_sort=-effectiveDateTime`,
 )
 
 const out = {

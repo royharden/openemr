@@ -2,7 +2,7 @@
 
 A standalone Vite + React 19 + TypeScript SPA that authenticates via
 SMART-on-FHIR v2.2.0 and renders a modern patient dashboard for
-OpenEMR. Read-only consumer of OpenEMR's existing FHIR R4 API — zero
+OpenEMR. Read-only consumer of OpenEMR's existing FHIR R4 API - zero
 PHP edits, zero schema changes, zero Docker compose changes.
 
 This is the Wk2 *Surprise Challenge* deliverable. The legacy PHP
@@ -16,7 +16,7 @@ fig replacement for one bounded surface.
 |---|---|
 | Build | Vite 8 |
 | UI | React 19 + TypeScript 6 strict + `noUncheckedIndexedAccess` |
-| SMART/OAuth | `fhirclient` v2 (SMART Health IT) — `FHIR.oauth2.authorize()` / `ready()` / `client.request()` |
+| SMART/OAuth | `fhirclient` v2 (SMART Health IT) - `FHIR.oauth2.authorize()` / `ready()` / `client.request()` |
 | FHIR types | `@types/fhir/r4` |
 | Validation | Zod schemas at the FHIR boundary |
 | Server-state | TanStack Query v5 |
@@ -66,13 +66,14 @@ npm run dev                      # serves http://localhost:5173/
 > The Wk2 Surprise orchestrator already registered the SMART app on
 > 2026-05-10. The `client_id` is recorded in
 > `openemr/planning/Plan_wk2_Claude_Surprise01_2026-05-10_modern-patient-dashboard_status.md`
-> §K and committed to `.env.local`. **Most readers will not need to
-> repeat these steps.**
+> Section K. `.env.local` is intentionally gitignored, so copy the value there
+> when reproducing locally. **Most readers will not need to repeat these
+> registration steps.**
 
 This walkthrough exists for (a) re-registration / additional apps and
 (b) the migration defense doc.
 
-### Option A — RFC 7591 dynamic registration via curl (fastest)
+### Option A - RFC 7591 dynamic registration via curl (fastest)
 
 ```bash
 curl -k -X POST https://localhost:9300/oauth2/default/registration \
@@ -84,13 +85,13 @@ curl -k -X POST https://localhost:9300/oauth2/default/registration \
     "initiate_login_uri": "http://localhost:5173/launch.html",
     "grant_types": ["authorization_code", "refresh_token"],
     "response_types": ["code"],
-    "scope": "launch openid fhirUser offline_access patient/Patient.rs patient/AllergyIntolerance.rs patient/Condition.rs patient/MedicationRequest.rs patient/CareTeam.rs patient/Observation.rs patient/Practitioner.rs patient/Encounter.rs",
+    "scope": "launch launch/patient openid fhirUser offline_access patient/Patient.rs patient/AllergyIntolerance.rs patient/Condition.rs patient/MedicationRequest.rs patient/CareTeam.rs patient/Observation.rs patient/Practitioner.rs patient/Encounter.rs",
     "application_type": "web"
   }'
 ```
 
-> ⚠ **Lesson learned 2026-05-10:** Do NOT pass
-> `"token_endpoint_auth_method": "none"` in the registration body —
+> Warning: **Lesson learned 2026-05-10:** Do NOT pass
+> `"token_endpoint_auth_method": "none"` in the registration body -
 > OpenEMR's dynamic-registration endpoint rejects it with
 > `Unsupported token_endpoint_auth_method value : none`. Just omit the
 > field; OpenEMR returns the registration with empty `client_secret`
@@ -107,10 +108,10 @@ docker compose -f openemr/docker/development-easy/docker-compose.yml exec -T mys
 ```
 
 The response also returns a `registration_access_token` and
-`registration_client_uri` (RFC 7592). Save both — they let you
+`registration_client_uri` (RFC 7592). Save both - they let you
 GET / PUT / DELETE this client registration later without admin login.
 
-### Option B — Web UI
+### Option B - Web UI
 
 1. Browse to `https://localhost:9300/interface/smart/register-app.php`
    (admin login).
@@ -119,7 +120,7 @@ GET / PUT / DELETE this client registration later without admin login.
    `http://localhost:5173/index.html`. App Type: **Public**.
 3. Scopes (paste exactly):
    ```
-   launch openid fhirUser
+   launch launch/patient openid fhirUser
    patient/Patient.rs
    patient/AllergyIntolerance.rs
    patient/Condition.rs
@@ -128,12 +129,12 @@ GET / PUT / DELETE this client registration later without admin login.
    patient/Observation.rs
    patient/Practitioner.rs
    ```
-4. Submit → copy `client_id`.
-5. Administration → System → Clients → enable the new entry.
+4. Submit -> copy `client_id`.
+5. Administration -> System -> Clients -> enable the new entry.
 6. Paste `client_id` into `dashboard-modern/.env.local` as
    `VITE_SMART_CLIENT_ID`.
 
-## Two well-known endpoints — don't conflate them
+## Two well-known endpoints - don't conflate them
 
 | Purpose | URL | Used by |
 |---|---|---|
@@ -147,36 +148,43 @@ GET / PUT / DELETE this client registration later without admin login.
 | `VITE_OPENEMR_BASE_URL` | Root of the OpenEMR install. Used for OIDC discovery. |
 | `VITE_OPENEMR_FHIR_BASE_URL` | FHIR root. Passed as `iss` to fhirclient. |
 | `VITE_SMART_CLIENT_ID` | Public-client `client_id` from registration. |
-| `VITE_DEFAULT_SCOPES` | Space-separated SMART scopes. **Use `Patient.rs`, not `Patient.r`.** |
+| `VITE_DEFAULT_SCOPES` | Space-separated SMART scopes. Include `launch/patient` for standalone patient selection. **Use `Patient.rs`, not `Patient.r`.** |
 | `VITE_USE_MSW` | `1` boots MSW for offline dev/test; `0` hits the real API. |
 
 ## Troubleshooting
 
-- **CORS** — if the SPA cannot reach `/apis/default/fhir/*` from
-  `http://localhost:5173`, uncomment the `server.proxy` block in
-  `vite.config.ts` to proxy through the dev server. Pre-flight in §M of
-  the Surprise plan's status companion verified CORS is permissive on
-  this OpenEMR install, so the proxy should not be needed.
-- **Self-signed cert** — visit `https://localhost:9300/` once in your
+- **CORS / self-signed TLS after SMART consent** - in local dev, the SPA
+  keeps SMART authorization pointed at OpenEMR's real issuer but rewrites
+  post-auth FHIR/OIDC reads through Vite's same-origin proxy. If every
+  dashboard card says `Failed to fetch` after consent, restart
+  `npm run start:live` so `vite.config.ts` proxy changes are loaded, then
+  relaunch from `http://localhost:5173/launch.html?...`.
+- **Self-signed cert** - visit `https://localhost:9300/` once in your
   browser and accept the cert. Playwright bypasses this with
   `ignoreHTTPSErrors: true` (configured in `playwright.config.ts`).
-- **SMART app not enabled** — newly registered apps default to
+- **Maria G. has no Recent Lab Results** - the Week 1 seed creates
+  `procedure_order -> procedure_report -> procedure_result`, but OpenEMR's
+  FHIR Observation laboratory service also joins through
+  `procedure_order_code`. From repo root, run:
+  `Get-Content .\openemr\dashboard-modern\scripts\live-demo-lab-order-codes.sql | docker compose -f .\openemr\docker\development-easy\docker-compose.yml exec -T mysql mariadb -uroot -proot openemr`.
+  The script is idempotent and only bridges Maria G.'s demo lab rows.
+- **SMART app not enabled** - newly registered apps default to
   `is_enabled = 0`. Use the SQL UPDATE in "Register the SMART app"
   Option A or flip the toggle in the admin UI.
-- **Wrong SMART discovery URL** — `fhirclient` discovers from
+- **Wrong SMART discovery URL** - `fhirclient` discovers from
   `${iss}/.well-known/smart-configuration` where `iss` is the **FHIR
   base URL**, not the OAuth root. Setting `VITE_OPENEMR_FHIR_BASE_URL`
   correctly resolves this.
-- **Logout fails** — the SPA discovers `end_session_endpoint` from the
+- **Logout fails** - the SPA discovers `end_session_endpoint` from the
   OIDC config. Never hard-code `/oauth2/default/logout`. (OpenEMR does
   not advertise a `revocation_endpoint`; the logout flow degrades
-  gracefully when one is absent — clear sessionStorage, redirect to
+  gracefully when one is absent - clear sessionStorage, redirect to
   end_session.)
 
 ## Project layout
 
 See `openemr/planning/Plan_wk2_Claude_Surprise01_2026-05-10_modern-patient-dashboard.md`
-§4 for the full tree. High level:
+Section 4 for the full tree. High level:
 
 ```
 src/
@@ -186,8 +194,8 @@ src/
     schemas/  Zod schemas (one per FHIR resource we read)
     queries/  named query functions (one per dashboard concern)
   models/
-    dashboard.ts   FROZEN view-model contract — see CONTRACT.md
-    adapters/      FHIR resource → view model (status filtering here)
+    dashboard.ts   FROZEN view-model contract - see CONTRACT.md
+    adapters/      FHIR resource -> view model (status filtering here)
   components/
     PatientHeader, DashboardGrid, cards/*, states/*, ui/*
   routes/    Launch, Callback, Dashboard

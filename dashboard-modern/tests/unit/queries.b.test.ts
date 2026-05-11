@@ -119,6 +119,29 @@ describe('allergies adapter', () => {
     const view = adaptAllergies([resource])
     expect(view.items[0]!.substance).toBe('Unknown substance')
   })
+
+  it('OpenEMR live narrative fallback — data-absent unknown code displays narrative substance', () => {
+    const resource = AllergyIntoleranceSchema.parse({
+      resourceType: 'AllergyIntolerance',
+      id: 'live-allergy',
+      clinicalStatus: { coding: [{ code: 'active' }] },
+      text: {
+        status: 'generated',
+        div: "<div xmlns='http://www.w3.org/1999/xhtml'>Penicillin</div>",
+      },
+      code: {
+        coding: [
+          {
+            system: 'http://terminology.hl7.org/CodeSystem/data-absent-reason',
+            code: 'unknown',
+            display: 'Unknown',
+          },
+        ],
+      },
+    })
+    const view = adaptAllergies([resource])
+    expect(view.items[0]!.substance).toBe('Penicillin')
+  })
 })
 
 // ─── Conditions (Problem List) ────────────────────────────────────────────────

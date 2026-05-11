@@ -17,20 +17,20 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    // Dev-only CORS fallback. Uncomment if the SPA cannot reach OpenEMR's
-    // FHIR endpoints from http://localhost:5173.
-    // proxy: {
-    //   '/apis/default': {
-    //     target: 'https://localhost:9300',
-    //     changeOrigin: true,
-    //     secure: false,
-    //   },
-    //   '/oauth2/default': {
-    //     target: 'https://localhost:9300',
-    //     changeOrigin: true,
-    //     secure: false,
-    //   },
-    // },
+    // Dev-only CORS/TLS fallback. SMART authorize still uses OpenEMR's real
+    // issuer; post-auth FHIR/OIDC reads are rewritten to this same-origin proxy.
+    proxy: {
+      '/apis/default': {
+        target: 'https://localhost:9300',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/oauth2/default': {
+        target: 'https://localhost:9300',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   build: {
     sourcemap: true,

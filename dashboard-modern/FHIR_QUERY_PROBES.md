@@ -124,14 +124,21 @@ without it, the dashboard would show empty cards on real data.**
    (S256 code_challenge, fresh state).
 2. Drives a Playwright headless Chromium through the login screen
    (admin/pass).
-3. Reaches `/oauth2/default/smart/patient-select` (currently the
-   stopping point) — Workstream A extends from here.
-4. Captures the auth code via a `localhost:5173/**` route fulfiller.
+3. Selects Maria G. on `/oauth2/default/smart/patient-select`.
+4. Confirms consent and captures the auth code via a `localhost:5173/**`
+   route fulfiller.
 5. Exchanges code for token at `/oauth2/default/token`.
-6. Runs the three probe queries and writes results to
+6. Runs the probe queries and writes results to
    `agentdocs/probe-results/probe.json`.
 
-To run later (after extending the patient-select handler):
+The current probe set includes `Observation?patient=<uuid>&category=laboratory`
+so the live Recent Lab Results section is checked alongside medication,
+CareTeam, and AllergyIntolerance behavior. If Maria G. returns zero lab
+Observations, apply `scripts/live-demo-lab-order-codes.sql`; her demo
+`procedure_result` rows exist, but OpenEMR's FHIR laboratory search expects
+matching `procedure_order_code` rows.
+
+To run later:
 
 ```bash
 cd openemr/dashboard-modern
