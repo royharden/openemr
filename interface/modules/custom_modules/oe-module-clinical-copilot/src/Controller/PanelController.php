@@ -152,9 +152,10 @@ class PanelController
                 pdfWorkerSrc: <?php echo js_escape($assetBase . '/vendor/pdfjs/pdf.worker.min.js'); ?>
             };
         </script>
-        <!-- AgDR-0062: PDF.js required for the source-chip bbox overlay in copilot.js;
-             without this include window.pdfjsLib is undefined and the overlay
-             silently returns from showBboxOverlay(). Version pinned to match
+        <!-- AgDR-0062: PDF.js required for the source-chip preview drawer in copilot.js;
+             without this include window.pdfjsLib is undefined and the drawer
+             silently returns from openOrUpdateDrawer() (Phase 6.2 superseded the
+             prior showBboxOverlay() modal pattern). Version pinned to match
              the API surface copilot.js targets (getDocument, GlobalWorkerOptions).
              AgDR-0072: pdf.min.js + pdf.worker.min.js@3.11.174 are vendored under
              public/assets/vendor/pdfjs/ — eliminates the cdnjs supply-chain vector

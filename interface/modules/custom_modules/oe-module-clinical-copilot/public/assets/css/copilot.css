@@ -92,36 +92,40 @@
 }
 .copilot-footer { font-size: 0.75rem; }
 
-/* Wk2 Workstream A: PDF.js bbox overlay (Plan §6, AgDR-0039/0040) */
-.copilot-bbox-overlay {
+/*
+ * Wk2 Phase 6.2 / AgDR-0072: click-to-source preview drawer.
+ *
+ * Replaces the previous .copilot-bbox-overlay modal pattern (one-shot
+ * close-and-reopen) with a persistent right-side drawer that pins the
+ * most-recently-clicked source. The old .copilot-bbox-* classes have
+ * been intentionally removed — see copilot.js for the supersession
+ * comment.
+ */
+.copilot-preview-drawer {
     position: fixed;
-    inset: 0;
-    z-index: 9990;
-    background: rgba(0, 0, 0, 0.55);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: auto;
-}
-.copilot-bbox-canvas-wrapper {
-    position: relative;
-    max-width: 90vw;
-    max-height: 85vh;
-    overflow: auto;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100vh;
+    z-index: 9980;
     background: #fff;
-    border-radius: 4px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+    border-left: 4px solid #1976d2;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(0);
+    transition: transform 0.2s ease-out;
+    overflow: hidden;
 }
-.copilot-bbox-canvas-wrapper canvas {
-    display: block;
-    max-width: 100%;
+.copilot-preview-drawer.hidden {
+    transform: translateX(100%);
 }
-.copilot-bbox-close {
+.copilot-preview-drawer-close {
     position: absolute;
     top: 0.5rem;
     right: 0.75rem;
-    z-index: 9991;
-    background: rgba(255,255,255,0.85);
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.85);
     border: 1px solid #ccc;
     border-radius: 50%;
     width: 2rem;
@@ -131,7 +135,104 @@
     cursor: pointer;
     color: #333;
 }
-.copilot-bbox-close:hover { background: #f5f5f5; }
+.copilot-preview-drawer-close:hover { background: #f5f5f5; }
+.copilot-preview-drawer-header {
+    padding: 0.75rem 2.5rem 0.5rem 0.75rem;
+    background: #f0f6fb;
+    border-bottom: 1px solid #d0e0ee;
+    color: #0d3a66;
+}
+.copilot-preview-drawer-title {
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: #0d3a66;
+}
+.copilot-preview-drawer-meta {
+    display: grid;
+    grid-template-columns: 4.5rem 1fr;
+    column-gap: 0.5rem;
+    row-gap: 0.15rem;
+    margin: 0;
+    font-size: 0.8rem;
+}
+.copilot-preview-drawer-meta dt {
+    font-weight: 600;
+    color: #6c757d;
+}
+.copilot-preview-drawer-meta dd {
+    margin: 0;
+    color: #212529;
+    word-break: break-word;
+}
+.copilot-preview-drawer-links {
+    margin-top: 0.4rem;
+    font-size: 0.75rem;
+}
+.copilot-preview-drawer-banner {
+    padding: 0.5rem 0.75rem;
+    background: #fff7e6;
+    border-left: 3px solid #f0ad4e;
+    color: #5b4006;
+    font-size: 0.8rem;
+}
+.copilot-preview-drawer-canvas-wrapper {
+    flex: 1 1 auto;
+    overflow: auto;
+    background: #e7f1fb;
+    padding: 0.5rem;
+}
+.copilot-preview-drawer-canvas-wrapper canvas {
+    display: block;
+    max-width: 100%;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+.copilot-preview-drawer-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: #f0f6fb;
+    border-top: 1px solid #d0e0ee;
+    font-size: 0.8rem;
+}
+.copilot-preview-drawer-nav-btn {
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 0.25rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.copilot-preview-drawer-nav-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.copilot-preview-drawer-nav-label {
+    color: #0d3a66;
+    font-family: monospace;
+}
+
+/* Mobile responsive: collapse to bottom drawer below 768px. */
+@media (max-width: 768px) {
+    .copilot-preview-drawer {
+        width: 100vw;
+        height: 70vh;
+        top: auto;
+        bottom: 0;
+        right: 0;
+        border-left: none;
+        border-top: 4px solid #1976d2;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+        transform: translateY(0);
+    }
+    .copilot-preview-drawer.hidden {
+        transform: translateY(100%);
+    }
+}
 
 /* Wk2: document upload form */
 .copilot-upload-status {

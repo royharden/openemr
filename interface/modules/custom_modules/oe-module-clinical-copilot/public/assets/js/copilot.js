@@ -152,13 +152,17 @@
             document.addEventListener('click', dismissPopover);
         }, 0);
 
+        // AgDR-0072 / Phase 6.2 — clicking a chip pins its source in the
+        // persistent right-side preview drawer (replaces the old one-shot
+        // bbox modal pattern). The drawer UPDATES in place rather than
+        // stacking modals.
         if (
             meta &&
-            meta.bbox && meta.bbox.length === 4 &&
+            meta.doc_url &&
             meta.page_index !== undefined && meta.page_index !== null &&
-            meta.doc_url && cfg.showBboxOverlay !== false
+            cfg.showSourcePreview !== false
         ) {
-            showBboxOverlay(meta.doc_url, meta.page_index, meta.bbox);
+            openOrUpdateDrawer(meta);
         }
     }
 
@@ -394,70 +398,191 @@
     fetchBrief('pre_room_brief');
 
     // -----------------------------------------------------------------------
-    // Wk2 Workstream A: PDF.js bbox overlay (Plan §6, AgDR-0039/0040)
+    // Wk2 Phase 6.2 / AgDR-0072: PDF.js click-to-source preview drawer.
     //
-    // When the user clicks a source chip whose packet carries bbox + page_index
-    // data, this overlay renders the PDF page and draws a highlight rectangle
-    // over the cited region.
+    // Replaces the previous one-shot bbox-overlay modal pattern with a
+    // persistent right-side drawer that PINS the most-recently-clicked
+    // source. Clicking another chip UPDATES the drawer rather than stacking
+    // modals or reopening. Layers:
     //
-    // OE_COPILOT_CONFIG.pdfWorkerSrc must point to pdf.worker.min.js.
-    // The overlay is destroyed on the next chip click or outside click.
+    //   1. Persistent right-side panel (single drawer DOM, lazy-created,
+    //      reused thereafter; tracked by currentDrawerSource).
+    //   2. Page-level navigation (Page Up/Down at drawer bottom for
+    //      multi-page lab reports such as a CMP).
+    //   3. Source metadata header (source_type, source_id, page_or_section,
+    //      quote_or_value, "View in OpenEMR Lab Review", "View as FHIR
+    //      Observation" links from chip metadata).
+    //   4. Quote-not-found graceful state — when bbox is null, render the
+    //      page at 1.5x scale with a banner explaining no text layer is
+    //      available.
+    //
+    // The old class names (.copilot-bbox-overlay, .copilot-bbox-canvas-
+    // wrapper, .copilot-bbox-close) are SUPERSEDED by .copilot-preview-
+    // drawer-* and were removed from copilot.css in the same change.
     // -----------------------------------------------------------------------
 
-    var bboxOverlayEl = null;
+    var currentDrawerSource = null;
+    var drawerEl = null;
+    var drawerCanvas = null;
+    var drawerHeaderEl = null;
+    var drawerBannerEl = null;
+    var drawerNavEl = null;
+    var drawerPrevBtn = null;
+    var drawerNextBtn = null;
+    var drawerPageLabel = null;
+    var drawerPdfDoc = null;
+    var drawerPdfUrl = null;
+    var drawerNumPages = 0;
+    var currentPageIndex = 0;
+    var currentBbox = null;
+    var currentMeta = null;
 
-    function destroyBboxOverlay() {
-        if (bboxOverlayEl && bboxOverlayEl.parentNode) {
-            bboxOverlayEl.parentNode.removeChild(bboxOverlayEl);
+    function buildDrawer() {
+        if (drawerEl) {
+            return drawerEl;
         }
-        bboxOverlayEl = null;
-    }
 
-    function showBboxOverlay(pdfUrl, pageIndex, bbox) {
-        destroyBboxOverlay();
-
-        if (!window.pdfjsLib) {
-            return;
-        }
-        if (cfg.pdfWorkerSrc) {
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc = cfg.pdfWorkerSrc;
-        }
-
-        var overlay = document.createElement('div');
-        overlay.className = 'copilot-bbox-overlay';
-        overlay.setAttribute('role', 'dialog');
-        overlay.setAttribute('aria-label', 'Citation location in document');
+        drawerEl = document.createElement('div');
+        // Use setAttribute so the literal class="copilot-preview-drawer"
+        // appears in source (smoke-test contract: copilot_drawer_smoke.php
+        // pins this exact substring to keep JS and CSS class names in sync).
+        drawerEl.setAttribute('class', 'copilot-preview-drawer hidden');
+        drawerEl.setAttribute('role', 'complementary');
+        drawerEl.setAttribute('aria-label', 'Source preview drawer');
 
         var closeBtn = document.createElement('button');
-        closeBtn.className = 'copilot-bbox-close';
+        closeBtn.className = 'copilot-preview-drawer-close';
+        closeBtn.type = 'button';
         closeBtn.textContent = '×';
-        closeBtn.setAttribute('aria-label', 'Close citation overlay');
-        closeBtn.addEventListener('click', destroyBboxOverlay);
-        overlay.appendChild(closeBtn);
+        closeBtn.setAttribute('aria-label', 'Close source preview');
+        closeBtn.addEventListener('click', closeDrawer);
+        drawerEl.appendChild(closeBtn);
+
+        drawerHeaderEl = document.createElement('div');
+        drawerHeaderEl.className = 'copilot-preview-drawer-header';
+        drawerEl.appendChild(drawerHeaderEl);
+
+        drawerBannerEl = document.createElement('div');
+        drawerBannerEl.className = 'copilot-preview-drawer-banner';
+        drawerBannerEl.style.display = 'none';
+        drawerEl.appendChild(drawerBannerEl);
 
         var canvasWrapper = document.createElement('div');
-        canvasWrapper.className = 'copilot-bbox-canvas-wrapper';
-        var canvas = document.createElement('canvas');
-        canvasWrapper.appendChild(canvas);
-        overlay.appendChild(canvasWrapper);
+        canvasWrapper.className = 'copilot-preview-drawer-canvas-wrapper';
+        drawerCanvas = document.createElement('canvas');
+        canvasWrapper.appendChild(drawerCanvas);
+        drawerEl.appendChild(canvasWrapper);
 
-        document.body.appendChild(overlay);
-        bboxOverlayEl = overlay;
+        drawerNavEl = document.createElement('div');
+        drawerNavEl.className = 'copilot-preview-drawer-nav';
 
-        var loadingTask = window.pdfjsLib.getDocument(pdfUrl);
-        loadingTask.promise.then(function (pdfDoc) {
-            return pdfDoc.getPage(pageIndex + 1);
-        }).then(function (page) {
-            var viewport = page.getViewport({ scale: 1.5 });
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+        drawerPrevBtn = document.createElement('button');
+        drawerPrevBtn.type = 'button';
+        drawerPrevBtn.className = 'copilot-preview-drawer-nav-btn';
+        drawerPrevBtn.textContent = 'Page Up';
+        drawerPrevBtn.setAttribute('aria-label', 'Previous page');
+        drawerPrevBtn.addEventListener('click', function () {
+            if (currentPageIndex > 0) {
+                currentPageIndex -= 1;
+                // Bbox only applies to the original cited page — clear it
+                // when the user navigates to a neighbouring page.
+                renderDrawerPage(null);
+            }
+        });
+        drawerNavEl.appendChild(drawerPrevBtn);
 
-            var ctx = canvas.getContext('2d');
+        drawerPageLabel = document.createElement('span');
+        drawerPageLabel.className = 'copilot-preview-drawer-nav-label';
+        drawerNavEl.appendChild(drawerPageLabel);
+
+        drawerNextBtn = document.createElement('button');
+        drawerNextBtn.type = 'button';
+        drawerNextBtn.className = 'copilot-preview-drawer-nav-btn';
+        drawerNextBtn.textContent = 'Page Down';
+        drawerNextBtn.setAttribute('aria-label', 'Next page');
+        drawerNextBtn.addEventListener('click', function () {
+            if (currentPageIndex < drawerNumPages - 1) {
+                currentPageIndex += 1;
+                renderDrawerPage(null);
+            }
+        });
+        drawerNavEl.appendChild(drawerNextBtn);
+
+        drawerEl.appendChild(drawerNavEl);
+
+        document.body.appendChild(drawerEl);
+        return drawerEl;
+    }
+
+    function renderDrawerHeader(meta) {
+        if (!drawerHeaderEl) { return; }
+        var rows = [];
+        rows.push('<div class="copilot-preview-drawer-title">Source preview</div>');
+        rows.push('<dl class="copilot-preview-drawer-meta">');
+        if (meta.source_type) {
+            rows.push('<dt>Type</dt><dd>' + escapeHtml(meta.source_type) + '</dd>');
+        }
+        if (meta.source_id) {
+            rows.push('<dt>ID</dt><dd>' + escapeHtml(meta.source_id) + '</dd>');
+        }
+        if (meta.page_or_section) {
+            rows.push('<dt>Section</dt><dd>' + escapeHtml(meta.page_or_section) + '</dd>');
+        }
+        if (meta.quote_or_value) {
+            rows.push('<dt>Quote</dt><dd>' + escapeHtml(meta.quote_or_value) + '</dd>');
+        }
+        rows.push('</dl>');
+
+        var links = [];
+        if (meta.openemr_lab_review_url) {
+            links.push(
+                '<a href="' + escapeHtml(meta.openemr_lab_review_url)
+                + '" target="_blank" rel="noopener">View in OpenEMR Lab Review</a>'
+            );
+        }
+        if (meta.fhir_observation_url) {
+            links.push(
+                '<a href="' + escapeHtml(meta.fhir_observation_url)
+                + '" target="_blank" rel="noopener">View as FHIR Observation</a>'
+            );
+        }
+        if (links.length > 0) {
+            rows.push('<div class="copilot-preview-drawer-links">' + links.join(' · ') + '</div>');
+        }
+
+        drawerHeaderEl.innerHTML = rows.join('');
+    }
+
+    function updateDrawerNavState() {
+        if (!drawerNavEl) { return; }
+        if (drawerNumPages <= 1) {
+            drawerNavEl.style.display = 'none';
+            return;
+        }
+        drawerNavEl.style.display = 'flex';
+        drawerPrevBtn.disabled = currentPageIndex <= 0;
+        drawerNextBtn.disabled = currentPageIndex >= drawerNumPages - 1;
+        drawerPageLabel.textContent = 'Page ' + (currentPageIndex + 1) + ' of ' + drawerNumPages;
+    }
+
+    function renderDrawerPage(bboxForThisPage) {
+        if (!drawerPdfDoc || !drawerCanvas) { return; }
+        // Quote-not-found graceful state: when bbox is unavailable, render
+        // the full page slightly larger (1.5x) so the clinician can scan
+        // it visually for the cited quote.
+        var scale = (bboxForThisPage && bboxForThisPage.length === 4) ? 1.0 : 1.5;
+
+        drawerPdfDoc.getPage(currentPageIndex + 1).then(function (page) {
+            var viewport = page.getViewport({ scale: scale });
+            drawerCanvas.width = viewport.width;
+            drawerCanvas.height = viewport.height;
+            var ctx = drawerCanvas.getContext('2d');
             page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
-                if (!bbox || bbox.length !== 4) {
+                if (!bboxForThisPage || bboxForThisPage.length !== 4) {
                     return;
                 }
-                var x0 = bbox[0], y0 = bbox[1], x1 = bbox[2], y1 = bbox[3];
+                var x0 = bboxForThisPage[0], y0 = bboxForThisPage[1];
+                var x1 = bboxForThisPage[2], y1 = bboxForThisPage[3];
                 var rx = x0 * viewport.width;
                 var ry = y0 * viewport.height;
                 var rw = (x1 - x0) * viewport.width;
@@ -471,15 +596,67 @@
                 ctx.strokeRect(rx, ry, rw, rh);
                 ctx.restore();
             });
-        }).catch(function () {
-            destroyBboxOverlay();
         });
 
-        overlay.addEventListener('click', function (ev) {
-            if (ev.target === overlay) {
-                destroyBboxOverlay();
-            }
+        updateDrawerNavState();
+    }
+
+    function renderDrawerBanner(meta) {
+        if (!drawerBannerEl) { return; }
+        var hasBbox = meta.bbox && meta.bbox.length === 4;
+        var hasPage = meta.page_index !== undefined && meta.page_index !== null;
+        if (!hasBbox && hasPage) {
+            var quote = meta.quote_or_value || '';
+            drawerBannerEl.innerHTML = 'This document has no text layer; bbox unavailable.'
+                + ' Quote: \'' + escapeHtml(quote) + '\'.';
+            drawerBannerEl.style.display = 'block';
+        } else {
+            drawerBannerEl.innerHTML = '';
+            drawerBannerEl.style.display = 'none';
+        }
+    }
+
+    function openOrUpdateDrawer(meta) {
+        if (!window.pdfjsLib || !meta || !meta.doc_url) {
+            return;
+        }
+        if (cfg.pdfWorkerSrc) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = cfg.pdfWorkerSrc;
+        }
+
+        buildDrawer();
+        drawerEl.classList.remove('hidden');
+        currentDrawerSource = meta.source_id || null;
+        currentMeta = meta;
+        currentPageIndex = (meta.page_index !== undefined && meta.page_index !== null)
+            ? meta.page_index : 0;
+        currentBbox = (meta.bbox && meta.bbox.length === 4) ? meta.bbox : null;
+
+        renderDrawerHeader(meta);
+        renderDrawerBanner(meta);
+
+        // Reuse the loaded PDF document when the chip points at the same
+        // doc_url so we don't re-fetch on every chip click within a report.
+        if (drawerPdfUrl === meta.doc_url && drawerPdfDoc) {
+            renderDrawerPage(currentBbox);
+            return;
+        }
+
+        drawerPdfUrl = meta.doc_url;
+        window.pdfjsLib.getDocument(meta.doc_url).promise.then(function (pdfDoc) {
+            drawerPdfDoc = pdfDoc;
+            drawerNumPages = pdfDoc.numPages;
+            renderDrawerPage(currentBbox);
+        }).catch(function () {
+            closeDrawer();
         });
+    }
+
+    function closeDrawer() {
+        if (drawerEl) {
+            drawerEl.classList.add('hidden');
+        }
+        currentDrawerSource = null;
     }
 
     // -----------------------------------------------------------------------

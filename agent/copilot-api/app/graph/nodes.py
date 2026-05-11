@@ -205,8 +205,14 @@ def evidence_retriever_node(state: CopilotState) -> dict[str, Any]:
                 category,
                 filter_sources,
             )
+        # AgDR-0085 — turn on synonym expansion by default for the live
+        # graph. Eval-mode mocks don't go through this path, so the cost
+        # is real-only. The deterministic expander is cheap (<1ms);
+        # paraphrase RRF reuses the same candidate pool.
         chunks = retrieve_guidelines(
-            sanitized_question, source_organizations=filter_sources
+            sanitized_question,
+            source_organizations=filter_sources,
+            expand_synonyms=True,
         )
         guideline_packets = [_guideline_chunk_to_packet(c, patient_uuid_hash) for c in chunks]
         retrieval_status = "done"

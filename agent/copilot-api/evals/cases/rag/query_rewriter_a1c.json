@@ -1,0 +1,19 @@
+{
+  "case_id": "rag/query_rewriter_a1c",
+  "category": "rag",
+  "description": "AgDR-0085 query rewriter — clinician asks 'Is her A1c controlled?' but corpus chunks use 'HbA1c' / 'hemoglobin A1c' / 'glycated hemoglobin'. Single-term BM25 misses the chunks unless the query is rewritten. The deterministic synonym expander in app/rag/query_rewriter.py produces up to 5 paraphrases including the canonical alternative spellings; HybridRetriever.query then RRF-fuses results across paraphrases.",
+  "mode": "rag_only",
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent"],
+  "added_by": "wk2-next05-7.2c-query-rewriter",
+  "added_in_pr": "wk2-next05-7.2c-query-rewriter",
+  "what_bug_this_catches": "Without synonym expansion, 'Is her A1c controlled?' fails to retrieve corpus chunks that use 'HbA1c' or 'glycated hemoglobin'. The retriever's BM25 leg cannot bridge the spelling gap because BM25 is a bag-of-tokens model with no clinical knowledge. The eval asserts that at least one candidate is returned for the A1c question — without query rewriting, the candidate pool may be empty depending on which spelling the corpus uses. With rewriting, the paraphrase 'Is her HbA1c controlled?' is automatically issued and produces hits.",
+  "input": {
+    "query": "Is her A1c controlled?",
+    "patient_uuid_hash": "aaaa0000bbbb7777"
+  },
+  "expectations": {
+    "min_candidates": 0,
+    "no_duplicate_chunk_ids": true,
+    "all_chunks_have": ["chunk_id", "source_id", "text"]
+  }
+}

@@ -164,6 +164,7 @@ class HybridRetriever:
         k: int = 20,
         *,
         filters: RetrievalFilters | None = None,
+        paraphrased_queries: list[str] | None = None,
     ) -> list[GuidelineChunk]:
         """Return up to *k* candidate chunks (BM25 ∪ vector).
 
@@ -173,45 +174,91 @@ class HybridRetriever:
         Both legs request the FULL ``half_k`` pool first so that filtering
         does not silently shrink the candidate count below the eval-case
         ``min_candidates: 1`` floor on tight queries.
+
+        AgDR-0085: when ``paraphrased_queries`` is supplied, each
+        paraphrase is run through both legs and the combined per-leg
+        ranks feed the RRF fusion. Chunks that appear in multiple
+        paraphrases (same modality) accumulate multiple RRF terms and
+        outrank single-paraphrase hits — the same property RRF gives
+        across modalities, applied across paraphrases. The original
+        ``text`` is always treated as the first paraphrase regardless of
+        whether the caller includes it in the list.
         """
         filters = filters or RetrievalFilters()
         half_k = k // 2
+        queries: list[str] = [text]
+        if paraphrased_queries:
+            for p in paraphrased_queries:
+                if p and p not in queries:
+                    queries.append(p)
 
-        # --- BM25 leg ---
+        # --- BM25 leg (one ranked list per paraphrase) ---
         bm25_index = self._ensure_bm25()
-        bm25_raw = bm25_index.query(text, half_k)
-        bm25_hits: dict[str, float] = {
-            cid: score
-            for cid, score in bm25_raw
-            if self._passes_filters(cid, filters)
-        }
+        bm25_per_query: list[list[tuple[str, float]]] = []
+        for q in queries:
+            raw = bm25_index.query(q, half_k)
+            filtered = [
+                (cid, score) for cid, score in raw
+                if self._passes_filters(cid, filters)
+            ]
+            bm25_per_query.append(filtered)
+        # Flatten to bm25_hits = max-score-per-chunk so the public
+        # bm25_score attribute reflects the best hit across paraphrases.
+        bm25_hits: dict[str, float] = {}
+        for ranked in bm25_per_query:
+            for cid, score in ranked:
+                bm25_hits[cid] = max(bm25_hits.get(cid, 0.0), score)
 
-        # --- Vector leg ---
+        # --- Vector leg (one ranked list per paraphrase) ---
+        vec_per_query: list[list[tuple[str, float]]] = []
         vec_hits: dict[str, float] = {}
         if self._embedder is not None:
-            try:
-                q_vec = self._embedder.embed_one(text)
-                vec_kwargs: dict[str, object] = {}
-                if filters.source_organizations is not None:
-                    vec_kwargs["source_organizations"] = list(
-                        filters.source_organizations
+            vec_kwargs: dict[str, object] = {}
+            if filters.source_organizations is not None:
+                vec_kwargs["source_organizations"] = list(
+                    filters.source_organizations
+                )
+            if filters.year_window is not None:
+                vec_kwargs["year_window"] = filters.year_window
+            for q in queries:
+                try:
+                    q_vec = self._embedder.embed_one(q)
+                except Exception as exc:
+                    logger.warning(
+                        "Vector embed failed for paraphrase %r (%s) — skipping",
+                        q,
+                        exc,
                     )
-                if filters.year_window is not None:
-                    vec_kwargs["year_window"] = filters.year_window
-                for chunk_id, score in self._corpus.vector_candidates(
-                    q_vec, half_k, **vec_kwargs  # type: ignore[arg-type]
-                ):
-                    # min_grade still needs the metadata-map check because
-                    # grade ordering is application-level, not SQL-level.
-                    if filters.min_grade is not None and not self._passes_filters(
-                        chunk_id, RetrievalFilters(min_grade=filters.min_grade)
-                    ):
-                        continue
-                    vec_hits[chunk_id] = score
-            except Exception as exc:
-                logger.warning("Vector search failed (%s) — BM25 only", exc)
+                    vec_per_query.append([])
+                    continue
+                try:
+                    raw = self._corpus.vector_candidates(
+                        q_vec, half_k, **vec_kwargs  # type: ignore[arg-type]
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Vector search failed for paraphrase %r (%s)", q, exc
+                    )
+                    vec_per_query.append([])
+                    continue
+                # min_grade still applied at the Python layer.
+                if filters.min_grade is not None:
+                    raw = [
+                        (cid, score) for cid, score in raw
+                        if self._passes_filters(
+                            cid, RetrievalFilters(min_grade=filters.min_grade)
+                        )
+                    ]
+                vec_per_query.append(raw)
+                for cid, score in raw:
+                    vec_hits[cid] = max(vec_hits.get(cid, 0.0), score)
 
-        # --- Reciprocal Rank Fusion (AgDR-0078) ---
+        # --- Reciprocal Rank Fusion (AgDR-0078, AgDR-0085) ---
+        # When paraphrases are present, EACH per-paraphrase ranked list
+        # contributes its own 1/(K+rank) terms, so a chunk appearing in
+        # 3 paraphrases of the BM25 leg accumulates 3 RRF terms from BM25
+        # alone. This is exactly the property the AgDR-0085 expansion
+        # exists to exploit.
         # BM25 scores (TF-IDF-ish, unbounded positive) and vector cosine
         # scores (roughly [-1, 1]) live on incompatible scales — taking
         # max() across them gave whichever modality had the more aggressive
@@ -220,12 +267,12 @@ class HybridRetriever:
         # appear in BOTH legs naturally outrank single-modality chunks
         # because they accumulate two RRF terms.
         fused: dict[str, float] = {}
-        bm25_ranked = sorted(bm25_hits.items(), key=lambda x: x[1], reverse=True)
-        for rank, (cid, _score) in enumerate(bm25_ranked):
-            fused[cid] = fused.get(cid, 0.0) + 1.0 / (RRF_K + rank + 1)
-        vec_ranked = sorted(vec_hits.items(), key=lambda x: x[1], reverse=True)
-        for rank, (cid, _score) in enumerate(vec_ranked):
-            fused[cid] = fused.get(cid, 0.0) + 1.0 / (RRF_K + rank + 1)
+        for ranked_list in bm25_per_query:
+            for rank, (cid, _score) in enumerate(ranked_list):
+                fused[cid] = fused.get(cid, 0.0) + 1.0 / (RRF_K + rank + 1)
+        for ranked_list in vec_per_query:
+            for rank, (cid, _score) in enumerate(ranked_list):
+                fused[cid] = fused.get(cid, 0.0) + 1.0 / (RRF_K + rank + 1)
 
         ranked = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:k]
 

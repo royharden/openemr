@@ -18,6 +18,7 @@ from pathlib import Path
 from .contracts import GuidelineChunk, RecommendationGrade, SourceOrganization
 from .corpus import DEFAULT_CORPUS_PATH, Corpus
 from .phi_filter import strip_phi
+from .query_rewriter import expand_query
 from .retriever import HybridRetriever, RetrievalFilters
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ def retrieve_guidelines(
     source_organizations: list[str] | None = None,
     min_grade: str | None = None,
     year_window: tuple[int, int] | None = None,
+    expand_synonyms: bool = False,
 ) -> list[GuidelineChunk]:
     """Retrieve guideline chunks via hybrid BM25 + vector retrieval + reranker.
 
@@ -134,10 +136,22 @@ def retrieve_guidelines(
                     exc,
                 )
 
+            paraphrases: list[str] | None = None
+            if expand_synonyms:
+                # AgDR-0085: deterministic synonym expansion. The original
+                # query is always position 0; expand_query returns up to 5
+                # paraphrases total. RRF fuses rankings across paraphrases
+                # so multi-paraphrase chunk hits naturally outrank single-
+                # paraphrase hits without extra work at the call site.
+                paraphrases = expand_query(sanitized_query)
+
             with Corpus(corpus_path) as corpus:
                 retriever = HybridRetriever(corpus, embedder=embedder)
                 candidates = retriever.query(
-                    sanitized_query, k=CANDIDATE_POOL_K, filters=filters
+                    sanitized_query,
+                    k=CANDIDATE_POOL_K,
+                    filters=filters,
+                    paraphrased_queries=paraphrases,
                 )
                 if not candidates:
                     return []
@@ -179,6 +193,7 @@ __all__ = [
     "RecommendationGrade",
     "SourceOrganization",
     "RetrievalFilters",
+    "expand_query",
     "retrieve_guidelines",
     "strip_phi",
 ]
