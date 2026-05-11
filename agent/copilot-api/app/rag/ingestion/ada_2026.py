@@ -40,6 +40,26 @@ SOURCE_NAME = "ADA 2026 Standards of Medical Care in Diabetes"
 SOURCE_YEAR = 2026
 SOURCE_URL = "https://professional.diabetes.org/standards-of-care"
 
+# Plan §6.4 + AgDR-0070 — distinctive verbatim phrases from the official ADA
+# publication. The `--check-corpus-copyright` scan trips on any chunk text
+# containing these substrings (case-insensitive). Update this list when a new
+# section is summarized and you spot a candidate signature phrase. Authoring
+# rule: locally-authored summaries describe each recommendation in plain
+# English for PCPs and never reproduce ADA prose verbatim.
+COPYRIGHT_TRIP_PHRASES: list[str] = [
+    # ADA's em-dash + year convention is distinctive to the official publication.
+    "Standards of Medical Care in Diabetes—2024",
+    "Standards of Medical Care in Diabetes—2025",
+    "Standards of Medical Care in Diabetes—2026",
+    # Distinctive ADA evidence-grade labels in their exact published form.
+    "Evidence Level A:",
+    "Evidence Level B:",
+    # ADA's signature recommendation phrasings (these would only appear if
+    # somebody copy-pasted from a Diabetes Care issue verbatim).
+    "Diabetes Care 2026;",
+    "[ADA position statement]",
+]
+
 
 # ---------------------------------------------------------------------------
 # Locally-authored summaries (original phrasing only — NO copyrighted text).

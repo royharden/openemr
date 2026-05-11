@@ -1,0 +1,40 @@
+{
+  "case_id": "integrity/dedup_lab_pdf_uploaded_twice",
+  "category": "integrity",
+  "description": "Uploads the same lipid PDF twice with byte-identical content and asserts copilot_document_sha_index has exactly one row for (patient_id, sha256) and documents has exactly one row.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_no_dup"
+  ],
+  "what_bug_this_catches": "If the SHA dedup branch in upload_common.php ever fails to short-circuit addNewDocument(), the documents table accumulates duplicates. This case uploads the same fixture twice and asserts copilot_document_sha_index has exactly one row for (patient_id, sha256) and documents has exactly one row.",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      },
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "Upload identical PDF twice."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "1",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "db_row_counts": {
+      "copilot_document_sha_index_for_patient_and_sha": 1,
+      "documents_for_patient_and_sha": 1
+    },
+    "second_upload_response": {
+      "duplicate": true
+    }
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

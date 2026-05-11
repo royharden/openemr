@@ -1,0 +1,35 @@
+{
+  "case_id": "integrity/intake_creates_no_lab",
+  "category": "integrity",
+  "description": "Uploads Chen's typed intake form as doc_type=intake_form. Asserts zero procedure_order rows are created with order_diagnosis LIKE '%copilot-extracted%' for that patient.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_writeback_present"
+  ],
+  "what_bug_this_catches": "If a future caller of persistExtractedDocument wires LabResultWriter to all doc_types, an intake upload would create empty procedure_* rows. This case asserts the upload path correctly isolates writeback to lab_pdf only.",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-intake-typed.pdf",
+        "doc_type": "intake_form"
+      }
+    ],
+    "query": "Upload Chen's intake form."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "1",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "db_row_counts": {
+      "procedure_order_where_order_diagnosis_like_copilot_extracted": 0,
+      "procedure_order_code_for_patient": 0,
+      "procedure_report_for_patient": 0,
+      "procedure_result_for_patient": 0
+    }
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

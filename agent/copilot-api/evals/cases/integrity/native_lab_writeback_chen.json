@@ -1,0 +1,51 @@
+{
+  "case_id": "integrity/native_lab_writeback_chen",
+  "category": "integrity",
+  "description": "Native lab writeback 1:1:1 chain integrity. Uploads Chen's lipid panel with COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE=1 and asserts one procedure_order + one procedure_order_code + one procedure_report + one procedure_result per analyte, with procedure_order_code.procedure_order_seq aligned with procedure_report.procedure_order_seq.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_writeback_present"
+  ],
+  "what_bug_this_catches": "If LabResultWriter::writeOneFact regresses to skipping procedure_order_code insertion, the FHIR Observation laboratory service silently drops the result. This case asserts one procedure_order_code row per analyte tied to the same procedure_order_id, with procedure_order_seq=1 aligned between report and order_code.",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "Upload Chen's lipid panel and write back to OpenEMR native lab chain."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "1",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "writeback_result": {
+      "gated": false,
+      "min_written": 4
+    },
+    "db_row_counts_per_analyte": {
+      "procedure_order": 1,
+      "procedure_order_code": 1,
+      "procedure_report": 1,
+      "procedure_result": 1
+    },
+    "db_invariants": [
+      "for each fact: procedure_order_code.procedure_order_seq == procedure_report.procedure_order_seq",
+      "for each fact: procedure_order_code.procedure_order_seq == 1",
+      "for each fact: procedure_order_code.procedure_order_id == procedure_report.procedure_order_id",
+      "for each fact: procedure_result.procedure_report_id references the same procedure_report row that points at procedure_order"
+    ],
+    "expected_analytes_loinc": [
+      "LOINC_MAP.ldl",
+      "LOINC_MAP.hdl",
+      "LOINC_MAP.tc",
+      "LOINC_MAP.tg"
+    ]
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

@@ -46,6 +46,31 @@ SOURCE_URL = (
     "accaha-issue-updated-guideline-for-managing-lipids-cholesterol"
 )
 
+# Plan §6.4 + AgDR-0070 — distinctive verbatim phrases from the official
+# ACC/AHA Dyslipidemia Guideline. The `--check-corpus-copyright` scan trips
+# on any chunk text containing these substrings (case-insensitive). The
+# class+level pattern is the ACC/AHA recommendation grammar — only ever
+# appears in the official publication. Authoring rule: locally-authored
+# summaries paraphrase recommendations in plain English without using the
+# Class N / Level of Evidence X cadence.
+COPYRIGHT_TRIP_PHRASES: list[str] = [
+    # The Class/Level pattern is uniquely ACC/AHA recommendation-table prose.
+    "Class I Recommendation",
+    "Class IIa Recommendation",
+    "Class IIb Recommendation",
+    "Class III: No Benefit",
+    "Class III: Harm",
+    "Level of Evidence: A",
+    "Level of Evidence: B-R",
+    "Level of Evidence: B-NR",
+    "Level of Evidence: C-LD",
+    "Level of Evidence: C-EO",
+    # Distinctive citation-block phrasings that would only appear if someone
+    # copy-pasted from the official guideline.
+    "[ACC/AHA recommendation]",
+    "Journal of the American College of Cardiology 2026;",
+]
+
 
 # ---------------------------------------------------------------------------
 # Locally-authored summaries (original phrasing only — NO copyrighted text).

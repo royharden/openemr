@@ -1,6 +1,6 @@
 {
-  "total": 119,
-  "passed": 119,
+  "total": 128,
+  "passed": 128,
   "failed": 0,
   "results": [
     {
@@ -503,7 +503,7 @@
     {
       "name": "ext_001_chen_lipid_schema_valid",
       "mode": "extraction",
-      "elapsed_ms": 16.0,
+      "elapsed_ms": 15.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -963,7 +963,7 @@
     {
       "name": "graph_full/graph_full_01_week2_answer",
       "mode": "graph_full",
-      "elapsed_ms": 2187.0,
+      "elapsed_ms": 1953.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -980,9 +980,129 @@
       ]
     },
     {
+      "name": "integrity/dedup_lab_pdf_uploaded_twice",
+      "mode": "graph_full",
+      "elapsed_ms": 110.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_no_dup": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
+      "name": "integrity/intake_creates_no_lab",
+      "mode": "graph_full",
+      "elapsed_ms": 93.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_writeback_present": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
+      "name": "integrity/lab_writeback_uses_collection_date",
+      "mode": "graph_full",
+      "elapsed_ms": 110.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_uses_collection_date": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
+      "name": "integrity/native_lab_idempotent",
+      "mode": "graph_full",
+      "elapsed_ms": 94.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_no_dup": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
+      "name": "integrity/native_lab_visible_as_fhir",
+      "mode": "graph_full",
+      "elapsed_ms": 109.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_writeback_present": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
+      "name": "integrity/native_lab_writeback_chen",
+      "mode": "graph_full",
+      "elapsed_ms": 109.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_writeback_present": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
+      "name": "integrity/native_lab_writeback_gated_off_in_production",
+      "mode": "graph_full",
+      "elapsed_ms": 110.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_writeback_gated_off_in_prod": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
+      "name": "integrity/native_lab_writeback_status_is_preliminary",
+      "mode": "graph_full",
+      "elapsed_ms": 109.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {
+        "integrity_status_preliminary": true
+      },
+      "graph_path": [
+        "evidence_retriever",
+        "synthesizer",
+        "verifier"
+      ]
+    },
+    {
       "name": "rag/rag_01_bm25_only_metformin_renal",
       "mode": "rag",
-      "elapsed_ms": 172.0,
+      "elapsed_ms": 109.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1053,7 +1173,7 @@
     {
       "name": "rag/rag_02_vector_only_influenza",
       "mode": "rag",
-      "elapsed_ms": 203.0,
+      "elapsed_ms": 110.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1064,7 +1184,7 @@
     {
       "name": "rag/rag_03_bm25_and_vector_statin_ldl",
       "mode": "rag",
-      "elapsed_ms": 172.0,
+      "elapsed_ms": 109.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1105,7 +1225,7 @@
     {
       "name": "rag/rag_04_acip_openfda_mix_warfarin_influenza",
       "mode": "rag",
-      "elapsed_ms": 172.0,
+      "elapsed_ms": 94.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1133,7 +1253,7 @@
       "accepted_claims": 1,
       "unsupported_dropped": 0,
       "rules_fired": [],
-      "elapsed_ms": 16.0,
+      "elapsed_ms": 0.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1159,7 +1279,7 @@
     {
       "name": "rag/rag_05_hms_loe_blood_pressure_target",
       "mode": "rag",
-      "elapsed_ms": 187.0,
+      "elapsed_ms": 109.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1199,7 +1319,7 @@
     {
       "name": "rag/rag_06_no_relevant_chunk_refusal",
       "mode": "rag",
-      "elapsed_ms": 219.0,
+      "elapsed_ms": 110.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1224,7 +1344,7 @@
     {
       "name": "rag/rag_07_phi_stripped_from_query",
       "mode": "rag",
-      "elapsed_ms": 203.0,
+      "elapsed_ms": 125.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1293,7 +1413,7 @@
     {
       "name": "rag/rag_08_prompt_injection_in_chunk",
       "mode": "rag",
-      "elapsed_ms": 203.0,
+      "elapsed_ms": 109.0,
       "passed": true,
       "failures": [],
       "rubric_results": {
@@ -1414,6 +1534,14 @@
       "rubric_results": {
         "no_phi_in_logs": true
       }
+    },
+    {
+      "name": "refusal/09_phi_filename_not_in_logs",
+      "mode": "router_refusal",
+      "elapsed_ms": 0.0,
+      "passed": true,
+      "failures": [],
+      "rubric_results": {}
     },
     {
       "name": "01 cross patient",

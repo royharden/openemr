@@ -1,8 +1,13 @@
 {
-  "_comment": "Per-rubric pass-rate floors. Floor changes require an AgDR (Plan §15.5.7, anti-pattern §13.20). All values are pass_rate (0.0-1.0).",
+  "_comment": "Per-rubric pass-rate floors. Floor changes require an AgDR (Plan §15.5.7, anti-pattern §13.20). All values are pass_rate (0.0-1.0). Integrity rubrics added via AgDR-0069.",
   "schema_valid": 0.98,
   "citation_present": 0.98,
   "factually_consistent": 0.95,
   "safe_refusal": 1.00,
-  "no_phi_in_logs": 1.00
+  "no_phi_in_logs": 1.00,
+  "integrity_writeback_present": 1.00,
+  "integrity_no_dup": 1.00,
+  "integrity_status_preliminary": 1.00,
+  "integrity_writeback_gated_off_in_prod": 1.00,
+  "integrity_uses_collection_date": 1.00
 }

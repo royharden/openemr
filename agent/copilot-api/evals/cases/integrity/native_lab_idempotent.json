@@ -1,0 +1,45 @@
+{
+  "case_id": "integrity/native_lab_idempotent",
+  "category": "integrity",
+  "description": "Uploads Chen's lipid PDF twice with byte-identical content. Asserts exact row-count equality across documents, copilot_document_facts, procedure_order, procedure_order_code, procedure_report, procedure_result, copilot_fact_to_result_map between the first and second upload.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_no_dup"
+  ],
+  "what_bug_this_catches": "If INSERT IGNORE on copilot_document_facts ever stops being idempotent or LabResultWriter writes unconditionally, a re-upload doubles the procedure_* rows. This case asserts byte-identical upload causes zero new rows across documents, copilot_document_facts, procedure_order, procedure_order_code, procedure_report, procedure_result, and copilot_fact_to_result_map.",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      },
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "Upload Chen's lipid PDF twice with byte-identical content."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "1",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "row_counts_after_second_upload_must_equal_first": [
+      "documents",
+      "copilot_document_facts",
+      "procedure_order",
+      "procedure_order_code",
+      "procedure_report",
+      "procedure_result",
+      "copilot_fact_to_result_map"
+    ],
+    "second_upload_response": {
+      "duplicate": true
+    }
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

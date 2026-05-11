@@ -1,0 +1,42 @@
+{
+  "case_id": "integrity/native_lab_writeback_status_is_preliminary",
+  "category": "integrity",
+  "description": "After Chen's lipid panel is uploaded with the demo-mode writeback gate on, asserts every Co-Pilot-written row carries the least-final status the OpenEMR enum supports: procedure_order.order_status='pending', procedure_report.report_status='prelim', procedure_report.review_status='received', procedure_result.result_status='prelim'.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_status_preliminary"
+  ],
+  "what_bug_this_catches": "If a future change drops the prelim/received/pending status fields and writes final/reviewed/complete instead, AI-extracted labs become indistinguishable from clinician-signed labs in OpenEMR's Lab Review screen and in FHIR Observation.status. This case asserts every co-pilot-written row carries the least-final status the schema supports (per AgDR-0081).",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "Upload Chen's lipid panel; verify preliminary statuses."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "1",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "depends_on_case": "integrity/native_lab_writeback_chen",
+    "row_status_invariants_for_every_copilot_written_row": {
+      "procedure_order.order_status": "pending",
+      "procedure_report.report_status": "prelim",
+      "procedure_report.review_status": "received",
+      "procedure_result.result_status": "prelim"
+    },
+    "forbidden_status_values": {
+      "procedure_order.order_status": ["complete"],
+      "procedure_report.report_status": ["complete", "final"],
+      "procedure_report.review_status": ["reviewed"],
+      "procedure_result.result_status": ["final"]
+    }
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

@@ -1,0 +1,62 @@
+{
+  "case_id": "refusal/09_phi_filename_not_in_logs",
+  "category": "refusal_phi",
+  "description": "Uploads a fixture renamed to smith_anne_dob_1962-04-14_lipid.pdf (PHI-pattern filename) and intentionally corrupts the file so the sidecar extractor errors. Asserts the captured stdout and Langfuse trace metadata contain none of: 'smith', 'anne', '1962-04-14', or any case/punctuation variation thereof.",
+  "mode": "router_refusal",
+  "rubrics": [
+    "no_phi_in_logs"
+  ],
+  "what_bug_this_catches": "If a future logging change reintroduces the original filename into PHP exception messages, FastAPI sidecar logs, CI stdout, or Langfuse trace metadata, this case asserts a PHI-pattern filename (last name + first name + DOB) does not appear in captured stdout or trace metadata when extraction fails on a deliberately corrupt fixture. Implements AgDR-0082 / Phase 3.7.",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/smith_anne_dob_1962-04-14_lipid.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "Upload corrupted PDF with PHI-pattern filename."
+  },
+  "expectations": {
+    "fixture_setup": {
+      "rename_source": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+      "rename_target": "evals/fixtures/documents/smith_anne_dob_1962-04-14_lipid.pdf",
+      "corrupt_bytes": "truncate to 32 bytes so the PDF header is incomplete and the sidecar's lab_pdf extractor raises ValueError"
+    },
+    "extraction_result": {
+      "must_error": true,
+      "error_must_not_be_swallowed": true
+    },
+    "phi_token_must_not_appear_in_captured_outputs": [
+      "smith",
+      "Smith",
+      "SMITH",
+      "anne",
+      "Anne",
+      "ANNE",
+      "smith_anne",
+      "Smith Anne",
+      "Smith, Anne",
+      "smith-anne",
+      "1962-04-14",
+      "1962/04/14",
+      "04/14/1962",
+      "04-14-1962",
+      "Apr 14 1962",
+      "April 14, 1962",
+      "dob_1962-04-14"
+    ],
+    "captured_outputs_scanned": [
+      "stdout",
+      "stderr",
+      "langfuse_trace_metadata",
+      "langfuse_span_metadata",
+      "php_error_log",
+      "sidecar_logger_stream"
+    ],
+    "expected_redacted_form_in_logs": "upload-{sha256_prefix_8}.pdf or {trace_id}"
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

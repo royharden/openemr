@@ -1,0 +1,49 @@
+{
+  "case_id": "integrity/native_lab_visible_as_fhir",
+  "category": "integrity",
+  "description": "After native_lab_writeback_chen lands, GET /fhir/r4/Observation?subject=Patient/{chen-uuid}&category=laboratory must return >=4 Observation entries with LOINC codes matching the lipid panel analytes.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_writeback_present"
+  ],
+  "what_bug_this_catches": "If the writer wires up the procedure chain but FHIR fails to surface it, the demo's chip-link beat dies. This case directly hits the FHIR endpoint and verifies the round-trip from upload through procedure_result to the laboratory Observation read path.",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "After upload, fetch FHIR Observation laboratory category entries for Chen."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "1",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "depends_on_case": "integrity/native_lab_writeback_chen",
+    "fhir_request": {
+      "method": "GET",
+      "path": "/fhir/r4/Observation",
+      "query": {
+        "subject": "Patient/{chen-uuid}",
+        "category": "laboratory"
+      }
+    },
+    "fhir_response_invariants": {
+      "min_entry_count": 4,
+      "entries_must_include_loincs": [
+        "LOINC_MAP.ldl",
+        "LOINC_MAP.hdl",
+        "LOINC_MAP.tc",
+        "LOINC_MAP.tg"
+      ],
+      "all_entries_status_in": ["preliminary"],
+      "all_entries_category_contains": "laboratory"
+    }
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

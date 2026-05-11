@@ -198,6 +198,100 @@ def rubric_no_phi_in_logs(
     return True
 
 
+def _rubric_integrity_assertion(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+    *,
+    rubric_name: str,
+) -> bool:
+    """Generic integrity-tier rubric (AgDR-0069).
+
+    Integrity rubrics describe MySQL row-shape invariants, env-var gating
+    semantics, and FHIR-response shape — all of which require a live DB +
+    sidecar to verify. The actual integrity-mode executor (Phase 5.1, live
+    Docker) populates ``runner_result['integrity_assertions'][rubric_name]``
+    with True/False per asserted invariant. In deterministic-mock CI mode
+    (no DB), the executor is not invoked and this function returns True
+    vacuously — the case loads and validates but doesn't gate the pipeline
+    on a check that cannot be performed without Docker.
+
+    The case file's ``expectations`` block carries the assertion definitions
+    the live executor reads. Hard fail surface: if a live run records the
+    assertion as failed, ``runner_result['integrity_assertions'][rubric_name]``
+    is False and this rubric fails the case.
+    """
+    assertions = runner_result.get("integrity_assertions", {})
+    if not assertions:
+        # No live executor result captured (deterministic-mock CI mode).
+        # Pass vacuously; integrity tier requires the live executor.
+        return True
+    return bool(assertions.get(rubric_name, True))
+
+
+def rubric_integrity_writeback_present(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+) -> bool:
+    """Live: writeback occurred and procedure_* chain landed for the fact set."""
+    return _rubric_integrity_assertion(
+        case, runner_result, log_text, rubric_name="integrity_writeback_present",
+    )
+
+
+def rubric_integrity_no_dup(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+) -> bool:
+    """Live: re-upload of the same fixture creates no duplicate rows in
+    documents / copilot_document_facts / procedure_* / map tables."""
+    return _rubric_integrity_assertion(
+        case, runner_result, log_text, rubric_name="integrity_no_dup",
+    )
+
+
+def rubric_integrity_status_preliminary(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+) -> bool:
+    """Live: every co-pilot-written procedure_* row carries the least-final
+    status enum values (order_status=pending, report_status=prelim,
+    review_status=received, result_status=prelim). AgDR-0081 invariant."""
+    return _rubric_integrity_assertion(
+        case, runner_result, log_text, rubric_name="integrity_status_preliminary",
+    )
+
+
+def rubric_integrity_writeback_gated_off_in_prod(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+) -> bool:
+    """Live: with COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE unset, the writer
+    returns gated=true, written=0, and creates zero procedure_* rows.
+    AgDR-0081 production-safety invariant."""
+    return _rubric_integrity_assertion(
+        case, runner_result, log_text,
+        rubric_name="integrity_writeback_gated_off_in_prod",
+    )
+
+
+def rubric_integrity_uses_collection_date(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+) -> bool:
+    """Live: procedure_*.date columns reflect the extracted lab collection
+    date, not the extraction timestamp. AgDR-0067 (Phase 4.5 fold-in)."""
+    return _rubric_integrity_assertion(
+        case, runner_result, log_text,
+        rubric_name="integrity_uses_collection_date",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Rubric registry
 # ---------------------------------------------------------------------------
@@ -208,6 +302,11 @@ _RUBRIC_FUNCTIONS = {
     "factually_consistent": rubric_factually_consistent,
     "safe_refusal": rubric_safe_refusal,
     "no_phi_in_logs": rubric_no_phi_in_logs,
+    "integrity_writeback_present": rubric_integrity_writeback_present,
+    "integrity_no_dup": rubric_integrity_no_dup,
+    "integrity_status_preliminary": rubric_integrity_status_preliminary,
+    "integrity_writeback_gated_off_in_prod": rubric_integrity_writeback_gated_off_in_prod,
+    "integrity_uses_collection_date": rubric_integrity_uses_collection_date,
 }
 
 

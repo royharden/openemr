@@ -28,7 +28,7 @@
     },
     "category": {
       "type": "string",
-      "enum": ["extraction", "rag", "citation", "refusal_phi", "regression"]
+      "enum": ["extraction", "rag", "citation", "refusal_phi", "regression", "integrity"]
     },
     "rubrics": {
       "type": "array",
@@ -41,7 +41,12 @@
           "citation_present",
           "factually_consistent",
           "safe_refusal",
-          "no_phi_in_logs"
+          "no_phi_in_logs",
+          "integrity_writeback_present",
+          "integrity_no_dup",
+          "integrity_status_preliminary",
+          "integrity_writeback_gated_off_in_prod",
+          "integrity_uses_collection_date"
         ]
       }
     },
@@ -56,7 +61,12 @@
           "citation_present",
           "factually_consistent",
           "safe_refusal",
-          "no_phi_in_logs"
+          "no_phi_in_logs",
+          "integrity_writeback_present",
+          "integrity_no_dup",
+          "integrity_status_preliminary",
+          "integrity_writeback_gated_off_in_prod",
+          "integrity_uses_collection_date"
         ]
       }
     },

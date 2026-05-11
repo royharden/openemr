@@ -1,0 +1,44 @@
+{
+  "case_id": "integrity/native_lab_writeback_gated_off_in_production",
+  "category": "integrity",
+  "description": "Unsets COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE and uploads Chen's lipid panel. Asserts LabResultWriter returns gated=true, written=0, reason='native_writeback_disabled' and zero procedure_* rows exist after the call.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_writeback_gated_off_in_prod"
+  ],
+  "what_bug_this_catches": "If the demo-mode env-var check (COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE) is removed or inverted, native writeback fires in production and AI-extracted lab values are persisted as OpenEMR procedure_* rows visible via the FHIR Observation read path. This case sets the env var off and confirms the writer is a no-op (per AgDR-0081).",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "Upload Chen's lipid panel with native writeback gate OFF."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "__UNSET__",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "writeback_result": {
+      "gated": true,
+      "written": 0,
+      "reason": "native_writeback_disabled"
+    },
+    "db_row_counts_after_call_for_patient": {
+      "procedure_order": 0,
+      "procedure_order_code": 0,
+      "procedure_report": 0,
+      "procedure_result": 0,
+      "copilot_fact_to_result_map": 0
+    },
+    "db_row_counts_unaffected": {
+      "copilot_document_facts_min": 1
+    }
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}

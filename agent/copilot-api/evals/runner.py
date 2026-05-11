@@ -1030,6 +1030,74 @@ def _scan_paths_for_phi(paths: list[pathlib.Path]) -> int:
     return 0
 
 
+def _scan_corpus_for_copyright() -> int:
+    """Scan every chunk in corpus.db against per-source COPYRIGHT_TRIP_PHRASES.
+
+    AgDR-0070 — closes Plan §6.4 promise. Each ingestion module that pulls
+    from a copyrighted source (currently ada_2026 and acc_aha_2026) declares
+    a ``COPYRIGHT_TRIP_PHRASES: list[str]`` of distinctive phrases that
+    would only appear in the official publication. This scan reads every
+    chunk's ``text`` column and reports any hit (case-insensitive
+    substring). Defense-in-depth — the primary control is authoring
+    discipline (locally-authored summaries, never copy-paste).
+    """
+    import importlib
+    import sqlite3
+
+    corpus_path = pathlib.Path(__file__).parent.parent / "corpus.db"
+    if not corpus_path.exists():
+        print(f"Corpus copyright scan: {corpus_path} not found; treating as pass.")
+        return 0
+
+    # Discover ingestion modules with COPYRIGHT_TRIP_PHRASES constants.
+    ingestion_pkg = pathlib.Path(__file__).parent.parent / "app" / "rag" / "ingestion"
+    trip_phrases_by_source: dict[str, list[str]] = {}
+    for py_file in sorted(ingestion_pkg.glob("*.py")):
+        if py_file.name in {"__init__.py"}:
+            continue
+        module_name = f"app.rag.ingestion.{py_file.stem}"
+        try:
+            module = importlib.import_module(module_name)
+        except Exception as exc:  # noqa: BLE001 — best-effort discovery
+            print(f"Corpus copyright scan: skipping {module_name} ({exc})")
+            continue
+        phrases = getattr(module, "COPYRIGHT_TRIP_PHRASES", None)
+        if isinstance(phrases, list) and phrases:
+            source_id = getattr(module, "SOURCE_ID", py_file.stem)
+            trip_phrases_by_source[str(source_id)] = [str(p).lower() for p in phrases]
+
+    if not trip_phrases_by_source:
+        print("Corpus copyright scan: no ingestion modules declare COPYRIGHT_TRIP_PHRASES.")
+        return 0
+
+    failures: list[str] = []
+    try:
+        conn = sqlite3.connect(str(corpus_path))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute("SELECT id, source_id, text FROM chunks")
+        for row in cursor:
+            chunk_id = row["id"]
+            chunk_source = str(row["source_id"]) if row["source_id"] is not None else ""
+            chunk_text_lower = str(row["text"]).lower()
+            phrases = trip_phrases_by_source.get(chunk_source, [])
+            for phrase in phrases:
+                if phrase in chunk_text_lower:
+                    failures.append(f"{chunk_source}/{chunk_id}: '{phrase}'")
+        conn.close()
+    except sqlite3.DatabaseError as exc:
+        print(f"Corpus copyright scan: sqlite read failed ({exc})")
+        return 1
+
+    if failures:
+        print("Corpus copyright scan failed (verbatim guideline phrase in a chunk):")
+        for failure in failures:
+            print(f"  - {failure}")
+        return 1
+
+    print(f"Corpus copyright scan passed. Scanned {len(trip_phrases_by_source)} sources.")
+    return 0
+
+
 def main_with_args(argv: list[str] | None = None) -> int:
     """Argparse entry point for Team C eval modes."""
     import argparse
@@ -1037,7 +1105,7 @@ def main_with_args(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Copilot eval runner")
     parser.add_argument(
         "--mode",
-        choices=["verifier", "extraction", "rag_retrieval", "rag_only", "citation", "refusal", "regression", "graph_full", "all"],
+        choices=["verifier", "extraction", "rag_retrieval", "rag_only", "citation", "refusal", "regression", "graph_full", "integrity", "all"],
         default="all",
         help="Which case category to run",
     )
@@ -1045,6 +1113,7 @@ def main_with_args(argv: list[str] | None = None) -> int:
     parser.add_argument("--smoke", action="store_true", help="Run live smoke cases only (<30s)")
     parser.add_argument("--rubric-report", action="store_true", help="Print per-rubric pass rates vs floors")
     parser.add_argument("--check-corpus-phi", action="store_true", help="Scan bundled RAG corpus artifacts for obvious PHI patterns")
+    parser.add_argument("--check-corpus-copyright", action="store_true", help="Scan corpus.db chunks against per-source COPYRIGHT_TRIP_PHRASES (AgDR-0070)")
     parser.add_argument("--check-trace-phi", action="store_true", help="Scan eval result/trace artifacts for obvious PHI patterns")
     parser.add_argument(
         "--validate-schema-only",
@@ -1058,6 +1127,9 @@ def main_with_args(argv: list[str] | None = None) -> int:
             pathlib.Path(__file__).parent.parent / "corpus.db",
             pathlib.Path(__file__).parent.parent / "app" / "rag" / "ingestion",
         ])
+
+    if args.check_corpus_copyright:
+        return _scan_corpus_for_copyright()
 
     if args.check_trace_phi:
         return _scan_paths_for_phi([

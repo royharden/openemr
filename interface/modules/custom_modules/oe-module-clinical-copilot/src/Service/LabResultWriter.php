@@ -136,7 +136,14 @@ final class LabResultWriter
      * @param string $documentSha256  hex SHA-256 of the source document body
      * @param int    $providerId      OpenEMR user id of the uploader
      *
-     * @return array{written: int, skipped: int, fact_ids: list<int>, result_ids: list<int>}
+     * @return array{
+     *   written: int,
+     *   skipped: int,
+     *   fact_ids: list<int>,
+     *   result_ids: list<int>,
+     *   gated?: bool,
+     *   reason?: string,
+     * }
      */
     public function writeLabFactsForDocument(
         int $patientId,
@@ -146,6 +153,27 @@ final class LabResultWriter
         string $documentSha256,
         int $providerId,
     ): array {
+        // AgDR-0081 — native lab write-back is a demo-only path. In production
+        // containers the env var is unset and the writer is a no-op so VLM
+        // output never reaches OpenEMR's lab-results review screen as
+        // clinician-signed truth. The Wk3 clinician-review workflow is the
+        // only legitimate path to promote a Co-Pilot row to final/reviewed.
+        $demoGate = getenv('COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE');
+        if ($demoGate !== '1') {
+            $this->logger->info(
+                'LabResultWriter: native writeback disabled (set COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE=1 to enable in demo containers only)',
+                ['document_sha256_prefix' => substr($documentSha256, 0, 8)],
+            );
+            return [
+                'written' => 0,
+                'skipped' => 0,
+                'fact_ids' => [],
+                'result_ids' => [],
+                'gated' => true,
+                'reason' => 'native_writeback_disabled',
+            ];
+        }
+
         $this->ensureMapSchema();
 
         $facts = $this->loadUnmappedLabFacts($patientUuid, $documentSha256);
@@ -307,7 +335,18 @@ final class LabResultWriter
         $units = $fieldValue['unit'] ?? null;
         $range = $this->normalizeReferenceRange($fieldValue['reference_range'] ?? null);
         $abnormal = $this->normalizeAbnormalFlag($fieldValue['flag'] ?? null);
-        $resultDate = $this->normalizeResultDate($fact['extracted_at'] ?? null);
+        // AgDR-0067 (Phase 4.5 fold-in) — prefer the extracted lab collection
+        // date over the extraction timestamp. Using extracted_at means a
+        // re-imported 2020 historical lab gets a 2026 date_report, and the
+        // FHIR Observation effectiveDateTime carries the upload time rather
+        // than the clinical time. Fall back to extracted_at only when the
+        // VLM did not return a parseable collection_date.
+        $collectionDateRaw = $fieldValue['collection_date'] ?? null;
+        $resultDate = $this->normalizeResultDate(
+            is_string($collectionDateRaw) && $collectionDateRaw !== ''
+                ? $collectionDateRaw
+                : ($fact['extracted_at'] ?? null),
+        );
         $displayName = $this->resolveDisplayName(
             is_string($fact['field_path']) ? $fact['field_path'] : '',
             $loinc,
@@ -317,8 +356,14 @@ final class LabResultWriter
         $factIdInt = is_numeric($factIdRaw) ? (int) $factIdRaw : 0;
         $extractedAtRaw = $fact['extracted_at'] ?? null;
         $extractedAtStr = is_scalar($extractedAtRaw) ? (string) $extractedAtRaw : '';
+        // AgDR-0081 — prepend a human-readable "pending clinician review"
+        // label so the Lab Review screen makes the unreviewed status visible
+        // before any clinician parses the machine-readable prefix. Status
+        // fields below also use the least-final enum values for the same
+        // reason; clinician review (Wk3 workflow) is the only legitimate
+        // path to promote these rows.
         $provenanceComment = sprintf(
-            '[copilot-extracted: doc_uuid=%s; fact_id=%d; extraction=%s]',
+            '[Co-Pilot extracted — pending clinician review] [copilot-extracted: doc_uuid=%s; fact_id=%d; extraction=%s]',
             $documentUuidStr,
             $factIdInt,
             $extractedAtStr,
@@ -328,15 +373,51 @@ final class LabResultWriter
         }
 
         // --- Transaction begin ---
+        // AgDR-0067 — concurrent-upload safety. Two simultaneous uploaders of
+        // the same lab fact (front-desk + physician within seconds) would
+        // both pass loadUnmappedLabFacts (no map entry) and both try to
+        // insert procedure_* chains, racing on the map INSERT. To serialize,
+        // we acquire a row-level lock on copilot_document_facts.id with
+        // SELECT FOR UPDATE inside the transaction. Concurrent writers block
+        // until the first commits; the loser then re-checks the map under
+        // the lock and skips cleanly.
         QueryUtils::sqlStatementThrowException('START TRANSACTION');
         try {
-            // 1) procedure_order
+            // 0a) Take a row lock on the underlying fact. SELECT FOR UPDATE
+            //     on the PK is a single-key lock — no deadlock risk between
+            //     different facts.
+            QueryUtils::fetchSingleValue(
+                'SELECT id FROM copilot_document_facts WHERE id = ? FOR UPDATE',
+                'id',
+                [$factIdInt],
+            );
+
+            // 0b) Re-check the map under the lock. If a concurrent writer
+            //     already mapped this fact, we skip cleanly — its
+            //     procedure_* chain is the canonical one.
+            $existingMappedResultId = QueryUtils::fetchSingleValue(
+                'SELECT procedure_result_id FROM `' . self::MAP_TABLE . '`
+                  WHERE copilot_document_fact_id = ?',
+                'procedure_result_id',
+                [$factIdInt],
+            );
+            if (is_numeric($existingMappedResultId) && (int) $existingMappedResultId > 0) {
+                QueryUtils::sqlStatementThrowException('COMMIT');
+                $this->logger->info(
+                    'LabResultWriter: fact already mapped by concurrent writer, skipping',
+                    ['fact_id' => $factIdInt],
+                );
+                return null;
+            }
+
+            // 1) procedure_order — order_status='pending' (was 'complete'):
+            //    Co-Pilot extracted; result delivery / review not yet done.
             QueryUtils::sqlStatementThrowException(
                 'INSERT INTO `' . self::TABLE_ORDER . '`
                     (patient_id, provider_id, date_ordered, date_collected,
                      order_status, procedure_order_type, activity,
                      order_diagnosis, clinical_hx, patient_instructions)
-                 VALUES (?, ?, ?, ?, "complete", "laboratory_test", 1,
+                 VALUES (?, ?, ?, ?, "pending", "laboratory_test", 1,
                          "copilot-extracted", ?, NULL)',
                 [
                     $patientId,
@@ -357,12 +438,16 @@ final class LabResultWriter
                 [$orderId, $loinc, $displayName, $displayName],
             );
 
-            // 3) procedure_report  — seq=1 to match the order_code seq
+            // 3) procedure_report — seq=1 to match the order_code seq.
+            //    report_status='prelim' (was 'complete') AND
+            //    review_status='received' (was 'reviewed'): VLM output is
+            //    NOT clinician-signed clinical truth. The orders UI maps
+            //    empty/non-'reviewed' to the "Pending Review" bucket.
             QueryUtils::sqlStatementThrowException(
                 'INSERT INTO `' . self::TABLE_REPORT . '`
                     (procedure_order_id, procedure_order_seq, date_collected,
                      date_report, report_status, review_status)
-                 VALUES (?, 1, ?, ?, "complete", "reviewed")',
+                 VALUES (?, 1, ?, ?, "prelim", "received")',
                 [$orderId, $resultDate, $resultDate],
             );
             $reportId = $this->lastInsertId();
@@ -371,12 +456,14 @@ final class LabResultWriter
             //     in the OpenEMR schema. The extractor can return null for
             //     either, so coerce to empty string here (matches Maria G.
             //     seed shape; non-null was an unexpected hard constraint).
+            //     result_status='prelim' (was 'final') — same rationale as
+            //     report_status above.
             QueryUtils::sqlStatementThrowException(
                 'INSERT INTO `' . self::TABLE_RESULT . '`
                     (procedure_report_id, result_data_type, result_code,
                      result_text, result, units, `range`, abnormal,
                      `comments`, date, result_status, document_id)
-                 VALUES (?, "N", ?, ?, ?, ?, ?, ?, ?, ?, "final", ?)',
+                 VALUES (?, "N", ?, ?, ?, ?, ?, ?, ?, ?, "prelim", ?)',
                 [
                     $reportId,
                     $loinc,
@@ -392,12 +479,17 @@ final class LabResultWriter
             );
             $resultId = $this->lastInsertId();
 
-            // 5) Mint UUIDs via the same path the FHIR read uses.
-            UuidRegistry::createMissingUuidsForTables([
-                self::TABLE_ORDER,
-                self::TABLE_REPORT,
-                self::TABLE_RESULT,
-            ]);
+            // 5) Mint UUIDs via per-row helpers. AgDR-0067 — the previous
+            //    UuidRegistry::createMissingUuidsForTables call opens its own
+            //    transaction (UuidRegistry.php:298), which under MySQL's
+            //    flatten-nested-transactions semantics silently committed
+            //    our outer transaction. createMissingUuidForRow does a
+            //    guarded UPDATE + registry insert without opening a nested
+            //    transaction, so our outer transaction's rollback path
+            //    actually works on failure.
+            UuidRegistry::createMissingUuidForRow(self::TABLE_ORDER, 'procedure_order_id', $orderId);
+            UuidRegistry::createMissingUuidForRow(self::TABLE_REPORT, 'procedure_report_id', $reportId);
+            UuidRegistry::createMissingUuidForRow(self::TABLE_RESULT, 'procedure_result_id', $resultId);
 
             // 6) Fetch the freshly-minted procedure_result.uuid for the map.
             $resultUuidBin = QueryUtils::fetchSingleValue(
@@ -409,10 +501,15 @@ final class LabResultWriter
                 throw new \RuntimeException('procedure_result.uuid was not minted');
             }
 
-            // 7) Map.  UNIQUE on copilot_document_fact_id — concurrent writer
-            //     would hit the unique constraint, INSERT IGNORE handles that.
+            // 7) Map. Switched from INSERT IGNORE to plain INSERT because
+            //    the SELECT FOR UPDATE in step 0a guarantees no concurrent
+            //    writer can race us to a duplicate map row for the same
+            //    fact_id. A constraint violation here is a real bug
+            //    (transaction-isolation regression, schema drift), so let it
+            //    throw and roll back the whole chain rather than silently
+            //    swallowing it with INSERT IGNORE.
             QueryUtils::sqlStatementThrowException(
-                'INSERT IGNORE INTO `' . self::MAP_TABLE . '`
+                'INSERT INTO `' . self::MAP_TABLE . '`
                     (copilot_document_fact_id, procedure_order_id,
                      procedure_report_id, procedure_result_id,
                      procedure_result_uuid)

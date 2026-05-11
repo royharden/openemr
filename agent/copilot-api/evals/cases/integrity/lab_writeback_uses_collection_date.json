@@ -1,0 +1,41 @@
+{
+  "case_id": "integrity/lab_writeback_uses_collection_date",
+  "category": "integrity",
+  "description": "Uploads a lab fixture whose extracted field_value_json.collection_date='2020-08-14'. Asserts procedure_order.date_ordered, procedure_report.date_report, and procedure_result.date all equal 2020-08-14 — NOT the upload/extraction timestamp.",
+  "mode": "graph_full",
+  "rubrics": [
+    "integrity_uses_collection_date"
+  ],
+  "what_bug_this_catches": "If LabResultWriter regresses to using the extraction timestamp (clock->now() or time()) for date_ordered/date_report/date instead of the VLM-extracted field_value_json.collection_date, FHIR Observation effectiveDateTime carries the upload date rather than the historical lab date. This case uploads a fixture with a 2020 collection date and asserts the date columns match the lab time, not the extraction time — required for the Phase 7.1 lab-trend widget to render real trends instead of a single stacked point.",
+  "input": {
+    "patient_uuid_hash": "1a75568633edb59560b5645a921ea7da3a8ef490ec7c2012ceea926ca3628a65",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p01-chen-lipid-panel.pdf",
+        "doc_type": "lab_pdf"
+      }
+    ],
+    "query": "Upload lipid panel with collection_date=2020-08-14 in extracted facts."
+  },
+  "expectations": {
+    "env": {
+      "COPILOT_NATIVE_LAB_WRITEBACK_DEMO_MODE": "1",
+      "COPILOT_DEMO_MODE": "1"
+    },
+    "mocked_extraction_fields": {
+      "field_value_json.collection_date": "2020-08-14"
+    },
+    "row_date_invariants_for_every_copilot_written_row": {
+      "procedure_order.date_ordered_prefix": "2020-08-14",
+      "procedure_report.date_report_prefix": "2020-08-14",
+      "procedure_result.date_prefix": "2020-08-14"
+    },
+    "forbidden_dates": {
+      "procedure_report.date_report_must_not_equal_today": true,
+      "procedure_result.date_must_not_equal_extracted_at": true
+    }
+  },
+  "regression_marker": null,
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase24"
+}
