@@ -54,7 +54,7 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
                   LIMIT 40',
                 [$patientHash],
             );
-        } catch (\Exception) {
+        } catch (\PDOException | \RuntimeException) {
             return [];
         }
 
@@ -113,8 +113,11 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
                 'openemr_lab_review_url' => $labReviewUrl,
             ];
 
+            $rawRowId = $row['id'] ?? null;
+            $rowIdString = is_scalar($rawRowId) ? (string) $rawRowId : md5($patientHash . $fieldPath);
+
             $packets[] = new PacketDto(
-                sourceId: 'document_fact:' . (string) ($row['id'] ?? md5($patientHash . $fieldPath)),
+                sourceId: 'document_fact:' . $rowIdString,
                 patientUuid: $patientUuid,
                 resourceType: $resourceType,
                 sourceTable: 'copilot_document_facts',
@@ -153,7 +156,16 @@ final class AttachAndExtractStubBuilder implements PacketBuilder
         }
 
         $decoded = json_decode($value, true);
-        return is_array($decoded) ? $decoded : [];
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $result = [];
+        foreach ($decoded as $k => $v) {
+            if (is_string($k)) {
+                $result[$k] = $v;
+            }
+        }
+        return $result;
     }
 
     /**

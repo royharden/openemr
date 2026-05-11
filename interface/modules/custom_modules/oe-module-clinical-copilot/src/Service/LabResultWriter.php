@@ -46,8 +46,8 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Service;
 
 use OpenEMR\Common\Database\QueryUtils;
-use OpenEMR\Common\Logging\SystemLogger;
 use OpenEMR\Common\Uuid\UuidRegistry;
+use Psr\Log\LoggerInterface;
 
 final class LabResultWriter
 {
@@ -122,7 +122,7 @@ final class LabResultWriter
     ];
 
     public function __construct(
-        private readonly SystemLogger $logger,
+        private readonly LoggerInterface $logger,
     ) {}
 
     /**
@@ -169,12 +169,13 @@ final class LabResultWriter
                 );
                 if ($resultId !== null) {
                     $written++;
-                    $writtenFactIds[] = (int) $fact['id'];
+                    $factIdRaw = $fact['id'] ?? null;
+                    $writtenFactIds[] = is_numeric($factIdRaw) ? (int) $factIdRaw : 0;
                     $writtenResultIds[] = $resultId;
                 } else {
                     $skipped++;
                 }
-            } catch (\Throwable $exc) {
+            } catch (\PDOException | \RuntimeException $exc) {
                 $skipped++;
                 $this->logger->warning(
                     'LabResultWriter: per-fact write failed (best-effort, continuing)',
@@ -210,7 +211,7 @@ final class LabResultWriter
                 'procedure_result_uuid',
                 [$factId],
             );
-        } catch (\Throwable $exc) {
+        } catch (\PDOException | \RuntimeException $exc) {
             $this->logger->warning(
                 'LabResultWriter: map lookup failed',
                 ['fact_id' => $factId, 'exception' => $exc],
@@ -250,7 +251,7 @@ final class LabResultWriter
                 [$patientHash, $documentSha256],
             );
             return $rows;
-        } catch (\Throwable $exc) {
+        } catch (\PDOException | \RuntimeException $exc) {
             $this->logger->warning(
                 'LabResultWriter: unmapped-fact query failed',
                 ['exception' => $exc],
@@ -312,11 +313,15 @@ final class LabResultWriter
             $loinc,
         );
 
+        $factIdRaw = $fact['id'] ?? null;
+        $factIdInt = is_numeric($factIdRaw) ? (int) $factIdRaw : 0;
+        $extractedAtRaw = $fact['extracted_at'] ?? null;
+        $extractedAtStr = is_scalar($extractedAtRaw) ? (string) $extractedAtRaw : '';
         $provenanceComment = sprintf(
             '[copilot-extracted: doc_uuid=%s; fact_id=%d; extraction=%s]',
             $documentUuidStr,
-            (int) $fact['id'],
-            (string) ($fact['extracted_at'] ?? ''),
+            $factIdInt,
+            $extractedAtStr,
         );
         if (is_string($fact['quote_or_value']) && $fact['quote_or_value'] !== '') {
             $provenanceComment .= ' Quote: ' . substr($fact['quote_or_value'], 0, 240);
@@ -376,10 +381,10 @@ final class LabResultWriter
                     $reportId,
                     $loinc,
                     $displayName,
-                    $value !== null ? (string) $value : '',
+                    is_scalar($value) ? (string) $value : '',
                     is_string($units) ? $units : '',
                     is_string($range) ? $range : '',
-                    is_string($abnormal) ? $abnormal : 'no',
+                    $abnormal,
                     $provenanceComment,
                     $resultDate,
                     $documentId > 0 ? $documentId : null,
@@ -412,15 +417,15 @@ final class LabResultWriter
                      procedure_report_id, procedure_result_id,
                      procedure_result_uuid)
                  VALUES (?, ?, ?, ?, ?)',
-                [(int) $fact['id'], $orderId, $reportId, $resultId, $resultUuidBin],
+                [$factIdInt, $orderId, $reportId, $resultId, $resultUuidBin],
             );
 
             QueryUtils::sqlStatementThrowException('COMMIT');
             return $resultId;
-        } catch (\Throwable $exc) {
+        } catch (\PDOException | \RuntimeException $exc) {
             try {
                 QueryUtils::sqlStatementThrowException('ROLLBACK');
-            } catch (\Throwable $rollbackExc) {
+            } catch (\RuntimeException $rollbackExc) {
                 $this->logger->error(
                     'LabResultWriter: rollback also failed',
                     ['exception' => $rollbackExc],
@@ -448,7 +453,7 @@ final class LabResultWriter
         }
         $segments = explode('.', $path);
         $tail = end($segments);
-        if (!is_string($tail) || $tail === '') {
+        if ($tail === '') {
             return null;
         }
         return self::FIELD_PATH_TO_LOINC[$tail] ?? null;
@@ -487,7 +492,9 @@ final class LabResultWriter
             $low = $range['low'] ?? null;
             $high = $range['high'] ?? null;
             if ($low !== null && $high !== null) {
-                return sprintf('%s-%s', (string) $low, (string) $high);
+                $lowStr = is_scalar($low) ? (string) $low : '';
+                $highStr = is_scalar($high) ? (string) $high : '';
+                return sprintf('%s-%s', $lowStr, $highStr);
             }
             if (isset($range['text']) && is_string($range['text'])) {
                 return $range['text'];
@@ -509,7 +516,7 @@ final class LabResultWriter
                 try {
                     $dt = new \DateTimeImmutable($candidate);
                     return $dt->format('Y-m-d H:i:s');
-                } catch (\Exception) {
+                } catch (\DateMalformedStringException) {
                     // fall through
                 }
             }
@@ -528,7 +535,7 @@ final class LabResultWriter
         if ($path !== '') {
             $segments = explode('.', $path);
             $last = end($segments);
-            if (is_string($last) && $last !== '') {
+            if ($last !== '') {
                 return str_replace('_', ' ', $last);
             }
         }

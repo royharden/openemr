@@ -84,7 +84,7 @@ final class SidecarClient
                 'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ]);
             return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
-        } catch (\Exception $e) {
+        } catch (\GuzzleHttp\Exception\GuzzleException | \RuntimeException $e) {
             return [
                 '__sidecar_error' => 'request_failed',
                 '__sidecar_message' => $e->getMessage(),
@@ -128,7 +128,7 @@ final class SidecarClient
                 'body' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ]);
             return self::classifyResponse($resp->getStatusCode(), (string)$resp->getBody());
-        } catch (\Exception $e) {
+        } catch (\GuzzleHttp\Exception\GuzzleException | \RuntimeException $e) {
             return [
                 '__sidecar_error' => 'request_failed',
                 '__sidecar_message' => $e->getMessage(),

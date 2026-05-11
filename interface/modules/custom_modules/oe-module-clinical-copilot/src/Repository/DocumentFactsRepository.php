@@ -20,14 +20,14 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Repository;
 
 use OpenEMR\Common\Database\QueryUtils;
-use OpenEMR\Common\Logging\SystemLogger;
+use Psr\Log\LoggerInterface;
 
 final class DocumentFactsRepository
 {
     private const TABLE = 'copilot_document_facts';
 
     public function __construct(
-        private readonly SystemLogger $logger,
+        private readonly LoggerInterface $logger,
     ) {}
 
     /**
@@ -83,9 +83,6 @@ final class DocumentFactsRepository
         $inserted     = 0;
 
         foreach ($fields as $field) {
-            if (!is_array($field)) {
-                continue;
-            }
             $fieldPathRaw = $field['name'] ?? '';
             $fieldPath = is_string($fieldPathRaw) ? $fieldPathRaw : '';
             if ($fieldPath === '') {

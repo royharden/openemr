@@ -44,18 +44,22 @@
 
 declare(strict_types=1);
 
+namespace OpenEMR\Modules\ClinicalCopilot\Api\Internal;
+
 require_once(__DIR__ . "/../../../../../globals.php");
 require_once(\OpenEMR\Core\OEGlobalsBag::getInstance()->getProjectDir() . "/library/documents.php");
 require_once(__DIR__ . "/upload_common.php");
 
+use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Csrf\CsrfUtils;
-use OpenEMR\Common\Logging\SystemLogger;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentUploadController;
 use OpenEMR\Modules\ClinicalCopilot\Repository\DocumentFactsRepository;
 use OpenEMR\Services\PatientService;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\Request;
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -84,9 +88,6 @@ function copilot_create_pluck_field(array $fields, array $candidatePaths): ?stri
 {
     foreach ($candidatePaths as $candidate) {
         foreach ($fields as $field) {
-            if (!is_array($field)) {
-                continue;
-            }
             $name = $field['name'] ?? null;
             if (!is_string($name) || strtolower($name) !== strtolower($candidate)) {
                 continue;
@@ -109,14 +110,28 @@ function copilot_create_pluck_field(array $fields, array $candidatePaths): ?stri
  *
  * Returns the partial demographics — caller validates completeness.
  *
+ * @param array<string, mixed> $payload
  * @return array<string, string|null>
  */
 function copilot_create_demographics_from_extract(array $payload): array
 {
     $result = $payload['result'] ?? [];
-    $fields = is_array($result) ? ($result['fields'] ?? []) : [];
-    if (!is_array($fields)) {
-        $fields = [];
+    $rawFields = is_array($result) ? ($result['fields'] ?? []) : [];
+    /** @var list<array<string, mixed>> $fields */
+    $fields = [];
+    if (is_array($rawFields)) {
+        foreach ($rawFields as $f) {
+            if (!is_array($f)) {
+                continue;
+            }
+            $entry = [];
+            foreach ($f as $k => $v) {
+                if (is_string($k)) {
+                    $entry[$k] = $v;
+                }
+            }
+            $fields[] = $entry;
+        }
     }
 
     return [
@@ -197,7 +212,7 @@ function copilot_create_normalize_dob(?string $raw): ?string
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $isoLike) === 1) {
             return $isoLike;
         }
-    } catch (\Exception) {
+    } catch (\DateMalformedStringException) {
         // fall through
     }
     return null;
@@ -223,6 +238,7 @@ function copilot_create_normalize_sex(?string $raw): string
 // Endpoint entry
 // ---------------------------------------------------------------------------
 
+$logger = ServiceContainer::getLogger();
 try {
     // 1. Demo-mode gate — primary safety control. Production has this unset.
     if (getenv('COPILOT_DEMO_MODE') !== '1') {
@@ -232,9 +248,11 @@ try {
         ]);
     }
 
-    // 2. CSRF — same subject as the upload endpoints.
+    $request = Request::createFromGlobals();
     $session = SessionWrapperFactory::getInstance()->getActiveSession();
-    $csrf = $_POST['csrf_token_form'] ?? $_SERVER['HTTP_APICSRFTOKEN'] ?? null;
+
+    // 2. CSRF — same subject as the upload endpoints.
+    $csrf = $request->request->get('csrf_token_form') ?? $request->server->get('HTTP_APICSRFTOKEN');
     if (!is_string($csrf) || !CsrfUtils::verifyCsrfToken($csrf, $session, 'ClinicalCopilot')) {
         copilot_create_send_json(403, ['error' => 'csrf_failure']);
     }
@@ -245,17 +263,17 @@ try {
         copilot_create_send_json(403, ['error' => 'acl_denied']);
     }
 
-    // 4. File upload guard (mirrors upload_common.php).
-    $upload = $_FILES['file'] ?? null;
-    if (!is_array($upload) || !isset($upload['tmp_name'], $upload['name'], $upload['error'])) {
+    // 4. File upload guard.
+    $uploadedFile = $request->files->get('file');
+    if (!$uploadedFile instanceof UploadedFile) {
         copilot_create_send_json(400, ['error' => 'missing_file']);
     }
-    if ((int) $upload['error'] !== UPLOAD_ERR_OK) {
-        copilot_create_send_json(400, ['error' => 'upload_error', 'code' => (int) $upload['error']]);
+    if (!$uploadedFile->isValid()) {
+        copilot_create_send_json(400, ['error' => 'upload_error', 'code' => $uploadedFile->getError()]);
     }
 
-    $tmpName = is_string($upload['tmp_name'] ?? null) ? $upload['tmp_name'] : '';
-    $originalName = basename(is_string($upload['name'] ?? null) ? $upload['name'] : 'intake.bin');
+    $tmpName = $uploadedFile->getPathname();
+    $originalName = basename($uploadedFile->getClientOriginalName() ?: 'intake.bin');
     if ($tmpName === '' || !is_uploaded_file($tmpName)) {
         copilot_create_send_json(400, ['error' => 'invalid_upload']);
     }
@@ -265,12 +283,10 @@ try {
         copilot_create_send_json(500, ['error' => 'upload_copy_failed']);
     }
 
-    $logger = new SystemLogger();
-
     try {
         $mimeType = copilot_upload_detect_mime(
             $scratch,
-            is_string($upload['type'] ?? null) ? $upload['type'] : 'application/octet-stream',
+            $uploadedFile->getClientMimeType() ?: 'application/octet-stream',
         );
 
         // 5. Sidecar extraction — no DB writes yet. extractIntakeForm() is the
@@ -311,9 +327,16 @@ try {
 
         // 7. Build tagging fields tied to the file SHA so re-running the same
         //    file produces a recognizable, traceable pubpid suffix.
-        $docSha = is_string($payload['document_sha256'] ?? null)
-            ? (string) $payload['document_sha256']
-            : hash_file('sha256', $scratch);
+        $docShaRaw = $payload['document_sha256'] ?? null;
+        if (is_string($docShaRaw) && $docShaRaw !== '') {
+            $docSha = $docShaRaw;
+        } else {
+            $computed = hash_file('sha256', $scratch);
+            if ($computed === false) {
+                throw new \RuntimeException('sha256_compute_failed');
+            }
+            $docSha = $computed;
+        }
         $shortSha = strtoupper(substr($docSha, 0, 8));
         $pubpid = sprintf('WK2-DEMO-INTAKE-%s', $shortSha);
         $usertext1 = sprintf('wk2-demo-intake-%s', strtolower($shortSha));
@@ -336,27 +359,25 @@ try {
             'email' => $demographics['email'] ?? null,
         ]);
 
-        // PatientService returns a ProcessingResult; pull the new pid + uuid out.
-        $newPid = null;
-        $newPatientUuid = null;
-        $validationMessages = [];
-        if (method_exists($insertResult, 'isValid') && !$insertResult->isValid()) {
-            $validationMessages = $insertResult->getValidationMessages();
+        if (!$insertResult->isValid()) {
             copilot_create_send_json(422, [
                 'error' => 'patient_validation_failed',
-                'validation' => $validationMessages,
+                'validation' => $insertResult->getValidationMessages(),
             ]);
         }
-        if (method_exists($insertResult, 'getData')) {
-            $rows = $insertResult->getData();
-            if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
-                $newPid = isset($rows[0]['pid']) ? (int) $rows[0]['pid'] : null;
-                $rawUuid = $rows[0]['uuid'] ?? null;
-                if (is_string($rawUuid) && strlen($rawUuid) === 16) {
-                    $newPatientUuid = UuidRegistry::uuidToString($rawUuid);
-                } elseif (is_string($rawUuid) && $rawUuid !== '') {
-                    $newPatientUuid = $rawUuid;
-                }
+        $rows = $insertResult->getData();
+        $newPid = null;
+        $newPatientUuid = null;
+        if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
+            $pidRow = $rows[0]['pid'] ?? null;
+            if (is_numeric($pidRow)) {
+                $newPid = (int) $pidRow;
+            }
+            $rawUuid = $rows[0]['uuid'] ?? null;
+            if (is_string($rawUuid) && strlen($rawUuid) === 16) {
+                $newPatientUuid = UuidRegistry::uuidToString($rawUuid);
+            } elseif (is_string($rawUuid) && $rawUuid !== '') {
+                $newPatientUuid = $rawUuid;
             }
         }
 
@@ -367,7 +388,8 @@ try {
         // 9. Store raw document under the new patient. We reuse the SHA dedup
         //    layer from AgDR-0063 — same file uploaded twice across two
         //    create-from-intake calls would still dedup (different patients).
-        $userId = (int) ($session->get('authUserID') ?? 0);
+        $userIdRaw = $session->get('authUserID') ?? 0;
+        $userId = is_numeric($userIdRaw) ? (int) $userIdRaw : 0;
         [$documentId, $documentUuidBin] = copilot_upload_store_document(
             $tmpName,
             $originalName,
@@ -388,6 +410,7 @@ try {
 
         // 11. Response shape — small and explicit so the UI can navigate.
         $webRoot = \OpenEMR\Core\OEGlobalsBag::getInstance()->getWebRoot();
+        $extractedCount = $payload['extracted_field_count'] ?? null;
         copilot_create_send_json(200, [
             'pid' => $newPid,
             'patient_uuid' => $newPatientUuid,
@@ -395,9 +418,7 @@ try {
             'usertext1' => $usertext1,
             'document_id' => $documentId,
             'document_sha256' => $docSha,
-            'extracted_field_count' => is_int($payload['extracted_field_count'] ?? null)
-                ? (int) $payload['extracted_field_count']
-                : 0,
+            'extracted_field_count' => is_int($extractedCount) ? $extractedCount : 0,
             'persisted_facts' => $inserted,
             'demographics' => [
                 'fname' => $fname,
@@ -406,7 +427,7 @@ try {
             ],
             'redirect_url' => $webRoot . '/interface/patient_file/summary/demographics.php?set_pid=' . $newPid,
         ]);
-    } catch (\Throwable $e) {
+    } catch (\RuntimeException | \PDOException | \JsonException $e) {
         $logger->error('ClinicalCopilot: create_patient_from_intake failed', [
             'exception' => $e,
         ]);
@@ -415,12 +436,12 @@ try {
             'detail' => 'Demo-mode patient creation failed. Check sidecar status + Langfuse trace.',
         ]);
     } finally {
-        if (isset($scratch) && is_string($scratch) && is_file($scratch)) {
+        if (is_file($scratch)) {
             unlink($scratch);
         }
     }
-} catch (\Throwable $e) {
-    (new SystemLogger())->error('ClinicalCopilot: create_patient_from_intake outer-fail', [
+} catch (\RuntimeException | \PDOException | \JsonException $e) {
+    $logger->error('ClinicalCopilot: create_patient_from_intake outer-fail', [
         'exception' => $e,
     ]);
     copilot_create_send_json(500, ['error' => 'unexpected']);
