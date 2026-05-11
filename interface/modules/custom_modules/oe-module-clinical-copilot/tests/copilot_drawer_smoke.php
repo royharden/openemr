@@ -49,6 +49,7 @@ if ($moduleRoot === false) {
 $copilotJsPath = $moduleRoot . '/public/assets/js/copilot.js';
 $copilotCssPath = $moduleRoot . '/public/assets/css/copilot.css';
 
+/** @var array<string, array<string, mixed>> $results */
 $results = [];
 
 /**

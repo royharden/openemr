@@ -68,9 +68,9 @@ require_once(__DIR__ . "/../../../../../globals.php");
 use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Session\SessionWrapperFactory;
+use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Services\BaseService;
 use OpenEMR\Services\FHIR\FhirObservationService;
-use OpenEMR\Common\Uuid\UuidRegistry;
 use Symfony\Component\HttpFoundation\Request;
 
 header('Content-Type: application/fhir+json; charset=utf-8');

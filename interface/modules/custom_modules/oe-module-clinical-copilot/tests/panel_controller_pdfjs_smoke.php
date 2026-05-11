@@ -58,6 +58,7 @@ $pdfMinPath = $vendorDir . '/pdf.min.js';
 $pdfWorkerPath = $vendorDir . '/pdf.worker.min.js';
 $licenseNoticePath = $vendorDir . '/LICENSE-NOTICE';
 
+/** @var array<string, array<string, mixed>> $results */
 $results = [];
 
 /**

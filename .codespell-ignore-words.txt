@@ -15,6 +15,7 @@ ehr
 hsa
 inactivate
 inactivated
+infarction
 inh
 laba
 lama

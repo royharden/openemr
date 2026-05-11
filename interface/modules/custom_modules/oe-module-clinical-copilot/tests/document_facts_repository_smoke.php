@@ -139,27 +139,25 @@ $repository = new DocumentFactsRepository($logger);
  *
  * @return array<string, mixed>
  */
-$buildPayload = static function (string $fieldPath) use ($testDocSha256): array {
-    return [
-        'document_sha256' => $testDocSha256,
-        'doc_type' => 'intake_form',
-        'result' => [
-            'extracted_by_model' => 'wk2-smoke-mock',
-            'extracted_at' => '2026-05-11 12:00:00',
-            'fields' => [
-                [
-                    'name' => $fieldPath,
-                    'value' => 'smoke-value',
-                    'citation' => [
-                        'page_index' => 0,
-                        'quote_or_value' => 'smoke-quote',
-                        'confidence' => 0.99,
-                    ],
+$buildPayload = static fn(string $fieldPath): array => [
+    'document_sha256' => $testDocSha256,
+    'doc_type' => 'intake_form',
+    'result' => [
+        'extracted_by_model' => 'wk2-smoke-mock',
+        'extracted_at' => '2026-05-11 12:00:00',
+        'fields' => [
+            [
+                'name' => $fieldPath,
+                'value' => 'smoke-value',
+                'citation' => [
+                    'page_index' => 0,
+                    'quote_or_value' => 'smoke-quote',
+                    'confidence' => 0.99,
                 ],
             ],
         ],
-    ];
-};
+    ],
+];
 
 // ----------------------------------------------------------------------
 // Test 1 — first insert: expect 1 row affected, exactly 1 row in DB.

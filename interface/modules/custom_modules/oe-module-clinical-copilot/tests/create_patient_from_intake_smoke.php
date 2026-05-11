@@ -56,11 +56,11 @@ if ($openemrRoot === false) {
 require_once $openemrRoot . '/interface/globals.php';
 require_once __DIR__ . '/../public/api/create_patient_from_intake_helpers.php';
 
-use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_normalize_dob;
-use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_normalize_sex;
+use OpenEMR\Modules\ClinicalCopilot\Api\Internal\AmbiguousDobException;
 use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_demographics_from_extract;
 use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_lookup_existing_patient_by_usertext1;
-use OpenEMR\Modules\ClinicalCopilot\Api\Internal\AmbiguousDobException;
+use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_normalize_dob;
+use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_normalize_sex;
 
 $json = false;
 $cliArgs = $argv ?? [];
