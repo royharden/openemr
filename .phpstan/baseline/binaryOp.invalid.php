@@ -12337,7 +12337,7 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/Config_File_Legacy.class.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^Binary operation "\\." between "~\\(\\?\\>\\\\n              …" and mixed results in an error\\.$#',
+    'message' => '#^Binary operation "\\." between "~\\(\\?\\>\\\\r\\\\n             …" and mixed results in an error\\.$#',
     'count' => 1,
     'path' => __DIR__ . '/../../library/smarty_legacy/smarty/Smarty_Compiler_Legacy.class.php',
 ];

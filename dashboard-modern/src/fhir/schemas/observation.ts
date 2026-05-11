@@ -59,4 +59,3 @@ export const ObservationSchema = z
   .passthrough()
 
 export type Observation = z.infer<typeof ObservationSchema>
-
