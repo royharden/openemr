@@ -106,6 +106,11 @@ case "${mode}" in
         FILES=$( (git diff --cached --name-only --diff-filter=ACMR; \
                   git diff --name-only --diff-filter=ACMR) | sort -u)
         ;;
+    *)
+        # Defensive: argument parsing should have rejected unknown modes.
+        echo "ERROR: unknown mode: ${mode}" >&2
+        exit 2
+        ;;
 esac
 
 if [[ -z "${FILES}" ]]; then
@@ -114,7 +119,9 @@ if [[ -z "${FILES}" ]]; then
 fi
 
 echo ">>> checking the following files (mode=${mode}):"
-echo "${FILES}" | sed 's/^/    /'
+# SC2001: parameter expansion can replace each ^ with "    " inline. The
+# `${var//pat/repl}` form does the same job sed used to.
+echo "${FILES//^/    }" | awk '{ print "    " $0 }'
 
 # ---------------------------------------------------------------------------
 # Decide whether to run phpstan.
@@ -145,4 +152,4 @@ else
     echo ">>> auto-fix files were modified by phpcbf / rector / end-of-file-fixer:"
     echo "    inspect with 'git diff', then 'git add' the corrected files and re-commit."
 fi
-exit ${rc}
+exit "${rc}"
