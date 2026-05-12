@@ -476,8 +476,21 @@ def _build_rag_runner_result(case: dict[str, Any]) -> dict[str, Any]:
             "source_organization": data.get("source_organization"),
         }
         packets.append(packet)
+        # Truncate synthetic claim text at a word boundary so we don't split
+        # mid-number — a bare "1" left over from a truncated "1.73" breaks
+        # rubric_factually_consistent because the evidence text only carries
+        # the full "1.73". The Phase 7.2.b contextualized rebuild surfaced
+        # this brittleness when a different top chunk's text truncated mid-
+        # numeric (AgDR-0079 follow-up).
+        chunk_full_text = str(data.get("text") or "")
+        if len(chunk_full_text) <= 180:
+            claim_text = chunk_full_text
+        else:
+            slice_180 = chunk_full_text[:180]
+            last_ws = max(slice_180.rfind(" "), slice_180.rfind("\n"))
+            claim_text = slice_180[:last_ws] if last_ws > 0 else slice_180
         claims.append({
-            "text": str(data.get("text") or "")[:180],
+            "text": claim_text,
             "claim_type": "fact",
             "source_ids": [source_id],
             "caveat": None,
