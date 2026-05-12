@@ -478,7 +478,7 @@ final class LabResultWriter
                     $displayName,
                     is_scalar($value) ? (string) $value : '',
                     is_string($units) ? $units : '',
-                    is_string($range) ? $range : '',
+                    $range,
                     $abnormal,
                     $provenanceComment,
                     $resultDate,
