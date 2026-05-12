@@ -292,6 +292,54 @@ def rubric_integrity_uses_collection_date(
     )
 
 
+def rubric_critic_verdict(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+) -> bool:
+    """AgDR-0075 — critic produced the expected verdict.
+
+    The case's ``expectations`` block can assert either or both of:
+    - ``critic_accepted`` (bool): whether the verdict's top-level
+      ``accepted`` field matches the case's prediction.
+    - ``critic_min_reject_flags`` (int, default 0): the minimum number of
+      ``severity="reject"`` flags the verdict must carry. Useful for the
+      "uncited dose change" cases where we want at least one reject flag
+      naming the specific claim, not merely ``accepted=false``.
+
+    Vacuously passes when the case asserts nothing on the critic, so
+    pre-AgDR-0075 cases keep their behavior unchanged.
+    """
+
+    expectations = case.get("expectations", {})
+    expected_accepted = expectations.get("critic_accepted")
+    expected_min_rejects = expectations.get("critic_min_reject_flags")
+
+    if expected_accepted is None and expected_min_rejects is None:
+        return True
+
+    verdict = runner_result.get("critic_verdict")
+    if verdict is None:
+        # No critic verdict was attached to the runner result. The graph
+        # path may not have included critic_node, or the case ran in a
+        # non-graph mode. A case that asserts on the critic but didn't
+        # exercise it is failing the rubric.
+        return False
+
+    if expected_accepted is not None and bool(verdict.get("accepted")) != bool(expected_accepted):
+        return False
+
+    if expected_min_rejects is not None:
+        reject_count = sum(
+            1 for f in (verdict.get("flagged_claims") or [])
+            if isinstance(f, dict) and f.get("severity") == "reject"
+        )
+        if reject_count < int(expected_min_rejects):
+            return False
+
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Rubric registry
 # ---------------------------------------------------------------------------
@@ -307,6 +355,7 @@ _RUBRIC_FUNCTIONS = {
     "integrity_status_preliminary": rubric_integrity_status_preliminary,
     "integrity_writeback_gated_off_in_prod": rubric_integrity_writeback_gated_off_in_prod,
     "integrity_uses_collection_date": rubric_integrity_uses_collection_date,
+    "critic_verdict": rubric_critic_verdict,
 }
 
 

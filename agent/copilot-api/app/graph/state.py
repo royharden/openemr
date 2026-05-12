@@ -29,6 +29,13 @@ class CopilotState(TypedDict, total=False):
     synthesis_status: str  # "pending" | "running" | "done" | "error"
     llm_output: dict[str, Any] | None  # LLMOutput dict
 
+    # --- critic (AgDR-0075, Phase 6.1) ---
+    # Runs between synthesizer and verifier. On reject the critic rewrites
+    # the in-flight llm_output to a safe-refusal shape so the verifier sees
+    # a clean refusal rather than a flagged-but-still-claiming brief.
+    critic_status: str  # "pending" | "passed" | "rejected" | "error" | "skipped"
+    critic_verdict: dict[str, Any] | None  # CriticVerdict dict
+
     # --- verifier ---
     verifier_status: str  # "pending" | "done" | "error"
     verified_response: dict[str, Any] | None  # VerifiedResponse dict

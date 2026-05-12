@@ -259,6 +259,35 @@ class VerifierIssue(BaseModel):
     detail: str
 
 
+# AgDR-0075 — Critic LLM worker output (Phase 6.1). The critic runs between
+# synthesizer and verifier and emits a per-claim verdict the UI consumes to
+# render an amber "uncertain" indicator (warn) or a hard safe-refusal (reject).
+CriticSeverity = Literal["warn", "reject"]
+
+
+class CriticFlag(BaseModel):
+    """One flagged claim from the critic LLM worker."""
+
+    claim_index: int = Field(..., ge=0, description="Zero-based index into LLMOutput.claims")
+    reason: str = Field(..., max_length=400)
+    severity: CriticSeverity
+
+
+class CriticVerdict(BaseModel):
+    """Critic worker verdict over a synthesized brief (AgDR-0075).
+
+    ``accepted=False`` with at least one ``severity="reject"`` flag forces a
+    safe refusal upstream of the verifier. ``accepted=True`` with no flags is
+    the happy path. A mix of ``warn`` flags is non-fatal: the brief passes
+    through but per-claim metadata is preserved so the UI can render
+    "uncertain" chips.
+    """
+
+    accepted: bool
+    flagged_claims: list[CriticFlag] = Field(default_factory=list)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
 class VerifiedResponse(BaseModel):
     answer_type: str
     claims: list[Claim]
@@ -272,6 +301,11 @@ class VerifiedResponse(BaseModel):
     selected_tools: list[ClinicalToolName] = Field(default_factory=list)
     planner_status: PlannerStatus | None = None
     tool_results_summary: list[dict[str, Any]] = Field(default_factory=list)
+    # AgDR-0075 — propagates the critic's per-claim verdict so the UI can
+    # render an amber "uncertain" chip for warn-only flags and the audit
+    # surface can log critic rejections. Optional with default None so
+    # pre-AgDR-0075 callers keep validating unchanged.
+    critic_verdict: CriticVerdict | None = None
 
 
 # ---------------------------------------------------------------------------

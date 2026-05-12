@@ -8,7 +8,8 @@ The routing logic is:
   START -> intake_extractor  (if documents provided and intake_status == "pending")
   intake_extractor -> evidence_retriever  (after extraction completes or is skipped)
   evidence_retriever -> synthesizer
-  synthesizer -> verifier
+  synthesizer -> critic  (AgDR-0075, Phase 6.1)
+  critic -> verifier
   verifier -> END
 
 The supervisor is called by LangGraph as a conditional-edge function.
@@ -25,6 +26,7 @@ from .state import CopilotState
 NODE_INTAKE_EXTRACTOR = "intake_extractor"
 NODE_EVIDENCE_RETRIEVER = "evidence_retriever"
 NODE_SYNTHESIZER = "synthesizer"
+NODE_CRITIC = "critic"  # AgDR-0075, Phase 6.1
 NODE_VERIFIER = "verifier"
 NODE_END = "__end__"
 
@@ -94,11 +96,29 @@ def route_from_retriever(state: CopilotState) -> str:
 def route_from_synthesizer(state: CopilotState) -> str:
     """Route after synthesizer completes.
 
-    Always proceeds to verifier.
+    Always proceeds to the critic worker (AgDR-0075, Phase 6.1). The critic
+    decides whether the draft is safe to verify; on reject it rewrites the
+    in-flight llm_output to a safe-refusal shape so the verifier still runs
+    on a well-formed (if empty-claim) response.
     """
     synthesis_status = state.get("synthesis_status", "unknown")
-    reason = f"synthesis_status={synthesis_status}; proceeding to verifier"
-    _record_handoff(state, NODE_SYNTHESIZER, NODE_VERIFIER, reason)
+    reason = f"synthesis_status={synthesis_status}; proceeding to critic"
+    _record_handoff(state, NODE_SYNTHESIZER, NODE_CRITIC, reason)
+    state["decision_reason"] = reason
+    return NODE_CRITIC
+
+
+def route_from_critic(state: CopilotState) -> str:
+    """Route after critic completes.
+
+    Always proceeds to verifier. On critic_status="rejected" the in-flight
+    llm_output has already been rewritten to a safe-refusal shape by
+    critic_node, so the verifier sees a clean refusal rather than a
+    flagged-but-still-claiming brief.
+    """
+    critic_status = state.get("critic_status", "unknown")
+    reason = f"critic_status={critic_status}; proceeding to verifier"
+    _record_handoff(state, NODE_CRITIC, NODE_VERIFIER, reason)
     state["decision_reason"] = reason
     return NODE_VERIFIER
 

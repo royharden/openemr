@@ -9,12 +9,14 @@ from __future__ import annotations
 import pytest
 
 from app.graph.supervisor import (
+    NODE_CRITIC,
     NODE_END,
     NODE_EVIDENCE_RETRIEVER,
     NODE_INTAKE_EXTRACTOR,
     NODE_SYNTHESIZER,
     NODE_VERIFIER,
     _record_handoff,
+    route_from_critic,
     route_from_intake,
     route_from_retriever,
     route_from_start,
@@ -208,10 +210,13 @@ class TestRouteFromRetriever:
 
 
 class TestRouteFromSynthesizer:
-    def test_always_returns_verifier(self) -> None:
+    def test_always_returns_critic(self) -> None:
+        """AgDR-0075 (Phase 6.1): synthesizer always hands off to the critic
+        before the verifier. A regression that reverted this edge to
+        NODE_VERIFIER would silently disable the LLM-layer safety gate."""
         for status in ("done", "error", "pending"):
             state = _make_state(synthesis_status=status)
-            assert route_from_synthesizer(state) == NODE_VERIFIER
+            assert route_from_synthesizer(state) == NODE_CRITIC
 
     def test_decision_reason_includes_status(self) -> None:
         state = _make_state(synthesis_status="done")
@@ -223,6 +228,33 @@ class TestRouteFromSynthesizer:
         route_from_synthesizer(state)
         h = state["worker_handoffs"][-1]
         assert h["from"] == NODE_SYNTHESIZER
+        assert h["to"] == NODE_CRITIC
+
+
+# ---------------------------------------------------------------------------
+# route_from_critic (AgDR-0075, Phase 6.1)
+# ---------------------------------------------------------------------------
+
+
+class TestRouteFromCritic:
+    def test_always_returns_verifier(self) -> None:
+        """Critic always proceeds to the verifier. On reject, the in-flight
+        llm_output has already been rewritten by critic_node — the verifier
+        sees a refusal-shaped output and produces a clean refusal."""
+        for status in ("passed", "rejected", "skipped", "error"):
+            state = _make_state(critic_status=status)
+            assert route_from_critic(state) == NODE_VERIFIER
+
+    def test_decision_reason_includes_status(self) -> None:
+        state = _make_state(critic_status="passed")
+        route_from_critic(state)
+        assert "passed" in state["decision_reason"]
+
+    def test_handoff_recorded(self) -> None:
+        state = _make_state(critic_status="passed")
+        route_from_critic(state)
+        h = state["worker_handoffs"][-1]
+        assert h["from"] == NODE_CRITIC
         assert h["to"] == NODE_VERIFIER
 
 
@@ -261,6 +293,7 @@ class TestNodeConstants:
             NODE_INTAKE_EXTRACTOR,
             NODE_EVIDENCE_RETRIEVER,
             NODE_SYNTHESIZER,
+            NODE_CRITIC,
             NODE_VERIFIER,
             NODE_END,
         ):
@@ -272,6 +305,7 @@ class TestNodeConstants:
             NODE_INTAKE_EXTRACTOR,
             NODE_EVIDENCE_RETRIEVER,
             NODE_SYNTHESIZER,
+            NODE_CRITIC,
             NODE_VERIFIER,
             NODE_END,
         ]

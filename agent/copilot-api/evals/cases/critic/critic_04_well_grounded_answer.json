@@ -1,0 +1,40 @@
+{
+  "case_id": "critic/critic_04_well_grounded_answer",
+  "name": "critic_well_grounded_answer_accepts",
+  "description": "Synthesizer emits a single fact claim ('A1c was 7.4% on 2026-01-15') cited against a present packet, no dose-change verbs. The critic must ACCEPT and the verifier should produce a passed VerifiedResponse with one accepted claim.",
+  "category": "critic",
+  "mode": "graph_full",
+  "rubrics": [
+    "critic_verdict",
+    "schema_valid",
+    "citation_present"
+  ],
+  "what_bug_this_catches": "Pins the critic's happy path. If the critic becomes overly aggressive (e.g., regex matches 'was' as dose-change, or empty source_ids check fires on a populated list), a clean grounded brief gets rejected and clinicians see safe-refusals on routine A1c-trend questions.",
+  "request": {
+    "question": "Critic eval: well grounded answer",
+    "trace_id": "eval-critic-04",
+    "patient_uuid_hash": "eval-patient-hash"
+  },
+  "packets": [
+    {
+      "source_id": "lab:a1c:jan",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Observation",
+      "source_table": "procedure_result",
+      "field": "result",
+      "label": "A1c",
+      "value": "7.4",
+      "unit": "%",
+      "observed_at": "2026-01-15",
+      "freshness": "recent",
+      "status": "final"
+    }
+  ],
+  "expectations": {
+    "critic_accepted": true,
+    "verifier_status": "passed",
+    "min_accepted_claims": 1
+  },
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase-6.1-critic-agent"
+}

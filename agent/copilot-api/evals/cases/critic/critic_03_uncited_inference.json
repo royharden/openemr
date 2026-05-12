@@ -1,0 +1,37 @@
+{
+  "case_id": "critic/critic_03_uncited_inference",
+  "name": "critic_uncited_inference_rejects",
+  "description": "Synthesizer emits a claim with an empty source_ids list. The critic must REJECT the claim before the verifier's deterministic source_attribution rule would drop it \u2014 the critic's reason surfaces in the safe-refusal text so the UI can name 'the critic could not verify'.",
+  "category": "critic",
+  "mode": "graph_full",
+  "rubrics": [
+    "critic_verdict",
+    "schema_valid"
+  ],
+  "what_bug_this_catches": "If the critic's empty-source_ids check is removed (e.g., a refactor narrows the policy to only the dose-change branch), uncited inferential claims would slide past the critic and only get dropped by the deterministic verifier. The user-visible refusal language attributes the safety call to the critic \u2014 losing this case would silently re-attribute drops to the verifier.",
+  "request": {
+    "question": "Critic eval: uncited inference",
+    "trace_id": "eval-critic-03",
+    "patient_uuid_hash": "eval-patient-hash"
+  },
+  "packets": [
+    {
+      "source_id": "problem:lists:1",
+      "patient_uuid": "uuid-A",
+      "resource_type": "Condition",
+      "source_table": "lists",
+      "field": "title",
+      "label": "Active problem",
+      "value": "HTN",
+      "freshness": "recent",
+      "status": "active"
+    }
+  ],
+  "expectations": {
+    "critic_accepted": false,
+    "critic_min_reject_flags": 1,
+    "verifier_status": "passed"
+  },
+  "added_by": "claude-opus-4-7",
+  "added_in_pr": "wk2-next05-phase-6.1-critic-agent"
+}

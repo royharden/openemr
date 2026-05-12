@@ -70,12 +70,20 @@ def test_routing_includes_intake_when_docs_provided() -> None:
 
 
 def test_full_routing_chain() -> None:
-    """Walk through all four routing functions and verify the chain."""
+    """Walk through all five routing functions and verify the chain.
+
+    AgDR-0075 (Phase 6.1) inserted critic_node between synthesizer and
+    verifier; this test pins the new ordering so a future refactor that
+    drops the critic edge fails CI rather than silently reverting the
+    safety gate.
+    """
     from app.graph.supervisor import (
+        NODE_CRITIC,
         NODE_END,
         NODE_EVIDENCE_RETRIEVER,
         NODE_SYNTHESIZER,
         NODE_VERIFIER,
+        route_from_critic,
         route_from_intake,
         route_from_retriever,
         route_from_synthesizer,
@@ -92,10 +100,13 @@ def test_full_routing_chain() -> None:
     assert r2 == NODE_SYNTHESIZER
 
     r3 = route_from_synthesizer(state)
-    assert r3 == NODE_VERIFIER
+    assert r3 == NODE_CRITIC
 
-    r4 = route_from_verifier(state)
-    assert r4 == NODE_END
+    r4 = route_from_critic(state)
+    assert r4 == NODE_VERIFIER
+
+    r5 = route_from_verifier(state)
+    assert r5 == NODE_END
 
 
 def test_graph_invoke_in_eval_mode() -> None:

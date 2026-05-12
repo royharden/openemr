@@ -614,6 +614,8 @@ def _check_graph_full(case: dict[str, Any]) -> tuple[bool, list[str], dict[str, 
             "guideline_packets": [],
             "synthesis_status": "pending",
             "llm_output": None,
+            "critic_status": "pending",
+            "critic_verdict": None,
             "verifier_status": "pending",
             "verified_response": None,
             "current_node": "start",
@@ -632,6 +634,9 @@ def _check_graph_full(case: dict[str, Any]) -> tuple[bool, list[str], dict[str, 
         "packets": list(case.get("packets", [])) + list(final_state.get("guideline_packets", [])),
         "verified_response": final_state.get("verified_response") or {},
         "graph_path": final_state.get("graph_path", []),
+        # AgDR-0075 — expose the critic verdict to rubrics + the eval JSON.
+        "critic_verdict": final_state.get("critic_verdict"),
+        "critic_status": final_state.get("critic_status"),
     }
 
     from evals.rubrics import evaluate_case

@@ -23,17 +23,20 @@ def build_graph() -> Any:
         ) from e
 
     from .nodes import (
+        critic_node,
         intake_extractor_node,
         evidence_retriever_node,
         synthesizer_node,
         verifier_node,
     )
     from .supervisor import (
+        NODE_CRITIC,
         NODE_END,
         NODE_EVIDENCE_RETRIEVER,
         NODE_INTAKE_EXTRACTOR,
         NODE_SYNTHESIZER,
         NODE_VERIFIER,
+        route_from_critic,
         route_from_intake,
         route_from_retriever,
         route_from_start,
@@ -48,6 +51,7 @@ def build_graph() -> Any:
     graph.add_node(NODE_INTAKE_EXTRACTOR, intake_extractor_node)
     graph.add_node(NODE_EVIDENCE_RETRIEVER, evidence_retriever_node)
     graph.add_node(NODE_SYNTHESIZER, synthesizer_node)
+    graph.add_node(NODE_CRITIC, critic_node)
     graph.add_node(NODE_VERIFIER, verifier_node)
 
     # Entry: conditional from START
@@ -73,6 +77,11 @@ def build_graph() -> Any:
     graph.add_conditional_edges(
         NODE_SYNTHESIZER,
         route_from_synthesizer,
+        {NODE_CRITIC: NODE_CRITIC},
+    )
+    graph.add_conditional_edges(
+        NODE_CRITIC,
+        route_from_critic,
         {NODE_VERIFIER: NODE_VERIFIER},
     )
     graph.add_conditional_edges(
