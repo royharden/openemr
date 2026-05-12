@@ -1,8 +1,8 @@
 <?php
 
 /**
- * Writes one audit_master row per agent turn so security teams can pivot
- * from a Langfuse trace_id to an OpenEMR audit row in one query.
+ * Writes one OpenEMR audit-log row per agent turn so security teams can
+ * pivot from a Langfuse trace_id to an OpenEMR audit row in one query.
  *
  * @package   OpenEMR
  * @author    Roy Harden <royhardenre@gmail.com>
@@ -50,7 +50,7 @@ final class AgentTurnAuditor
             );
         } catch (\RuntimeException | \PDOException $e) {
             // Plan §4.2 / AgDR-0082 — enumerated catch. EventAuditLogger::newEvent
-            // writes to the audit_master table; the only realistic throw paths are
+            // writes to the OpenEMR audit log; the only realistic throw paths are
             // DB errors (SqlQueryException extends RuntimeException; PDOException
             // for transport-level failures). The audit write is best-effort by
             // design — the agent turn already completed, we just log and move on.

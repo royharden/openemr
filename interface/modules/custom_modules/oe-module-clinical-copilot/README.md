@@ -35,7 +35,7 @@ If unset, the gateway returns un-verified packet-derived claims and `verifier_st
 1. Log in at `https://localhost:9300/` (admin / pass).
 2. Open a demo patient chart — the card renders with `Co-Pilot loading…`.
 3. Card populates with claims + a `trace: <uuid>` chip.
-4. Confirm an `agent_turn` row in `audit_master` matching the `trace_id`.
+4. Confirm an `agent_turn` row in the OpenEMR `log` table matching the `trace_id`.
 
 ## Files
 
@@ -61,5 +61,5 @@ oe-module-clinical-copilot/
     │   ├── TaskToken.php           # 15-min HMAC token
     │   └── SidecarClient.php       # Guzzle POST to sidecar
     └── Audit/
-        └── AgentTurnAuditor.php    # writes audit_master row
+        └── AgentTurnAuditor.php    # writes OpenEMR audit-log row
 ```
