@@ -84,6 +84,77 @@ def test_record_graph_span_uses_graph_trace_name(captured_client: MagicMock) -> 
     assert span_kwargs.get("name") == "graph.supervisor"
 
 
+class _FakeV4Span:
+    def __init__(self, name: str, metadata: dict[str, Any] | None = None) -> None:
+        self.name = name
+        self.metadata = metadata or {}
+        self.children: list[_FakeV4Span] = []
+        self.ended = False
+
+    def update(self, **kwargs: Any) -> None:
+        if "name" in kwargs:
+            self.name = kwargs["name"]
+        if "metadata" in kwargs:
+            self.metadata = kwargs["metadata"]
+
+    def start_observation(self, **kwargs: Any) -> "_FakeV4Span":
+        child = _FakeV4Span(str(kwargs["name"]), kwargs.get("metadata"))
+        self.children.append(child)
+        return child
+
+    def end(self) -> None:
+        self.ended = True
+
+
+class _FakeV4Langfuse:
+    def __init__(self) -> None:
+        self.roots: list[_FakeV4Span] = []
+        self.flushed = False
+
+    def create_trace_id(self, *, seed: str) -> str:
+        assert seed == "trace-uuid-style"
+        return "a" * 32
+
+    def start_observation(self, **kwargs: Any) -> _FakeV4Span:
+        root = _FakeV4Span(str(kwargs["name"]), kwargs.get("metadata"))
+        self.roots.append(root)
+        return root
+
+    def flush(self) -> None:
+        self.flushed = True
+
+
+def test_record_graph_span_supports_langfuse_v4_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _FakeV4Langfuse()
+    monkeypatch.setattr(observability, "_get_client", lambda: client)
+    monkeypatch.setenv("COPILOT_LANGFUSE_FLUSH_IMMEDIATE", "1")
+
+    observability.record_graph_span(
+        trace_id="trace-uuid-style",
+        node_name="graph_complete",
+        graph_path=["synthesizer", "verifier"],
+        worker_handoffs=[],
+        decision_reason="route completed",
+        duration_ms=123.0,
+    )
+
+    assert len(client.roots) == 1
+    root = client.roots[0]
+    assert root.name == observability.GRAPH_TRACE_NAME
+    assert root.metadata["gateway_trace_id"] == "trace-uuid-style"
+    assert root.metadata["langfuse_trace_id"] == "a" * 32
+    assert root.metadata["trace_name"] == observability.GRAPH_TRACE_NAME
+
+    assert len(root.children) == 1
+    child = root.children[0]
+    assert child.name == "graph.graph_complete"
+    assert child.metadata["span_name"] == "graph.graph_complete"
+    assert child.metadata["duration_ms"] == 123.0
+    assert child.ended is True
+    assert root.ended is True
+    assert client.flushed is True
+
+
 def test_record_local_refusal_uses_local_refusal_trace_name(
     captured_client: MagicMock,
 ) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re as _re
 from typing import Any
@@ -125,6 +126,88 @@ def _get_client() -> Any:
     return _client
 
 
+_LANGFUSE_TRACE_ID_RE = _re.compile(r"^[a-f0-9]{32}$")
+
+
+def _coerce_langfuse_trace_id(client: Any, trace_id: str) -> str:
+    """Return a Langfuse-v4-compatible trace id while preserving correlation."""
+
+    if _LANGFUSE_TRACE_ID_RE.fullmatch(trace_id):
+        return trace_id
+    create_trace_id = getattr(client, "create_trace_id", None)
+    if callable(create_trace_id):
+        try:
+            return str(create_trace_id(seed=trace_id))
+        except Exception:
+            pass
+    return hashlib.sha256(trace_id.encode("utf-8")).hexdigest()[:32]
+
+
+def _flush_if_requested(client: Any) -> None:
+    if os.getenv("COPILOT_LANGFUSE_FLUSH_IMMEDIATE") != "1":
+        return
+    flush = getattr(client, "flush", None)
+    if callable(flush):
+        flush()
+
+
+def _record_span_v4(
+    client: Any,
+    *,
+    trace_id: str,
+    trace_name: str,
+    span_name: str,
+    trace_metadata: dict[str, Any] | None = None,
+    span_metadata: dict[str, Any] | None = None,
+) -> None:
+    """Record a trace + child span through Langfuse SDK v4.
+
+    Langfuse v4 removed the older ``client.trace(...).span(...)`` API used
+    by Wk1/Wk2 code. It also requires 32-character lowercase-hex trace IDs,
+    while the OpenEMR gateway emits UUID-style trace IDs. We derive a stable
+    Langfuse trace ID from the gateway trace ID and keep the original in
+    metadata for correlation.
+    """
+
+    try:
+        from langfuse.types import TraceContext  # type: ignore[import-not-found]
+    except Exception:
+        return
+
+    langfuse_trace_id = _coerce_langfuse_trace_id(client, trace_id)
+    base_metadata = dict(trace_metadata or {})
+    base_metadata.setdefault("gateway_trace_id", trace_id)
+    base_metadata.setdefault("langfuse_trace_id", langfuse_trace_id)
+    base_metadata.setdefault("trace_name", trace_name)
+    child_metadata = dict(span_metadata or {})
+    child_metadata.setdefault("span_name", span_name)
+    child_metadata.setdefault("trace_name", trace_name)
+
+    root = client.start_observation(
+        trace_context=TraceContext(trace_id=langfuse_trace_id),
+        name=trace_name,
+        as_type="span",
+        metadata=base_metadata,
+    )
+    # The v4 client derives the trace name from the root observation name;
+    # update defensively so tests and API-list views stay aligned.
+    update = getattr(root, "update", None)
+    if callable(update):
+        update(name=trace_name, metadata=base_metadata)
+
+    child = root.start_observation(
+        name=span_name,
+        as_type="span",
+        metadata=child_metadata,
+    )
+    child_update = getattr(child, "update", None)
+    if callable(child_update):
+        child_update(name=span_name, metadata=child_metadata)
+    child.end()
+    root.end()
+    _flush_if_requested(client)
+
+
 _VERDICT_TO_SCORE = {
     "helpful": 1.0,
     "missing_data": -0.5,
@@ -173,13 +256,23 @@ def record_feedback(trace_id: str, verdict: str, comment: str) -> bool:
     if client is None:
         return False
     try:
-        client.score(
-            trace_id=trace_id,
-            name="clinician_feedback",
-            value=_VERDICT_TO_SCORE.get(verdict, 0.0),
-            comment=comment[:500] if comment else None,
-            data_type="NUMERIC",
-        )
+        if hasattr(client, "score"):
+            client.score(
+                trace_id=trace_id,
+                name="clinician_feedback",
+                value=_VERDICT_TO_SCORE.get(verdict, 0.0),
+                comment=comment[:500] if comment else None,
+                data_type="NUMERIC",
+            )
+        else:
+            client.create_score(
+                trace_id=_coerce_langfuse_trace_id(client, trace_id),
+                name="clinician_feedback",
+                value=_VERDICT_TO_SCORE.get(verdict, 0.0),
+                comment=comment[:500] if comment else None,
+                data_type="NUMERIC",
+            )
+            _flush_if_requested(client)
         return True
     except Exception:
         return False
@@ -204,18 +297,29 @@ def record_local_refusal(
     if client is None:
         return False
     try:
-        client.trace(
-            id=trace_id,
-            name=LOCAL_REFUSAL_TRACE_NAME,
-            metadata={
-                "use_case": use_case,
-                "router_family": router_family,
-                "refusal_reason": refusal_reason,
-                "patient_uuid_hash": patient_uuid_hash,
-                "verifier_status": "refused_by_router",
-                "estimated_cost_usd": 0.0,
-            },
-        )
+        metadata = {
+            "use_case": use_case,
+            "router_family": router_family,
+            "refusal_reason": refusal_reason,
+            "patient_uuid_hash": patient_uuid_hash,
+            "verifier_status": "refused_by_router",
+            "estimated_cost_usd": 0.0,
+        }
+        if hasattr(client, "trace"):
+            client.trace(
+                id=trace_id,
+                name=LOCAL_REFUSAL_TRACE_NAME,
+                metadata=metadata,
+            )
+        else:
+            _record_span_v4(
+                client,
+                trace_id=trace_id,
+                trace_name=LOCAL_REFUSAL_TRACE_NAME,
+                span_name="router_refusal",
+                trace_metadata=metadata,
+                span_metadata={"duration_ms": 0.0},
+            )
         return True
     except Exception:
         return False
@@ -268,26 +372,37 @@ def record_brief(
                 for item in tool_results_summary[:6]
                 if isinstance(item, dict)
             ]
-        trace = client.trace(
-            id=trace_id,
-            name=BRIEF_TRACE_NAME,
-            metadata=metadata,
-        )
-        trace.generation(
-            name="brief_v1",
-            model=usage.get("model"),
-            usage={
-                "input": usage.get("input_tokens", 0),
-                "output": usage.get("output_tokens", 0),
-                "input_cached_read": usage.get("cache_read_input_tokens", 0),
-                "input_cache_write": usage.get("cache_creation_input_tokens", 0),
-            },
-            metadata={
-                "duration_ms": duration_ms,
-                "repair": usage.get("repair", False),
-                "estimated_cost_usd": estimated_cost_usd,
-            },
-        )
+        generation_metadata = {
+            "duration_ms": duration_ms,
+            "repair": usage.get("repair", False),
+            "estimated_cost_usd": estimated_cost_usd,
+        }
+        if hasattr(client, "trace"):
+            trace = client.trace(
+                id=trace_id,
+                name=BRIEF_TRACE_NAME,
+                metadata=metadata,
+            )
+            trace.generation(
+                name="brief_v1",
+                model=usage.get("model"),
+                usage={
+                    "input": usage.get("input_tokens", 0),
+                    "output": usage.get("output_tokens", 0),
+                    "input_cached_read": usage.get("cache_read_input_tokens", 0),
+                    "input_cache_write": usage.get("cache_creation_input_tokens", 0),
+                },
+                metadata=generation_metadata,
+            )
+        else:
+            _record_span_v4(
+                client,
+                trace_id=trace_id,
+                trace_name=BRIEF_TRACE_NAME,
+                span_name="brief_v1",
+                trace_metadata=metadata,
+                span_metadata=generation_metadata,
+            )
     except Exception:
         pass
 
@@ -306,15 +421,26 @@ def record_graph_span(
         return
     try:
         safe_reason = scrub_phi(decision_reason)
-        trace = client.trace(id=trace_id, name=GRAPH_TRACE_NAME)
-        trace.span(
-            name=f"{GRAPH_SPAN_PREFIX}{node_name}",
-            metadata={
-                "graph_path": graph_path,
-                "worker_handoffs": worker_handoffs,
-                "decision_reason": safe_reason,
-                "duration_ms": duration_ms,
-            },
-        )
+        metadata = {
+            "graph_path": graph_path,
+            "worker_handoffs": worker_handoffs,
+            "decision_reason": safe_reason,
+            "duration_ms": duration_ms,
+        }
+        if hasattr(client, "trace"):
+            trace = client.trace(id=trace_id, name=GRAPH_TRACE_NAME)
+            trace.span(
+                name=f"{GRAPH_SPAN_PREFIX}{node_name}",
+                metadata=metadata,
+            )
+        else:
+            _record_span_v4(
+                client,
+                trace_id=trace_id,
+                trace_name=GRAPH_TRACE_NAME,
+                span_name=f"{GRAPH_SPAN_PREFIX}{node_name}",
+                trace_metadata={"graph_trace": True},
+                span_metadata=metadata,
+            )
     except Exception:
         pass
