@@ -130,15 +130,19 @@ def ingest(corpus: Any, embedder: Any) -> int:
                 source_year=source_year,
                 recommendation_grade=None,
             )
+            full_section_text = f"# {source_name} — {_section_label(section_key)}\n\n{section_text}"
             chunks = chunk_text(
-                f"# {source_name} — {_section_label(section_key)}\n\n{section_text}",
+                full_section_text,
                 src,
                 id_prefix=f"{source_id}-{section_key}-",
             )
             if chunks:
-                embeddings = embedder.embed([c.text for c in chunks])
-                for chunk, embedding in zip(chunks, embeddings):
-                    corpus.upsert_chunk(chunk, embedding)
+                # AgDR-0079: contextualization is opt-in via
+                # COPILOT_CONTEXTUAL_RETRIEVAL=1. Pass the full section
+                # text as source_doc so the LLM situates each chunk
+                # within (e.g.) "metformin — contraindications".
+                from ..contextualization import embed_and_upsert_chunks
+                embed_and_upsert_chunks(corpus, embedder, chunks, full_section_text)
                 total += len(chunks)
 
         logger.info("openFDA %s: processed", drug)

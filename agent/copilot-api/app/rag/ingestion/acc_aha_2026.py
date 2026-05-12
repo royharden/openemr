@@ -363,12 +363,30 @@ def build_acc_aha_2026_chunks() -> list[GuidelineChunk]:
 
 
 def ingest(corpus: Any, embedder: Any) -> int:
-    """Upsert all ACC/AHA 2026 locally-authored chunks into *corpus*."""
+    """Upsert all ACC/AHA 2026 locally-authored chunks into *corpus*.
+
+    AgDR-0079: opt-in Anthropic Contextual Retrieval applied when
+    ``COPILOT_CONTEXTUAL_RETRIEVAL=1``. Source-doc grouping mirrors
+    ``ada_2026`` so each summary is its own contextualization unit.
+    """
+
+    from ..contextualization import embed_and_upsert_chunks
+
     chunks = build_acc_aha_2026_chunks()
     logger.info("ACC-AHA-Lipid-2026: %d chunks", len(chunks))
     if not chunks:
         return 0
-    embeddings = embedder.embed([c.text for c in chunks])
-    for chunk, embedding in zip(chunks, embeddings):
-        corpus.upsert_chunk(chunk, embedding)
+
+    summary_text_by_slug = {slug: text for slug, _label, _grade, text in _ACC_AHA_2026_SUMMARIES}
+
+    def _source_doc_for(chunk: GuidelineChunk) -> str:
+        slug = chunk.chunk_id.split("-")[2] if "-" in chunk.chunk_id else ""
+        return summary_text_by_slug.get(slug, chunk.text)
+
+    by_doc: dict[str, list[GuidelineChunk]] = {}
+    for c in chunks:
+        by_doc.setdefault(_source_doc_for(c), []).append(c)
+
+    for source_doc_text, group in by_doc.items():
+        embed_and_upsert_chunks(corpus, embedder, group, source_doc_text)
     return len(chunks)

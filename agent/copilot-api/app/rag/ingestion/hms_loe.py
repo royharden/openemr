@@ -348,8 +348,9 @@ def ingest(corpus: Any, embedder: Any) -> int:
         logger.info("HMS-LOE %s: %d chunks", source_id, len(chunks))
         if not chunks:
             continue
-        embeddings = embedder.embed([c.text for c in chunks])
-        for chunk, embedding in zip(chunks, embeddings):
-            corpus.upsert_chunk(chunk, embedding)
+        # AgDR-0079: pass the per-summary text as the doc context for
+        # opt-in Anthropic Contextual Retrieval.
+        from ..contextualization import embed_and_upsert_chunks
+        embed_and_upsert_chunks(corpus, embedder, chunks, text)
         total += len(chunks)
     return total

@@ -435,12 +435,35 @@ def ingest(corpus: Any, embedder: Any) -> int:
     """Upsert all ADA 2026 locally-authored chunks into *corpus*.
 
     Returns the number of chunks upserted.
+
+    AgDR-0079: contextualization is opt-in via
+    ``COPILOT_CONTEXTUAL_RETRIEVAL=1``. The source-doc text for each
+    summary is reconstructed from ``_ADA_2026_SUMMARIES`` so the
+    contextualization prompt has section-level grounding.
     """
+
+    from ..contextualization import embed_and_upsert_chunks
+
     chunks = build_ada_2026_chunks()
     logger.info("ADA-SoC-2026: %d chunks", len(chunks))
     if not chunks:
         return 0
-    embeddings = embedder.embed([c.text for c in chunks])
-    for chunk, embedding in zip(chunks, embeddings):
-        corpus.upsert_chunk(chunk, embedding)
+
+    # Per-chunk source-doc lookup: each chunk's id_prefix carries the
+    # summary slug, so we can recover the originating summary text.
+    summary_text_by_slug = {slug: text for slug, _label, _grade, text in _ADA_2026_SUMMARIES}
+
+    def _source_doc_for(chunk: GuidelineChunk) -> str:
+        slug = chunk.chunk_id.split("-")[2] if "-" in chunk.chunk_id else ""
+        return summary_text_by_slug.get(slug, chunk.text)
+
+    # Group chunks by source-doc so contextualization receives the full
+    # summary (the broader the document context, the higher-quality the
+    # context summary per Anthropic's published technique).
+    by_doc: dict[str, list[GuidelineChunk]] = {}
+    for c in chunks:
+        by_doc.setdefault(_source_doc_for(c), []).append(c)
+
+    for source_doc_text, group in by_doc.items():
+        embed_and_upsert_chunks(corpus, embedder, group, source_doc_text)
     return len(chunks)

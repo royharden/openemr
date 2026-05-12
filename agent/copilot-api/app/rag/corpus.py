@@ -140,7 +140,22 @@ class Corpus:
             CREATE INDEX IF NOT EXISTS idx_chunks_source_year
                 ON chunks(source_year);
         """)
-        self.conn.commit()
+        # AgDR-0079 (Plan §7.2.b) — additive `context_summary` column carries
+        # the Anthropic-Contextual-Retrieval blurb when contextualized
+        # ingestion is enabled. Existing rows have NULL; ``get_chunk`` always
+        # returns verbatim ``text`` so consumers see the original source.
+        # Added via ALTER TABLE rather than table-recreate so the live
+        # corpus.db from Phase 5.2 doesn't need re-ingestion.
+        try:
+            self.conn.execute("ALTER TABLE chunks ADD COLUMN context_summary TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError as exc:
+            # SQLite raises OperationalError("duplicate column name: ...")
+            # when the column already exists. That's the steady state after
+            # the first run — swallow it. Any other OperationalError is
+            # genuinely surprising and should surface.
+            if "duplicate column name" not in str(exc).lower():
+                raise
 
     # ------------------------------------------------------------------
     # Content hash (idempotency)
@@ -162,17 +177,47 @@ class Corpus:
     # Upsert
     # ------------------------------------------------------------------
 
-    def upsert_chunk(self, chunk: GuidelineChunk, embedding: list[float] | None) -> None:
+    def upsert_chunk(
+        self,
+        chunk: GuidelineChunk,
+        embedding: list[float] | None,
+        context_summary: str | None = None,
+    ) -> None:
+        """Insert or replace one chunk.
+
+        AgDR-0079 (Plan §7.2.b): when ``context_summary`` is provided, BM25
+        indexes over the contextualized text (summary + "\\n\\n" + text).
+        The verbatim ``chunk.text`` is preserved in the ``text`` column and
+        is what ``get_chunk`` / ``HybridRetriever.query`` return to
+        consumers — the summary is metadata for retrieval only, not for
+        display. When ``context_summary`` is None, behavior is byte-
+        identical to pre-AgDR-0079.
+
+        The embedder is called by the ingestor (see
+        ``ingestion/*.py``); for contextualized ingestion the ingestor
+        must embed the contextualized text and pass that ``embedding``
+        here. This split keeps the embedder call site explicit per
+        ingestor rather than hiding an LLM-driven side effect inside the
+        corpus writer.
+        """
+
         text = _scrub_contact_patterns(chunk.text)
+        scrubbed_summary = (
+            _scrub_contact_patterns(context_summary) if context_summary else None
+        )
+        if scrubbed_summary:
+            indexed_text = f"{scrubbed_summary}\n\n{text}"
+        else:
+            indexed_text = text
         blob = _pack_embedding(embedding) if embedding else None
-        bm25_terms = _tokenize(text)
+        bm25_terms = _tokenize(indexed_text)
         self.conn.execute(
             """
             INSERT INTO chunks
                 (id, source_id, source_organization, source_name,
                  page_or_section, recommendation_grade, source_year,
-                 text, embedding, bm25_terms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 text, embedding, bm25_terms, context_summary)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 source_id            = excluded.source_id,
                 source_organization  = excluded.source_organization,
@@ -182,7 +227,8 @@ class Corpus:
                 source_year          = excluded.source_year,
                 text                 = excluded.text,
                 embedding            = excluded.embedding,
-                bm25_terms           = excluded.bm25_terms
+                bm25_terms           = excluded.bm25_terms,
+                context_summary      = excluded.context_summary
             """,
             (
                 chunk.chunk_id,
@@ -195,6 +241,7 @@ class Corpus:
                 text,
                 blob,
                 bm25_terms,
+                scrubbed_summary,
             ),
         )
         self.conn.commit()
