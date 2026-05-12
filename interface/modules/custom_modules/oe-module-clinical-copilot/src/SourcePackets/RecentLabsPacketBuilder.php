@@ -17,6 +17,9 @@ declare(strict_types=1);
 
 namespace OpenEMR\Modules\ClinicalCopilot\SourcePackets;
 
+use OpenEMR\Common\Uuid\UuidRegistry;
+use OpenEMR\Core\OEGlobalsBag;
+
 final class RecentLabsPacketBuilder implements PacketBuilder
 {
     private const STALE_DAYS = 180;
@@ -24,6 +27,7 @@ final class RecentLabsPacketBuilder implements PacketBuilder
     public function build(int $pid, string $patientUuid): array
     {
         $sql = "SELECT pr.procedure_result_id AS id,
+                       pr.uuid AS procedure_result_uuid_bin,
                        pr.result_code,
                        pr.result_text,
                        pr.result,
@@ -33,7 +37,8 @@ final class RecentLabsPacketBuilder implements PacketBuilder
                        pr.result_status,
                        pr.date AS result_date,
                        prep.date_report,
-                       prep.date_collected
+                       prep.date_collected,
+                       po.procedure_order_id
                 FROM procedure_result AS pr
                 INNER JOIN procedure_report AS prep
                         ON prep.procedure_report_id = pr.procedure_report_id
@@ -62,9 +67,29 @@ final class RecentLabsPacketBuilder implements PacketBuilder
             $status = match (true) {
                 in_array($resultStatus, ['final', 'corrected', 'complete'], true) => 'final',
                 $resultStatus === 'preliminary' => 'preliminary',
+                $resultStatus === 'prelim' => 'preliminary',
                 $resultStatus === '' => 'unknown',
                 default => $resultStatus,
             };
+
+            $procedureResultUuid = null;
+            $procedureResultUuidBin = $row['procedure_result_uuid_bin'] ?? null;
+            if (is_string($procedureResultUuidBin) && strlen($procedureResultUuidBin) === 16) {
+                $procedureResultUuid = UuidRegistry::uuidToString($procedureResultUuidBin);
+            }
+            $webRoot = OEGlobalsBag::getInstance()->getWebRoot();
+            $extra = [];
+            if ($procedureResultUuid !== null) {
+                $extra['procedure_result_uuid'] = $procedureResultUuid;
+                $extra['fhir_observation_url'] = $webRoot
+                    . '/interface/modules/custom_modules/oe-module-clinical-copilot/public/api/fhir_observation_preview.php?observation_uuid='
+                    . rawurlencode($procedureResultUuid);
+            }
+            if (is_scalar($row['procedure_order_id'] ?? null)) {
+                $extra['openemr_lab_review_url'] = $webRoot
+                    . '/interface/orders/orders_results.php?procedure_order_id='
+                    . rawurlencode((string)$row['procedure_order_id']);
+            }
 
             $packets[] = new PacketDto(
                 sourceId: 'lab:procedure_result:' . (int)$row['id'],
@@ -80,6 +105,7 @@ final class RecentLabsPacketBuilder implements PacketBuilder
                 lastUpdated: $row['date_report'] ?? $observed,
                 freshness: $this->freshnessFor($observed),
                 status: $status,
+                extra: $extra,
             );
         }
 

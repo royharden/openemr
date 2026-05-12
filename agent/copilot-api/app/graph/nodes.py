@@ -335,6 +335,8 @@ def _call_synthesizer(state: CopilotState) -> dict[str, Any]:
     import anthropic  # type: ignore[import-not-found]
     import os
 
+    from app.schemas import LLMOutput
+
     extracted_packets = state.get("extracted_packets", [])
     guideline_packets = state.get("guideline_packets", [])
     question = state.get("question", "What changed and what should I pay attention to?")
@@ -347,42 +349,83 @@ def _call_synthesizer(state: CopilotState) -> dict[str, Any]:
         default=str,
     )
 
+    tool_name = "emit_briefing"
     system_prompt = (
         "You are a clinical co-pilot. Synthesize the provided extracted patient facts "
         "and guideline evidence into a structured response. "
         "Every clinical claim MUST reference a source_id from the provided packets. "
         "Do NOT make treatment recommendations. Do NOT diagnose. "
-        "Return valid JSON matching the LLMOutput schema: "
-        '{"answer_type": "pre_room_brief", "claims": [...], "missing_data": [...], '
-        '"refusals": [...], "suggested_followups": [...]}'
+        f"Use the {tool_name} tool. Drop unsupported claims rather than fabricating sources."
     )
 
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
     model = os.getenv("COPILOT_SYNTHESIS_MODEL", "claude-sonnet-4-6")
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Question: {question}\n\nEvidence: {all_packets_summary}",
-            }
-        ],
-    )
-
-    text = response.content[0].text if response.content else "{}"
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+    def briefing_tool() -> dict[str, Any]:
         return {
-            "answer_type": "pre_room_brief",
-            "claims": [],
-            "missing_data": ["Could not parse synthesizer output."],
-            "refusals": [],
-            "suggested_followups": [],
+            "name": tool_name,
+            "description": "Emit the structured clinical briefing. Every claim cites source_ids from the provided packets.",
+            "input_schema": LLMOutput.model_json_schema(),
         }
+
+    def parse_tool_response(response: Any) -> tuple[dict[str, Any] | None, list[str], str]:
+        raw_text = ""
+        tool_input: dict[str, Any] | None = None
+        for block in getattr(response, "content", []):
+            block_type = getattr(block, "type", None)
+            if block_type == "text":
+                raw_text += str(getattr(block, "text", ""))
+            elif block_type == "tool_use" and getattr(block, "name", None) == tool_name:
+                candidate = getattr(block, "input", None)
+                if isinstance(candidate, dict):
+                    tool_input = candidate
+        if tool_input is None:
+            return None, ["missing emit_briefing tool call"], raw_text
+        try:
+            return LLMOutput.model_validate(tool_input).model_dump(), [], raw_text
+        except Exception as exc:
+            return None, [f"LLMOutput schema validation failed: {exc}"], raw_text
+
+    def create_message(prompt: str) -> Any:
+        return client.messages.create(
+            model=model,
+            max_tokens=1024,
+            system=system_prompt,
+            tools=[briefing_tool()],
+            tool_choice={"type": "tool", "name": tool_name},
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+        )
+
+    response = create_message(
+        f"Question: {question}\n\nEvidence: {all_packets_summary}\n\n"
+        "Return the response using the tool. Cite only source_ids present in Evidence."
+    )
+    parsed, errors, raw_text = parse_tool_response(response)
+    if parsed is not None:
+        return parsed
+
+    logger.warning("synthesizer structured output retrying after invalid tool payload: %s", "; ".join(errors))
+    repair_response = create_message(
+        "Your previous response failed structured validation:\n- "
+        + "\n- ".join(errors[:5])
+        + "\nReturn a corrected response using the tool. "
+        "Drop unsupported claims rather than fabricating citations.\n\n"
+        f"Question: {question}\n\nEvidence: {all_packets_summary}"
+        + ("\nPrevious non-tool text was ignored." if raw_text else "")
+    )
+    repaired, repair_errors, _ = parse_tool_response(repair_response)
+    if repaired is not None:
+        return repaired
+
+    raise ValueError(
+        "synthesizer_structured_output_failed: "
+        + "; ".join(repair_errors or errors)
+    )
 
 
 def verifier_node(state: CopilotState) -> dict[str, Any]:

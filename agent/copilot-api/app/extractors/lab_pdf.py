@@ -32,6 +32,26 @@ _MAX_PAGES = 10
 _MODEL = os.getenv("COPILOT_VISION_MODEL", "claude-sonnet-4-6")
 _BBOX_UNIT = "exact"
 
+_LAB_TEXT_ROW_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("total_cholesterol", r"Cholesterol,\s*Total"),
+    ("hdl", r"HDL\s+Cholesterol"),
+    ("ldl", r"LDL\s+Cholesterol,?(?:\s+Calculated)?"),
+    ("triglycerides", r"Triglycerides"),
+    ("non_hdl_cholesterol", r"Non-HDL\s+Cholesterol"),
+    ("hba1c", r"(?:HbA1c|Hemoglobin\s+A1c|A1c)"),
+    ("wbc", r"WBC"),
+    ("rbc", r"RBC"),
+    ("hemoglobin", r"Hemoglobin"),
+    ("hematocrit", r"Hematocrit"),
+    ("platelets", r"Platelets"),
+    ("sodium", r"Sodium"),
+    ("potassium", r"Potassium"),
+    ("creatinine", r"Creatinine"),
+    ("bun", r"BUN"),
+    ("glucose", r"Glucose"),
+)
+_LAB_UNIT_RE = re.compile(r"\b(mg/dL|g/dL|K/uL|M/uL|mEq/L|mmol/L|%|IU/L|U/L)\b")
+
 
 def _normalize_bbox_value(value: float, axis_max: float) -> float:
     if abs(value) > 1.0 and axis_max > 0:
@@ -134,6 +154,77 @@ def _extract_text_blocks_pdfplumber(
         return []
 
 
+def _extract_pdf_page_text_and_blocks(
+    pdf_bytes: bytes,
+    page_index: int,
+    page_width: float,
+    page_height: float,
+) -> tuple[str, list[dict[str, Any]]]:
+    try:
+        import pdfplumber  # type: ignore[import-untyped]
+
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            if page_index >= len(pdf.pages):
+                return "", []
+            page = pdf.pages[page_index]
+            words = page.extract_words()
+            blocks = []
+            for word in words:
+                if page_width > 0 and page_height > 0:
+                    blocks.append({
+                        "text": word["text"],
+                        "x0": word["x0"] / page_width,
+                        "y0": word["top"] / page_height,
+                        "x1": word["x1"] / page_width,
+                        "y1": word["bottom"] / page_height,
+                    })
+            text = page.extract_text() or " ".join(str(w.get("text", "")) for w in words)
+            return text.strip(), blocks
+    except Exception as exc:
+        logger.warning("pdfplumber text extraction failed on page %d: %s", page_index, exc)
+        return "", []
+
+
+def _has_meaningful_text_layer(page_text: str) -> bool:
+    words = [w for w in page_text.split() if any(ch.isalnum() for ch in w)]
+    return len(words) >= 8
+
+
+def _extract_lab_fields_from_text(page_text: str) -> list[dict[str, Any]]:
+    """Recover common table-shaped lab rows from a PDF text layer."""
+
+    fields: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    lines = [re.sub(r"\s+", " ", line).strip() for line in page_text.splitlines()]
+    for line in lines:
+        if not line:
+            continue
+        for name, label_pattern in _LAB_TEXT_ROW_PATTERNS:
+            if name in seen:
+                continue
+            match = re.search(
+                rf"^{label_pattern}\s+(?P<value>[<>]?\d+(?:\.\d+)?)\s*(?P<flag>[HL])?\b(?P<tail>.*)$",
+                line,
+                flags=re.IGNORECASE,
+            )
+            if match is None:
+                continue
+            tail = match.group("tail") or ""
+            unit_match = _LAB_UNIT_RE.search(tail)
+            fields.append({
+                "name": name,
+                "value": match.group("value"),
+                "unit": unit_match.group(1) if unit_match else None,
+                "abnormal": bool(match.group("flag")),
+                "flag": match.group("flag") or None,
+                "quote_or_value": line,
+                "confidence": 0.92,
+            })
+            seen.add(name)
+            break
+    return fields
+
+
 def _get_page_dimensions(pdf_bytes: bytes, page_index: int) -> tuple[float, float]:
     try:
         import pypdfium2 as pdfium  # type: ignore[import-untyped]
@@ -147,36 +238,95 @@ def _get_page_dimensions(pdf_bytes: bytes, page_index: int) -> tuple[float, floa
         return 612.0, 792.0
 
 
-def _call_vision_api(image_b64: str, patient_uuid_hash: str) -> list[dict[str, Any]]:
+def _call_vision_api_once(
+    image_b64: str | None,
+    patient_uuid_hash: str,
+    *,
+    page_text: str | None = None,
+    repair_errors: list[str] | None = None,
+    prior_raw: str = "",
+) -> tuple[list[dict[str, Any]] | None, list[str], str]:
     import anthropic  # type: ignore[import-untyped]
+
+    from app.extractors.anthropic_tools import (
+        EXTRACT_FIELDS_TOOL_NAME,
+        extraction_fields_tool,
+        parse_extracted_fields_tool,
+    )
+
     client = anthropic.Anthropic()
     system = (
         "You are a clinical lab document parser. Extract structured lab results. "
-        "Return a JSON array of objects, each with: name (snake_case field name), "
+        f"Use the {EXTRACT_FIELDS_TOOL_NAME} tool. Extract an object with a fields array. "
+        "Each field has: name (snake_case field name), "
         "value (numeric or string), unit (string or null), abnormal (bool), "
         "quote_or_value (verbatim text from document, max 60 chars). "
         "Only include fields visible in the image. No hallucination."
     )
+    prompt = (
+        "Extract all lab result fields from this page using the tool. "
+        "The tool input must be an object with a fields array."
+    )
+    if page_text:
+        prompt += (
+            "\nThis PDF page has a text layer. Use the page text below as the primary source, "
+            "and choose quote_or_value from verbatim nearby text.\n\nPAGE TEXT:\n"
+            + page_text[:12000]
+        )
+    if repair_errors:
+        prompt = (
+            "Your previous extraction response failed validation:\n- "
+            + "\n- ".join(repair_errors[:5])
+            + "\nReturn a corrected extraction using the same tool. "
+            "Do not invent missing values; emit fields=[] if no supported lab fields are visible."
+        )
+        if page_text:
+            prompt += "\n\nPAGE TEXT:\n" + page_text[:12000]
+        if prior_raw:
+            prompt += "\nPrevious non-tool text was ignored."
+    content: list[dict[str, Any]] = []
+    if image_b64:
+        content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": image_b64}})
+    content.append({"type": "text", "text": prompt})
     response = client.messages.create(
         model=_MODEL,
         max_tokens=1024,
         system=system,
+        tools=[extraction_fields_tool()],
+        tool_choice={"type": "tool", "name": EXTRACT_FIELDS_TOOL_NAME},
         messages=[
             {
                 "role": "user",
-                "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": image_b64}},
-                    {"type": "text", "text": "Extract all lab result fields from this page. Return JSON array only."},
-                ],
+                "content": content,
             }
         ],
     )
-    import json
-    text = response.content[0].text.strip()
-    m = re.search(r"\[.*\]", text, re.DOTALL)
-    if m:
-        return json.loads(m.group(0))
-    return []
+    return parse_extracted_fields_tool(response)
+
+
+def _call_vision_api(image_b64: str | None, patient_uuid_hash: str, page_text: str | None = None) -> list[dict[str, Any]]:
+    fields, errors, raw_text = _call_vision_api_once(image_b64, patient_uuid_hash, page_text=page_text)
+    if fields is not None:
+        return fields
+
+    logger.warning(
+        "lab_pdf structured extraction retrying after invalid tool payload: %s",
+        "; ".join(errors),
+    )
+    repaired, repair_errors, _ = _call_vision_api_once(
+        image_b64,
+        patient_uuid_hash,
+        page_text=page_text,
+        repair_errors=errors,
+        prior_raw=raw_text,
+    )
+    if repaired is not None:
+        return repaired
+    raise ValueError(
+        "extraction_failed: lab_pdf model did not emit valid structured fields ("
+        + "; ".join(repair_errors or errors)
+        + ")"
+    )
 
 
 def extract_lab_pdf(
@@ -241,12 +391,20 @@ def extract_lab_pdf(
         raise ValueError(f"too_many_pages: {filename!r} has {page_count} pages; maximum is {_MAX_PAGES}")
 
     all_fields: list[dict[str, Any]] = []
+    page_errors: list[str] = []
     for page_idx in range(page_count):
         try:
-            image_b64 = _page_to_base64_png(pdf_bytes, page_idx)
-            raw_fields = _call_vision_api(image_b64, patient_uuid_hash)
             width, height = _get_page_dimensions(pdf_bytes, page_idx)
-            blocks = _extract_text_blocks_pdfplumber(pdf_bytes, page_idx, width, height)
+            page_text, blocks = _extract_pdf_page_text_and_blocks(pdf_bytes, page_idx, width, height)
+            if _has_meaningful_text_layer(page_text):
+                raw_fields = _extract_lab_fields_from_text(page_text)
+                if not raw_fields:
+                    raw_fields = _call_vision_api(None, patient_uuid_hash, page_text=page_text)
+            else:
+                image_b64 = _page_to_base64_png(pdf_bytes, page_idx)
+                raw_fields = _call_vision_api(image_b64, patient_uuid_hash)
+                if not blocks:
+                    blocks = _extract_text_blocks_pdfplumber(pdf_bytes, page_idx, width, height)
             for f in raw_fields:
                 name = f.get("name", "").strip()
                 if not name:
@@ -273,7 +431,16 @@ def extract_lab_pdf(
                     ).hexdigest(),
                 })
         except Exception as exc:
-            logger.error("Error processing page %d of %r: %s", page_idx, filename, exc)
+            page_errors.append(str(exc))
+            logger.error(
+                "Error processing lab PDF page %d for document %s: %s",
+                page_idx,
+                doc_sha[:12],
+                exc,
+            )
+
+    if not all_fields and page_errors:
+        raise ValueError("extraction_failed: " + "; ".join(page_errors[:3]))
 
     payload = {
         "doc_type": "lab_pdf",
