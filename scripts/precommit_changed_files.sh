@@ -55,6 +55,27 @@
 #                new PHP: ClosureToArrowFunctionRector + StrContainsRector.
 #                Those bit the Wk2 Next05 lab_trends Phase 7.1 commit at
 #                8a5298e3c and required a follow-up `99a4f0ea6` fix.
+#   - phpstan level-10 (via the dev-easy openemr container) on changed
+#                .php files. Same root cause as the rector skip: pre-commit
+#                phpstan hook needs composer on PATH which Git-Bash-on-Windows
+#                lacks, so phpstan was silently skipped pre-push and CI
+#                caught regressions only AFTER push. This was the Wk2 Next05
+#                Phase 7.1 trap: PHPStan was red on master across THREE
+#                adjacent commits (8a5298e3c → 99a4f0ea6 → 616dcaedc) and
+#                required two follow-up fix commits (f3f6c1779 + f481f8ce7)
+#                to land. The container-based mirror in
+#                run_phpstan_on_changed_files() catches the level-10
+#                violations BEFORE push (only when --include-phpstan is set
+#                or when .php files are in the change set — same auto-
+#                detection as the pre-commit hook side). Recurring traps it
+#                catches:
+#                 * Closure-by-reference call-site type erasure (use an
+#                   anonymous class for helpers that mutate a typed list).
+#                 * `is_array()` / `is_string()` on already-narrowed values
+#                   from typed PHPDoc returns (e.g. QueryUtils::fetchRecords).
+#                 * Custom rule `openemr.noGlobalNsFunctions` (module files
+#                   cannot declare global-namespace functions; use closures
+#                   or class methods).
 #
 # Skips (auto-detected):
 #   - The "phpstan" hook is the slowest by ~10x; the script invokes it only
@@ -262,8 +283,14 @@ run_rector_on_changed_files() {
         return 0
     fi
 
-    local compose_file
-    compose_file="${REPO_ROOT}/docker/development-easy/docker-compose.yml"
+    # NB: keep the path RELATIVE to REPO_ROOT (we're cd'd there at the top of
+    # the script). MSYS_NO_PATHCONV=1 blocks the /c/Users → C:\Users translation
+    # that Git-Bash usually applies, so an absolute `/c/Users/...` path handed
+    # to Docker-on-Windows would be interpreted as a literal `C:\c\Users\...`
+    # (the rector step was silently bug-skipping for exactly this reason on
+    # 99a4f0ea — the regression got through pre-push because the container
+    # check kept returning "not running" even when it was up).
+    local compose_file="docker/development-easy/docker-compose.yml"
     if [[ ! -f "${compose_file}" ]]; then
         echo ">>> dev-easy compose file not found at ${compose_file}; skipping rector dry-run" >&2
         return 0
@@ -304,8 +331,82 @@ if [[ "${include_rector}" != "no" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Decide whether to run phpstan.
+# PHPStan on changed .php files — mirrors `.github/workflows/phpstan.yml`.
+# Catches the level-10 violations the pre-commit `phpstan` hook would
+# normally cover, except the pre-commit hook needs composer on PATH which
+# Git-Bash-on-Windows hosts don't have. The container-based mirror is the
+# load-bearing prevention against the same kind of post-push CI rejection
+# the Wk2 Next05 Phase 7.1 commits hit at 8a5298e3c / 99a4f0ea6 / 616dcaedc
+# (PHPStan went red on master across three adjacent commits before being
+# fixed by f3f6c1779 + f481f8ce7).
 # ---------------------------------------------------------------------------
+run_phpstan_on_changed_files() {
+    local php_files
+    php_files=$(echo "${FILES}" | grep -E '\.php$' || true)
+    if [[ -z "${php_files}" ]]; then
+        return 0
+    fi
+
+    # Drop deleted files.
+    local existing_php_files=""
+    while IFS= read -r f; do
+        [[ -z "${f}" ]] && continue
+        [[ -f "${f}" ]] || continue
+        existing_php_files+="${f} "
+    done <<< "${php_files}"
+    existing_php_files="${existing_php_files% }"
+
+    if [[ -z "${existing_php_files}" ]]; then
+        return 0
+    fi
+
+    if ! command -v docker >/dev/null 2>&1; then
+        echo ">>> Docker not on PATH; skipping container PHPStan (pass --skip-phpstan to silence)" >&2
+        echo ">>> WARNING: CI may reject the push on PHPStan. Local invocation is:" >&2
+        echo ">>>   docker compose -f docker/development-easy/docker-compose.yml \\" >&2
+        echo ">>>     exec -T openemr bash -c 'cd /var/www/localhost/htdocs/openemr && \\" >&2
+        echo ">>>     git config --global --add safe.directory \\" >&2
+        echo ">>>     /var/www/localhost/htdocs/openemr && \\" >&2
+        echo ">>>     php -d memory_limit=4g ./vendor/bin/phpstan analyze \\" >&2
+        echo ">>>     <files> --level=10 --no-progress'" >&2
+        return 0
+    fi
+
+    # NB: keep the path RELATIVE to REPO_ROOT (we're cd'd there at the top of
+    # the script). MSYS_NO_PATHCONV=1 blocks the /c/Users → C:\Users translation
+    # that Git-Bash usually applies, so an absolute `/c/Users/...` path handed
+    # to Docker-on-Windows would be interpreted as a literal `C:\c\Users\...`
+    # (the rector step was silently bug-skipping for exactly this reason on
+    # 99a4f0ea — the regression got through pre-push because the container
+    # check kept returning "not running" even when it was up).
+    local compose_file="docker/development-easy/docker-compose.yml"
+    if [[ ! -f "${compose_file}" ]]; then
+        echo ">>> dev-easy compose file not found at ${compose_file}; skipping PHPStan" >&2
+        return 0
+    fi
+
+    if ! MSYS_NO_PATHCONV=1 docker compose -f "${compose_file}" ps openemr 2>/dev/null | grep -q 'Up\|running'; then
+        echo ">>> dev-easy openemr container not running; skipping PHPStan" >&2
+        echo ">>>   (start with: cd docker/development-easy && docker compose up --detach --wait)" >&2
+        return 0
+    fi
+
+    echo ">>> running PHPStan --level=10 (via dev-easy container) on changed .php files:"
+    echo "    ${existing_php_files}"
+
+    # Container's bind-mounted repo needs safe.directory each time
+    # (UID mismatch). PHPStan's neon.dist defaults to level=max — we pass
+    # --level=10 explicitly so the invocation is symmetric with what CI
+    # would emit and so the level can't silently drift if the neon is
+    # later edited.
+    # shellcheck disable=SC2086
+    MSYS_NO_PATHCONV=1 docker compose -f "${compose_file}" exec -T openemr bash -c "
+        cd /var/www/localhost/htdocs/openemr &&
+        git config --global --add safe.directory /var/www/localhost/htdocs/openemr &&
+        php -d memory_limit=4g ./vendor/bin/phpstan analyze ${existing_php_files} --level=10 --no-progress
+    "
+}
+
 if [[ "${include_phpstan}" == "auto" ]]; then
     if echo "${FILES}" | grep -qE '\.(php)$'; then
         include_phpstan="yes"
@@ -313,10 +414,31 @@ if [[ "${include_phpstan}" == "auto" ]]; then
         include_phpstan="no"
     fi
 fi
-if [[ "${include_phpstan}" == "no" ]]; then
-    export SKIP="${SKIP:-}${SKIP:+,}phpstan"
-    echo ">>> skipping phpstan hook (no .php files changed; pass --include-phpstan to override)"
+if [[ "${include_phpstan}" != "no" ]]; then
+    # shellcheck disable=SC2310
+    if ! run_phpstan_on_changed_files; then
+        phpstan_rc=$?
+        echo ">>> PHPStan reported errors. Fix them BEFORE pushing — phpstan-level-10"
+        echo ">>>   has been red on master multiple times during Wk2 Next05 because"
+        echo ">>>   the pre-commit phpstan hook silently skipped on hosts without"
+        echo ">>>   composer. Common patterns and fixes:"
+        echo ">>>     * Closure-by-reference \$failures erases the type at call sites:"
+        echo ">>>       use an anonymous class with typed property instead."
+        echo ">>>     * is_array(\$x) / is_string(\$x) where the PHPDoc already narrows:"
+        echo ">>>       drop the dead guard."
+        echo ">>>     * Global-namespace functions in module files:"
+        echo ">>>       openemr.noGlobalNsFunctions — use closures or class methods."
+        exit "${phpstan_rc}"
+    fi
 fi
+
+# The pre-commit phpstan, rector, phpcbf, phpcs, and
+# composer-require-checker hooks all shell out to `composer` (which the
+# host often lacks). The container-based mirrors above are the
+# load-bearing checks; tell pre-commit to skip its own composer-dependent
+# hooks so we don't get noisy "Executable `composer` not found" failures
+# that drown out the real results.
+export SKIP="${SKIP:-}${SKIP:+,}phpstan,rector,phpcbf,phpcs,composer-require-checker,composer-validate,composer-normalize,php-syntax-check"
 
 # ---------------------------------------------------------------------------
 # Run pre-commit on the file set. xargs -d \\n preserves spaces in filenames.
