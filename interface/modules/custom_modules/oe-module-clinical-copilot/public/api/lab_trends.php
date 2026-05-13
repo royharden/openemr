@@ -274,9 +274,7 @@ try {
 
     // Stable sort: by LOINC code so the response is deterministic for
     // tests + so the widget renders tiles in the same order each load.
-    usort($series, function ($a, $b) {
-        return strcmp((string) $a['loinc'], (string) $b['loinc']);
-    });
+    usort($series, fn($a, $b): int => strcmp((string) $a['loinc'], (string) $b['loinc']));
 
     copilot_lab_trends_send_json(200, [
         'patient_uuid' => $patientUuidString,

@@ -65,7 +65,7 @@ function assert_file_contains(string $path, array $required, array &$failures): 
         return;
     }
     foreach ($required as $needle) {
-        if (strpos($content, $needle) === false) {
+        if (!str_contains($content, $needle)) {
             $failures[] = "$path: missing required substring: $needle";
         }
     }
@@ -82,7 +82,7 @@ function assert_file_does_not_contain(string $path, string $needle, array &$fail
         $failures[] = "cannot read: $path";
         return;
     }
-    if (strpos($content, $needle) !== false) {
+    if (str_contains($content, $needle)) {
         $failures[] = "$path: forbidden substring present ($why): $needle";
     }
 }
@@ -170,10 +170,10 @@ if (!is_file($widgetJs)) {
     $failures[] = "missing widget JS: $widgetJs";
 } else {
     $jsContent = file_get_contents($widgetJs);
-    if ($jsContent === false || strpos($jsContent, 'OE_COPILOT_LAB_TRENDS_CONFIG') === false) {
+    if ($jsContent === false || !str_contains($jsContent, 'OE_COPILOT_LAB_TRENDS_CONFIG')) {
         $failures[] = "lab_trends.js missing OE_COPILOT_LAB_TRENDS_CONFIG hook";
     }
-    if ($jsContent !== false && strpos($jsContent, "credentials: 'same-origin'") === false) {
+    if ($jsContent !== false && !str_contains($jsContent, "credentials: 'same-origin'")) {
         $failures[] = "lab_trends.js must use credentials: 'same-origin' so the session cookie reaches the endpoint";
     }
 }
