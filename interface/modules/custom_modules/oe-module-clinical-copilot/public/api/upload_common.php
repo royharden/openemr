@@ -326,6 +326,13 @@ function copilot_upload_handle(string $docType): void
 
         if ($docType === 'intake_form') {
             $payload = $controller->uploadIntakeForm($scratch, $originalName, $mimeType, $patientUuid, $documentUuidBin, (string) $userId);
+        } elseif ($docType === 'medication_list') {
+            // AgDR-0077 / Plan §6.3 — third doc type. Sidecar returns an
+            // ExtractedMedicationList result and the gateway persists the
+            // flat-field surface through the same DocumentFactsRepository
+            // path as lab/intake. Reconciliation against the prescriptions
+            // table runs separately via MedicationReconciliation.
+            $payload = $controller->uploadMedicationList($scratch, $originalName, $mimeType, $patientUuid, $documentUuidBin, (string) $userId);
         } else {
             $payload = $controller->uploadLabPdf($scratch, $originalName, $mimeType, $patientUuid, $documentUuidBin, (string) $userId);
         }

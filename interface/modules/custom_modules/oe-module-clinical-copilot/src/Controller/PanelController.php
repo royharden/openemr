@@ -32,6 +32,12 @@ class PanelController
         $apiFeedbackUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/feedback.php';
         $apiUploadLabUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_lab.php';
         $apiUploadIntakeUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_intake.php';
+        // AgDR-0077 / Plan §6.3 — third doc type. The selector below routes to
+        // upload_medication_list.php; the sidecar's medication-list extractor
+        // populates `entries` on the response, which the in-chart reconciliation
+        // panel fetches separately via the medication_reconciliation.php endpoint.
+        $apiUploadMedicationListUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_medication_list.php';
+        $apiMedicationReconciliationUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/medication_reconciliation.php';
         $apiCreatePatientUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/create_patient_from_intake.php';
         // AgDR-0088 / Plan §7.1 — Co-Pilot lab-trends mini-widget. Renders below the
         // Co-Pilot card; auto-hides on charts with zero Co-Pilot-extracted lab rows.
@@ -60,6 +66,7 @@ class PanelController
                             <select class="form-control form-control-sm" id="copilot-upload-doc-type" name="doc_type" aria-label="<?php echo attr(xl('Document type')); ?>">
                                 <option value="lab_pdf"><?php echo xlt('Lab PDF'); ?></option>
                                 <option value="intake_form"><?php echo xlt('Intake form'); ?></option>
+                                <option value="medication_list"><?php echo xlt('Medication list'); ?></option>
                                 <?php if ($demoModeEnabled) : ?>
                                 <option value="intake_form_create_patient"><?php echo xlt('Intake form — CREATE NEW DEMO PATIENT'); ?></option>
                                 <?php endif; ?>
@@ -151,6 +158,13 @@ class PanelController
              >=min_observations data points. Hidden by default so charts
              with no Co-Pilot-extracted labs show no empty shell. -->
         <div class="copilot-lab-trends" id="copilot-lab-trends" style="display:none"></div>
+        <!-- AgDR-0077 / Plan §6.3 — Medication reconciliation panel. Populated
+             by copilot.js after a medication_list upload; hidden by default
+             until the reconciliation endpoint returns at least one row.
+             Renders the side-by-side compare of the extracted medication list
+             versus the OpenEMR `prescriptions` table, with confirmed /
+             newly_listed / possibly_discontinued status chips per drug. -->
+        <div class="copilot-medication-reconciliation" id="copilot-medication-reconciliation" style="display:none"></div>
         <script>
             window.OE_COPILOT_LAB_TRENDS_CONFIG = {
                 endpoint: <?php echo js_escape($apiLabTrendsUrl); ?>,
@@ -162,6 +176,8 @@ class PanelController
                 feedbackUrl: <?php echo js_escape($apiFeedbackUrl); ?>,
                 uploadLabUrl: <?php echo js_escape($apiUploadLabUrl); ?>,
                 uploadIntakeUrl: <?php echo js_escape($apiUploadIntakeUrl); ?>,
+                uploadMedicationListUrl: <?php echo js_escape($apiUploadMedicationListUrl); ?>,
+                medicationReconciliationUrl: <?php echo js_escape($apiMedicationReconciliationUrl); ?>,
                 createPatientUrl: <?php echo js_escape($apiCreatePatientUrl); ?>,
                 demoMode: <?php echo $demoModeEnabled ? 'true' : 'false'; ?>,
                 csrfToken: <?php echo js_escape($csrfToken); ?>,

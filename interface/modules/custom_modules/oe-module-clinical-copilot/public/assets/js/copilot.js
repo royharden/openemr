@@ -673,6 +673,72 @@
         uploadStatus.style.display = 'block';
     }
 
+    // AgDR-0077 / Plan §6.3 — fetch and render the medication-reconciliation
+    // panel. Called automatically after a medication_list upload; idempotent
+    // (re-fetches on each upload). The endpoint compares the latest extracted
+    // medication list against the patient's OpenEMR `prescriptions` rows and
+    // returns a structured array of confirmed / newly_listed /
+    // possibly_discontinued rows. Hidden by default — only shown when at
+    // least one row comes back.
+    function fetchMedicationReconciliation() {
+        var container = document.getElementById('copilot-medication-reconciliation');
+        if (!container || !cfg.medicationReconciliationUrl) { return; }
+        fetch(cfg.medicationReconciliationUrl, {
+            method: 'GET',
+            credentials: 'same-origin',
+        }).then(function (res) {
+            return res.json().then(function (json) { return { status: res.status, body: json }; });
+        }).then(function (resp) {
+            if (resp.status >= 400 || !resp.body || !Array.isArray(resp.body.rows) || resp.body.rows.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            renderMedicationReconciliation(container, resp.body.rows, resp.body.summary || {});
+            container.style.display = 'block';
+        }).catch(function () {
+            container.style.display = 'none';
+        });
+    }
+
+    function renderMedicationReconciliation(container, rows, summary) {
+        var statusBadge = function (status) {
+            var label = status;
+            var cls = 'badge badge-secondary';
+            if (status === 'confirmed') { cls = 'badge badge-success'; label = 'confirmed'; }
+            else if (status === 'newly_listed') { cls = 'badge badge-warning'; label = 'newly listed'; }
+            else if (status === 'possibly_discontinued') { cls = 'badge badge-danger'; label = 'possibly d/c'; }
+            return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
+        };
+        var rowHtml = rows.map(function (row) {
+            return '<tr>'
+                + '<td>' + escapeHtml(row.drug_name || '') + '</td>'
+                + '<td>' + escapeHtml(row.extracted_dose || '') + '</td>'
+                + '<td>' + escapeHtml(row.prescription_dose || '') + '</td>'
+                + '<td>' + statusBadge(row.status || 'unknown') + '</td>'
+                + '</tr>';
+        }).join('');
+        var summaryHtml = ''
+            + '<span class="text-muted small mr-2">'
+            + escapeHtml('Confirmed: ' + (summary.confirmed || 0)
+                + ' · New: ' + (summary.newly_listed || 0)
+                + ' · Possibly d/c: ' + (summary.possibly_discontinued || 0))
+            + '</span>';
+        container.innerHTML =
+            '<div class="card mt-2 copilot-medrec-card">'
+            + '<div class="card-header copilot-medrec-header">'
+            + '<i class="fa fa-pills mr-2"></i>'
+            + '<strong>Medication reconciliation</strong> '
+            + summaryHtml
+            + '</div>'
+            + '<div class="card-body p-2">'
+            + '<table class="table table-sm copilot-medrec-table">'
+            + '<thead><tr><th>Drug</th><th>Extracted dose</th><th>Rx record dose</th><th>Status</th></tr></thead>'
+            + '<tbody>' + rowHtml + '</tbody>'
+            + '</table>'
+            + '</div>'
+            + '</div>';
+    }
+
     if (uploadForm && cfg.uploadLabUrl && cfg.uploadIntakeUrl) {
         uploadForm.addEventListener('submit', function (ev) {
             ev.preventDefault();
@@ -684,16 +750,20 @@
             }
             var file = fileInput.files[0];
             var docType = docTypeSelect ? docTypeSelect.value : 'lab_pdf';
-            // AgDR-0066 — three upload modes:
+            // AgDR-0066 + AgDR-0077 — four upload modes:
             //   lab_pdf                       → upload_lab.php          (existing patient)
             //   intake_form                   → upload_intake.php       (existing patient)
+            //   medication_list               → upload_medication_list.php (Plan §6.3)
             //   intake_form_create_patient    → create_patient_from_intake.php (demo mode)
             var isCreatePatient = (docType === 'intake_form_create_patient');
+            var isMedicationList = (docType === 'medication_list');
             var url;
             if (isCreatePatient) {
                 url = cfg.createPatientUrl;
             } else if (docType === 'intake_form') {
                 url = cfg.uploadIntakeUrl;
+            } else if (isMedicationList && cfg.uploadMedicationListUrl) {
+                url = cfg.uploadMedicationListUrl;
             } else {
                 url = cfg.uploadLabUrl;
             }
@@ -741,6 +811,12 @@
                     : '';
                 showUploadStatus(prefix + 'Extracted ' + count + ' field(s). Refreshing brief…', false);
                 setTimeout(function () { fetchBrief('pre_room_brief'); }, 1200);
+                // AgDR-0077 / Plan §6.3 — after a medication_list upload,
+                // fetch and render the reconciliation panel against the
+                // OpenEMR `prescriptions` table.
+                if (isMedicationList && cfg.medicationReconciliationUrl) {
+                    setTimeout(function () { fetchMedicationReconciliation(); }, 1300);
+                }
             }).catch(function () {
                 uploadForm.querySelector('button[type="submit"]').disabled = false;
                 showUploadStatus('Upload failed (network error).', true);

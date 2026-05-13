@@ -137,6 +137,61 @@ final class DocumentUploadController
     }
 
     /**
+     * Upload and extract a patient medication list (Plan §6.3, AgDR-0077).
+     *
+     * The sidecar response carries both a flat `fields` surface (one row per
+     * medication.<slug>.<attr>) and a structured `entries` array of
+     * MedicationListEntry rows. The flat fields are persisted through
+     * DocumentFactsRepository like lab/intake; the structured entries are
+     * passed through in the returned payload so the gateway's
+     * MedicationReconciliation service can compare them against the
+     * OpenEMR `prescriptions` table.
+     *
+     * @param string $tmpPath       Filesystem path to the uploaded temp file.
+     * @param string $originalName  Original filename (already PHI-redacted by upload_common).
+     * @param string $mimeType      MIME type declared by the upload (PDF/PNG/JPEG).
+     * @param string $patientUuid   Raw patient UUID.
+     * @param string $documentUuidBin  OpenEMR documents.uuid (binary 16 bytes).
+     * @param string $createdBy     OpenEMR user id.
+     * @return array<string, mixed>  The ExtractedDocument payload.
+     * @throws \RuntimeException on sidecar failure or size/page/MIME violation.
+     */
+    public function uploadMedicationList(
+        string $tmpPath,
+        string $originalName,
+        string $mimeType,
+        string $patientUuid,
+        string $documentUuidBin,
+        string $createdBy,
+    ): array {
+        $this->validateMimeType($mimeType, $originalName);
+        $content = $this->readAndValidate($tmpPath, $originalName);
+        $sha256  = hash('sha256', $content);
+
+        $patientUuidHash = hash('sha256', $patientUuid);
+        $payload = $this->callSidecar('/v1/extract/medication-list', $content, $originalName, $patientUuidHash);
+
+        $inserted = $this->repository->persistExtractedDocument(
+            $payload,
+            $patientUuid,
+            $documentUuidBin,
+            $createdBy,
+        );
+
+        $resultPayload = $payload['result'] ?? null;
+        $entriesArr = is_array($resultPayload) ? ($resultPayload['entries'] ?? null) : null;
+        $entryCount = is_array($entriesArr) ? count($entriesArr) : 0;
+        $this->logger->debug('DocumentUploadController: medication-list extracted', [
+            'sha256'        => $sha256,
+            'fields'        => $payload['extracted_field_count'] ?? 0,
+            'entries'       => $entryCount,
+            'rows_inserted' => $inserted,
+        ]);
+
+        return $payload;
+    }
+
+    /**
      * Extraction-only path for the demo-mode intake-create endpoint (AgDR-0066).
      *
      * The standard uploadIntakeForm() expects an existing patient_uuid because
