@@ -1,0 +1,31 @@
+{
+  "case_id": "medication_list_01_happy_path",
+  "description": "Whitaker typed PDF \u2014 10 entries, all seven columns populated, schema + citation rubrics pass.",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "medication_list_reconciled"
+  ],
+  "input": {
+    "patient_uuid_hash": "whitaker-patient-hash",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p02-whitaker-medication-list.pdf",
+        "doc_type": "medication_list"
+      }
+    ]
+  },
+  "expectations": {
+    "doc_type": "medication_list",
+    "min_field_count": 60,
+    "all_fields_have_citation": true,
+    "reconciliation": {
+      "min_extracted_entries": 10
+    }
+  },
+  "what_bug_this_catches": "Catches the medication_list extractor regressing on the typed-PDF fast path: either dropping below 10 entries (under-extraction) or emitting fields without a SourcePacket citation (the citation_present rubric's job).",
+  "added_by": "claude-opus-4.7-phase-6.3",
+  "added_in_pr": "wk2-next05-phase-6.3"
+}

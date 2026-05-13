@@ -1,0 +1,91 @@
+{
+  "case_id": "medication_list_05_reconciliation_mismatch",
+  "description": "Reconciliation mismatch \u2014 Kowalski post-discharge list adds 2 new meds (Pantoprazole + Furosemide + Acetaminophen) absent from the seed `prescriptions`, while one home med (Atenolol) is on the seed but missing from the discharge list. Reconciliation surfaces both classes of mismatch.",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "medication_list_reconciled"
+  ],
+  "input": {
+    "patient_uuid_hash": "kowalski-patient-hash",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p04-kowalski-medication-list.pdf",
+        "doc_type": "medication_list"
+      }
+    ]
+  },
+  "expectations": {
+    "doc_type": "medication_list",
+    "reconciliation": {
+      "min_extracted_entries": 7,
+      "seed_prescriptions": [
+        {
+          "drug_name": "Lisinopril",
+          "dose": "20 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Atorvastatin",
+          "dose": "20 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Hydrochlorothiazide",
+          "dose": "25 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Atenolol",
+          "dose": "50 mg",
+          "active": 1
+        }
+      ],
+      "status_counts": {
+        "confirmed": 3,
+        "newly_listed": 4,
+        "possibly_discontinued": 1,
+        "total": 8
+      },
+      "must_classify": [
+        {
+          "drug": "Lisinopril",
+          "status": "confirmed"
+        },
+        {
+          "drug": "Atorvastatin",
+          "status": "confirmed"
+        },
+        {
+          "drug": "Hydrochlorothiazide",
+          "status": "confirmed"
+        },
+        {
+          "drug": "Pantoprazole",
+          "status": "newly_listed"
+        },
+        {
+          "drug": "Furosemide",
+          "status": "newly_listed"
+        },
+        {
+          "drug": "Acetaminophen",
+          "status": "newly_listed"
+        },
+        {
+          "drug": "Metformin",
+          "status": "newly_listed"
+        },
+        {
+          "drug": "Atenolol",
+          "status": "possibly_discontinued"
+        }
+      ]
+    }
+  },
+  "what_bug_this_catches": "Pins the three-way classification on a realistic discharge-vs-home-meds mismatch. Without this case, a regression that always returned `confirmed` (no mismatch detection) would still satisfy reconciliation_match \u2014 this case demands non-zero counts in both newly_listed AND possibly_discontinued.",
+  "added_by": "claude-opus-4.7-phase-6.3",
+  "added_in_pr": "wk2-next05-phase-6.3"
+}

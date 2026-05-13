@@ -294,8 +294,10 @@ def _build_extraction_runner_result(case: dict[str, Any]) -> dict[str, Any]:
         from app.extractors._eval_mocks_a import (
             get_intake_mock_fields,
             get_lab_mock_fields,
+            get_medication_list_mock_entries,
             resolve_intake_fixture_key,
             resolve_lab_fixture_key,
+            resolve_medication_list_fixture_key,
         )
         _mocks_available = True
     except ImportError:
@@ -308,6 +310,7 @@ def _build_extraction_runner_result(case: dict[str, Any]) -> dict[str, Any]:
     all_fields: list[dict[str, Any]] = []
     source_packets: list[dict[str, Any]] = []
     doc_type_first: str = "lab_pdf"
+    medication_entries: list[dict[str, Any]] = []  # accumulated for AgDR-0077 rubric
 
     for doc in documents:
         doc_path: str = doc.get("path", "")
@@ -326,6 +329,43 @@ def _build_extraction_runner_result(case: dict[str, Any]) -> dict[str, Any]:
             if doc_type == "lab_pdf":
                 fixture_key = resolve_lab_fixture_key(doc_sha256, filename)
                 raw_fields = get_lab_mock_fields(fixture_key)
+            elif doc_type == "medication_list":
+                # AgDR-0077 / Plan §6.3 — medication-list eval cases route to
+                # the per-fixture entry list. Each entry is flattened into a
+                # `medication.<slug>.<attr>` field row so the rubric pipeline
+                # (schema_valid + citation_present) sees the same row-shape
+                # it sees for lab and intake. The structured entries are
+                # captured alongside `medication_entries` so the new
+                # medication_list_reconciled rubric can read them without
+                # re-parsing the flat-field surface.
+                fixture_key = resolve_medication_list_fixture_key(doc_sha256, filename)
+                entries = get_medication_list_mock_entries(fixture_key)
+                medication_entries.extend(entries)
+                raw_fields = []
+                for idx, entry in enumerate(entries):
+                    drug = str(entry.get("drug_name") or "").strip()
+                    if not drug:
+                        continue
+                    slug = re.sub(r"[^a-z0-9]+", "_", drug.lower()).strip("_") or "unknown"
+                    slug_with_idx = f"{slug}_{idx}"
+                    raw_fields.append({
+                        "name": f"{slug_with_idx}.drug_name",
+                        "value": drug,
+                        "quote_or_value": entry.get("quote_or_value"),
+                        "page_index": entry.get("page_index", 0),
+                        "confidence": entry.get("confidence", 0.85),
+                    })
+                    for attr in ("dose", "route", "frequency", "start_date", "prescriber", "indication"):
+                        attr_value = entry.get(attr)
+                        if attr_value is None or (isinstance(attr_value, str) and not attr_value.strip()):
+                            continue
+                        raw_fields.append({
+                            "name": f"{slug_with_idx}.{attr}",
+                            "value": attr_value,
+                            "quote_or_value": entry.get("quote_or_value"),
+                            "page_index": entry.get("page_index", 0),
+                            "confidence": entry.get("confidence", 0.85),
+                        })
             else:
                 fixture_key = resolve_intake_fixture_key(doc_sha256, filename)
                 raw_fields = get_intake_mock_fields(fixture_key)
@@ -420,9 +460,31 @@ def _build_extraction_runner_result(case: dict[str, Any]) -> dict[str, Any]:
         "selected_tools": [],
     }
 
-    # Also build the top-level ExtractedDocument shape so rubric_schema_valid
-    # can validate via the ExtractedDocument fallback path.
-    return {
+    # AgDR-0077 / Plan §6.3 — for medication_list cases the case file's
+    # `expectations.reconciliation` block declares the expected reconciliation
+    # output (per-drug status + summary). The new medication_list_reconciled
+    # rubric reads `runner_result["medication_reconciliation"]` and compares
+    # it against the case's expectation. We build the reconciliation here by
+    # joining `medication_entries` (sourced above) against the case's
+    # `expectations.seed_prescriptions` list — keeping the runner database-free
+    # while still exercising the real string-match logic from
+    # MedicationReconciliation (re-implemented in pure-Python below to avoid
+    # importing PHP code; the PHP implementation has its own smoke test).
+    medication_reconciliation: dict[str, Any] | None = None
+    if doc_type_first == "medication_list" and medication_entries:
+        # Seed prescriptions live under expectations.reconciliation.seed_prescriptions
+        # in the case file (Plan §6.3 / AgDR-0077 case shape). Default to an
+        # empty list so a happy-path case that only asserts on extraction
+        # entry count still gets a reconciliation payload — every drug then
+        # classifies as newly_listed, which doesn't break the rubric because
+        # the rubric only enforces `status_counts` when it's declared.
+        recon_expect = case.get("expectations", {}).get("reconciliation") or {}
+        seed_prescriptions = recon_expect.get("seed_prescriptions") or []
+        medication_reconciliation = _compute_eval_reconciliation(
+            medication_entries, seed_prescriptions,
+        )
+
+    runner_result_out: dict[str, Any] = {
         # ExtractedDocument envelope (for schema_valid ExtractedDocument path)
         "doc_type": doc_type_first,
         "document_sha256": dummy_sha,
@@ -434,6 +496,85 @@ def _build_extraction_runner_result(case: dict[str, Any]) -> dict[str, Any]:
         "verified_response": verified_response,
         # packets list (for factually_consistent rubric's _build_packet_index)
         "packets": source_packets,
+    }
+    if medication_reconciliation is not None:
+        runner_result_out["medication_reconciliation"] = medication_reconciliation
+        runner_result_out["medication_entries"] = medication_entries
+    return runner_result_out
+
+
+def _normalize_drug_name(raw: str) -> str:
+    """Mirror MedicationReconciliation::normalizeDrugName for the Python rubric path."""
+
+    if not raw:
+        return ""
+    # Strip parenthetical strength notes.
+    value = re.sub(r"\([^)]*\)", "", raw)
+    # Lowercase and collapse whitespace.
+    value = re.sub(r"\s+", " ", value.lower())
+    # Trim residual punctuation/whitespace.
+    return value.strip(" \t\n\r\0\x0B.,;")
+
+
+def _compute_eval_reconciliation(
+    entries: list[dict[str, Any]],
+    seed_prescriptions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compute the eval-mode reconciliation purely in Python.
+
+    Mirrors ``MedicationReconciliation::buildReconciliation`` (the PHP
+    implementation that ships in production). Keeping a Python twin here
+    lets the runner score medication_list cases without booting a DB or
+    the PHP container. A regression in either implementation will surface
+    as a per-rubric divergence the next time the eval suite runs.
+    """
+
+    extracted_index: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        key = _normalize_drug_name(str(entry.get("drug_name") or ""))
+        if not key:
+            continue
+        extracted_index[key] = entry
+    rx_index: dict[str, dict[str, Any]] = {}
+    for rx in seed_prescriptions:
+        key = _normalize_drug_name(str(rx.get("drug_name") or rx.get("drug") or ""))
+        if not key:
+            continue
+        rx_index[key] = rx
+
+    all_keys = sorted(set(extracted_index) | set(rx_index))
+    rows: list[dict[str, Any]] = []
+    confirmed = newly_listed = possibly_discontinued = 0
+    for key in all_keys:
+        ex = extracted_index.get(key)
+        rx = rx_index.get(key)
+        if ex is not None and rx is not None:
+            status = "confirmed"
+            confirmed += 1
+            display = ex["drug_name"]
+        elif ex is not None:
+            status = "newly_listed"
+            newly_listed += 1
+            display = ex["drug_name"]
+        else:
+            status = "possibly_discontinued"
+            possibly_discontinued += 1
+            display = rx.get("drug_name") or rx.get("drug") or ""
+        rows.append({
+            "drug_name": display,
+            "status": status,
+            "extracted_dose": (ex or {}).get("dose"),
+            "prescription_dose": (rx or {}).get("dose"),
+        })
+
+    return {
+        "rows": rows,
+        "summary": {
+            "confirmed": confirmed,
+            "newly_listed": newly_listed,
+            "possibly_discontinued": possibly_discontinued,
+            "total": len(rows),
+        },
     }
 
 

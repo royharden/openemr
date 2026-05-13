@@ -1,0 +1,31 @@
+{
+  "case_id": "medication_list_02_dirty_scan",
+  "description": "Kowalski dirty-scan discharge medication list \u2014 7 entries despite slight rotation + JPEG artifacts + fragmented text layer.",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "medication_list_reconciled"
+  ],
+  "input": {
+    "patient_uuid_hash": "kowalski-patient-hash",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p04-kowalski-medication-list.pdf",
+        "doc_type": "medication_list"
+      }
+    ]
+  },
+  "expectations": {
+    "doc_type": "medication_list",
+    "min_field_count": 40,
+    "all_fields_have_citation": true,
+    "reconciliation": {
+      "min_extracted_entries": 7
+    }
+  },
+  "what_bug_this_catches": "Catches dirty-scan regressions \u2014 if the vision-API repair pass starts collapsing on rotated+JPEG-degraded inputs, the entry count drops below 7 and this case fails. Also catches the verifier rejecting a citation packet just because the source quote contains OCR-style spacing (the fixture quotes have fragmented words like 'Pant oprazole').",
+  "added_by": "claude-opus-4.7-phase-6.3",
+  "added_in_pr": "wk2-next05-phase-6.3"
+}

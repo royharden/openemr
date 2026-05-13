@@ -344,6 +344,72 @@ def rubric_critic_verdict(
 # Rubric registry
 # ---------------------------------------------------------------------------
 
+def rubric_medication_list_reconciled(
+    case: dict[str, Any],
+    runner_result: dict[str, Any],
+    log_text: str = "",
+) -> bool:
+    """AgDR-0077 / AgDR-0089 / Plan §6.3 — medication-list reconciliation rubric.
+
+    The case's ``expectations.reconciliation`` block declares:
+      * ``min_extracted_entries`` (int) — entries the extractor must surface.
+      * ``status_counts`` (dict) — expected counts for confirmed /
+        newly_listed / possibly_discontinued. Each declared count is a
+        strict equality check.
+      * ``must_classify`` (list[{drug, status}]) — per-drug expected
+        classification. Drug names are normalized the same way the
+        reconciliation service normalizes (lowercase, strip parentheticals).
+
+    The runner populates ``runner_result["medication_reconciliation"]``
+    for medication-list extraction cases (see
+    ``_build_extraction_runner_result``). When the case asserts on
+    reconciliation but the runner result is missing the payload, the
+    rubric fails — that's the signal a case-and-runner pair has drifted.
+
+    Cases that don't carry a ``reconciliation`` expectation block pass
+    vacuously, so happy-path / dose_ambiguity cases that only assert on
+    extraction shape don't drag this rubric below floor.
+    """
+
+    expectations = case.get("expectations", {}).get("reconciliation")
+    if expectations is None:
+        return True
+
+    payload = runner_result.get("medication_reconciliation")
+    if not isinstance(payload, dict):
+        return False
+
+    entries = runner_result.get("medication_entries") or []
+    min_entries = expectations.get("min_extracted_entries")
+    if isinstance(min_entries, int) and len(entries) < min_entries:
+        return False
+
+    expected_counts = expectations.get("status_counts")
+    if isinstance(expected_counts, dict):
+        actual_summary = payload.get("summary", {})
+        for key, expected in expected_counts.items():
+            if int(actual_summary.get(key, 0)) != int(expected):
+                return False
+
+    must_classify = expectations.get("must_classify") or []
+    if must_classify:
+        actual_by_drug = {}
+        for row in payload.get("rows", []):
+            name = str(row.get("drug_name") or "")
+            cleaned = re.sub(r"\([^)]*\)", "", name)
+            normalized = re.sub(r"\s+", " ", cleaned.lower()).strip(" \t.,;")
+            actual_by_drug[normalized] = row.get("status")
+        for assertion in must_classify:
+            drug = str(assertion.get("drug") or "")
+            cleaned = re.sub(r"\([^)]*\)", "", drug)
+            normalized = re.sub(r"\s+", " ", cleaned.lower()).strip(" \t.,;")
+            expected_status = assertion.get("status")
+            if actual_by_drug.get(normalized) != expected_status:
+                return False
+
+    return True
+
+
 _RUBRIC_FUNCTIONS = {
     "schema_valid": rubric_schema_valid,
     "citation_present": rubric_citation_present,
@@ -356,6 +422,7 @@ _RUBRIC_FUNCTIONS = {
     "integrity_writeback_gated_off_in_prod": rubric_integrity_writeback_gated_off_in_prod,
     "integrity_uses_collection_date": rubric_integrity_uses_collection_date,
     "critic_verdict": rubric_critic_verdict,
+    "medication_list_reconciled": rubric_medication_list_reconciled,
 }
 
 

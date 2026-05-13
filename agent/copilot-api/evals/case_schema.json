@@ -72,7 +72,8 @@
           "integrity_status_preliminary",
           "integrity_writeback_gated_off_in_prod",
           "integrity_uses_collection_date",
-          "critic_verdict"
+          "critic_verdict",
+          "medication_list_reconciled"
         ]
       }
     },
@@ -95,7 +96,8 @@
           "integrity_status_preliminary",
           "integrity_writeback_gated_off_in_prod",
           "integrity_uses_collection_date",
-          "critic_verdict"
+          "critic_verdict",
+          "medication_list_reconciled"
         ]
       }
     },
@@ -130,7 +132,8 @@
                 "type": "string",
                 "enum": [
                   "lab_pdf",
-                  "intake_form"
+                  "intake_form",
+                  "medication_list"
                 ]
               }
             }

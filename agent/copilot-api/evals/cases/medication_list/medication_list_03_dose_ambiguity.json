@@ -1,0 +1,32 @@
+{
+  "case_id": "medication_list_03_dose_ambiguity",
+  "description": "Reyes handwritten medication list \u2014 glipizide row has dose '5 mg' crossed out with '10 mg' written above. The extractor must surface the NEW dose, not the struck-through value.",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "medication_list_reconciled"
+  ],
+  "input": {
+    "patient_uuid_hash": "reyes-patient-hash",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p03-reyes-medication-list.png",
+        "doc_type": "medication_list"
+      }
+    ]
+  },
+  "expectations": {
+    "doc_type": "medication_list",
+    "min_field_count": 30,
+    "all_fields_have_citation": true,
+    "glipizide_dose_after_crossout": "10 mg",
+    "reconciliation": {
+      "min_extracted_entries": 6
+    }
+  },
+  "what_bug_this_catches": "Pins the dose-cross-out behavior. A regression that either (a) returns '5 mg' (the struck-through value) or (b) returns '5 mg -> 10 mg' (combined string) would break the downstream reconciliation panel: the OpenEMR `prescriptions` table stores a single dosage string, and a combined string would never match the prescribed '10 mg' row, silently producing a `newly_listed` classification for what should be `confirmed`.",
+  "added_by": "claude-opus-4.7-phase-6.3",
+  "added_in_pr": "wk2-next05-phase-6.3"
+}

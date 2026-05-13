@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-rubric pass-rate floors. Floor changes require an AgDR (Plan \u00a715.5.7, anti-pattern \u00a713.20). All values are pass_rate (0.0-1.0). Integrity rubrics added via AgDR-0069. critic_verdict added via AgDR-0076.",
+  "_comment": "Per-rubric pass-rate floors. Floor changes require an AgDR (Plan \u00a715.5.7, anti-pattern \u00a713.20). All values are pass_rate (0.0-1.0). Integrity rubrics added via AgDR-0069. critic_verdict added via AgDR-0076. medication_list_reconciled added via AgDR-0089 (Plan \u00a76.3).",
   "schema_valid": 0.98,
   "citation_present": 0.98,
   "factually_consistent": 0.95,
@@ -10,5 +10,6 @@
   "integrity_status_preliminary": 1.0,
   "integrity_writeback_gated_off_in_prod": 1.0,
   "integrity_uses_collection_date": 1.0,
-  "critic_verdict": 0.95
+  "critic_verdict": 0.95,
+  "medication_list_reconciled": 1.0
 }

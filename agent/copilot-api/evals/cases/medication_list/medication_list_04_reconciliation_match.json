@@ -1,0 +1,87 @@
+{
+  "case_id": "medication_list_04_reconciliation_match",
+  "description": "Reconciliation happy path \u2014 every extracted medication also appears in the patient's seed `prescriptions`, so the reconciliation panel classifies every row as `confirmed` with zero newly_listed/possibly_discontinued.",
+  "category": "extraction",
+  "mode": "extractor_only",
+  "rubrics": [
+    "schema_valid",
+    "citation_present",
+    "medication_list_reconciled"
+  ],
+  "input": {
+    "patient_uuid_hash": "whitaker-patient-hash",
+    "documents": [
+      {
+        "path": "evals/fixtures/documents/p02-whitaker-medication-list.pdf",
+        "doc_type": "medication_list"
+      }
+    ]
+  },
+  "expectations": {
+    "doc_type": "medication_list",
+    "reconciliation": {
+      "min_extracted_entries": 10,
+      "seed_prescriptions": [
+        {
+          "drug_name": "Apixaban",
+          "dose": "5 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Metoprolol succinate",
+          "dose": "50 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Lisinopril",
+          "dose": "20 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Atorvastatin",
+          "dose": "40 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Metformin",
+          "dose": "1000 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Empagliflozin",
+          "dose": "10 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Levothyroxine",
+          "dose": "75 mcg",
+          "active": 1
+        },
+        {
+          "drug_name": "Vitamin D3",
+          "dose": "2000 IU",
+          "active": 1
+        },
+        {
+          "drug_name": "Aspirin (low-dose)",
+          "dose": "81 mg",
+          "active": 1
+        },
+        {
+          "drug_name": "Pantoprazole",
+          "dose": "40 mg",
+          "active": 1
+        }
+      ],
+      "status_counts": {
+        "confirmed": 10,
+        "newly_listed": 0,
+        "possibly_discontinued": 0,
+        "total": 10
+      }
+    }
+  },
+  "what_bug_this_catches": "Pins the string-match normalization. A regression that drops the parenthetical-strip rule would cause 'Aspirin (low-dose)' to not match the seed `Aspirin` row, downgrading one confirmed to newly_listed. A regression that drops case-folding would do the same. This case fails the second either invariant breaks.",
+  "added_by": "claude-opus-4.7-phase-6.3",
+  "added_in_pr": "wk2-next05-phase-6.3"
+}
