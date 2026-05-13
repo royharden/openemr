@@ -319,7 +319,7 @@ class VerifiedResponse(BaseModel):
 # changing the envelope shape.
 # ---------------------------------------------------------------------------
 
-DocumentType = Literal["lab_pdf", "intake_form"]
+DocumentType = Literal["lab_pdf", "intake_form", "medication_list"]
 
 
 class ExtractedField(BaseModel):
@@ -370,6 +370,53 @@ class IntakeFields(BaseModel):
     fields: list[ExtractedField] = Field(default_factory=list)
 
 
+class MedicationListEntry(BaseModel):
+    """One medication row extracted from a patient medication list (Plan §6.3).
+
+    AgDR-0077 — the medication-list doc type adds a third extraction surface
+    (alongside lab_pdf and intake_form). Each entry mirrors the OpenEMR
+    `prescriptions` table's column shape (drug / dose / route / frequency /
+    start_date / prescriber / indication) so the downstream reconciliation
+    panel (``MedicationReconciliation``) can string-match against the seed
+    prescriptions data without a translation layer.
+
+    ``source_citation`` is REQUIRED: every entry must carry a SourcePacket
+    proving where it came from. Per AgDR-0040 the bbox may be ``None``
+    (handwritten PNG) but the packet itself is non-optional — an entry
+    without a citation cannot survive verifier_rule.citation_present.
+    """
+
+    drug_name: str = Field(..., max_length=128)
+    dose: str | None = Field(None, max_length=64)
+    route: str | None = Field(None, max_length=32)
+    frequency: str | None = Field(None, max_length=64)
+    start_date: str | None = Field(None, max_length=32)  # YYYY-MM-DD or fuzzy ("~2019", "unknown")
+    prescriber: str | None = Field(None, max_length=128)
+    indication: str | None = Field(None, max_length=256)
+    source_citation: SourcePacket
+
+
+class ExtractedMedicationList(BaseModel):
+    """Strict schema for a medication-list extraction (Plan §6.3, AgDR-0077).
+
+    Envelope follows the same shape as ``LabResult`` and ``IntakeFields`` so
+    the gateway's ``DocumentFactsRepository`` can persist entries through
+    the existing ``ExtractedField``-based path. Per-entry data lives in
+    ``entries`` (the MedicationListEntry list), while ``fields`` keeps the
+    flat-field surface non-empty for downstream consumers (each entry is
+    re-emitted as a ``medication.<drug>.<attr>`` field path so the
+    citation-present rubric and the document-facts table see the same row
+    shape they see for lab/intake extractions).
+    """
+
+    document_sha256: str = Field(..., min_length=64, max_length=64)
+    page_count: int = Field(..., ge=1)
+    extracted_at: str  # ISO 8601 UTC
+    extracted_by_model: str = Field(..., max_length=64)
+    fields: list[ExtractedField] = Field(default_factory=list)
+    entries: list[MedicationListEntry] = Field(default_factory=list)
+
+
 class ExtractedDocument(BaseModel):
     """Sidecar response envelope for ``POST /v1/extract/{lab-pdf,intake-form}``.
 
@@ -381,7 +428,7 @@ class ExtractedDocument(BaseModel):
 
     doc_type: DocumentType
     document_sha256: str = Field(..., min_length=64, max_length=64)
-    result: LabResult | IntakeFields
+    result: LabResult | IntakeFields | ExtractedMedicationList
     source_packets: list[SourcePacket] = Field(default_factory=list)
     extracted_field_count: int = 0
     dropped_field_count: int = 0  # claims dropped by quote_verbatim_in_pdf etc.

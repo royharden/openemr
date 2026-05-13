@@ -19,7 +19,7 @@ import hashlib
 import os
 from typing import Any
 
-MOCK_VERSION = "wk2-a-v1"
+MOCK_VERSION = "wk2-a-v2"
 
 _EVAL_MODE = os.environ.get("COPILOT_EVAL_MODE", "0") == "1"
 
@@ -128,6 +128,75 @@ _INTAKE_FILENAME_MAP: list[tuple[str, str]] = [
     ("kowalski-intake", "kowalski-intake"),
     ("p04-kowalski-intake", "kowalski-intake"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Medication list fixtures (Plan §6.3 / AgDR-0077)
+# ---------------------------------------------------------------------------
+
+_MEDICATION_LIST_FIXTURES: dict[str, list[dict[str, Any]]] = {
+    "whitaker-medication-list": [
+        {"drug_name": "Apixaban", "dose": "5 mg", "route": "PO", "frequency": "BID", "start_date": "2022-03-15", "prescriber": "Patel, N.", "indication": "Atrial fibrillation", "page_index": 0, "confidence": 0.96, "quote_or_value": "Apixaban 5 mg PO BID 2022-03-15"},
+        {"drug_name": "Metoprolol succinate", "dose": "50 mg", "route": "PO", "frequency": "Daily", "start_date": "2018-09-10", "prescriber": "Patel, N.", "indication": "Rate control / HTN", "page_index": 0, "confidence": 0.96, "quote_or_value": "Metoprolol succinate 50 mg PO Daily"},
+        {"drug_name": "Lisinopril", "dose": "20 mg", "route": "PO", "frequency": "Daily", "start_date": "2017-02-04", "prescriber": "Patel, N.", "indication": "HTN", "page_index": 0, "confidence": 0.96, "quote_or_value": "Lisinopril 20 mg PO Daily"},
+        {"drug_name": "Atorvastatin", "dose": "40 mg", "route": "PO", "frequency": "QHS", "start_date": "2020-11-22", "prescriber": "Patel, N.", "indication": "Hyperlipidemia", "page_index": 0, "confidence": 0.96, "quote_or_value": "Atorvastatin 40 mg PO QHS"},
+        {"drug_name": "Metformin", "dose": "1000 mg", "route": "PO", "frequency": "BID", "start_date": "2019-06-18", "prescriber": "Patel, N.", "indication": "T2DM", "page_index": 0, "confidence": 0.95, "quote_or_value": "Metformin 1000 mg PO BID"},
+        {"drug_name": "Empagliflozin", "dose": "10 mg", "route": "PO", "frequency": "Daily", "start_date": "2023-04-30", "prescriber": "Patel, N.", "indication": "T2DM / CV risk", "page_index": 0, "confidence": 0.94, "quote_or_value": "Empagliflozin 10 mg PO Daily"},
+        {"drug_name": "Levothyroxine", "dose": "75 mcg", "route": "PO", "frequency": "Daily", "start_date": "2014-08-07", "prescriber": "Patel, N.", "indication": "Hypothyroidism", "page_index": 0, "confidence": 0.95, "quote_or_value": "Levothyroxine 75 mcg PO Daily"},
+        {"drug_name": "Vitamin D3", "dose": "2000 IU", "route": "PO", "frequency": "Daily", "start_date": "2021-01-15", "prescriber": "Patel, N.", "indication": "Vit D deficiency", "page_index": 0, "confidence": 0.93, "quote_or_value": "Vitamin D3 2000 IU PO Daily"},
+        {"drug_name": "Aspirin (low-dose)", "dose": "81 mg", "route": "PO", "frequency": "Daily", "start_date": "2018-09-10", "prescriber": "Patel, N.", "indication": "Primary prevention", "page_index": 0, "confidence": 0.94, "quote_or_value": "Aspirin (low-dose) 81 mg PO Daily"},
+        {"drug_name": "Pantoprazole", "dose": "40 mg", "route": "PO", "frequency": "Daily", "start_date": "2023-09-01", "prescriber": "Patel, N.", "indication": "GERD f/u", "page_index": 0, "confidence": 0.94, "quote_or_value": "Pantoprazole 40 mg PO Daily"},
+    ],
+    "reyes-medication-list": [
+        # Handwritten — bbox null, lower confidence; glipizide entry carries
+        # the cross-out narrative in its source quote so the eval cases can
+        # check that the extractor surfaces the updated value (10 mg) not
+        # the struck-through one (5 mg).
+        {"drug_name": "Lisinopril", "dose": "10 mg", "route": "PO", "frequency": "Daily", "start_date": "~2020", "prescriber": "Reyes PCP", "indication": "HTN", "page_index": 0, "confidence": 0.78, "quote_or_value": None},
+        {"drug_name": "Hydrochlorothiazide", "dose": "25 mg", "route": "PO", "frequency": "Daily", "start_date": "~2020", "prescriber": "Reyes PCP", "indication": "HTN", "page_index": 0, "confidence": 0.76, "quote_or_value": None},
+        {"drug_name": "Glipizide", "dose": "10 mg", "route": "PO", "frequency": "BID", "start_date": "~2019", "prescriber": "Reyes PCP", "indication": "T2DM", "page_index": 0, "confidence": 0.68, "quote_or_value": None},
+        {"drug_name": "Atorvastatin", "dose": "20 mg", "route": "PO", "frequency": "QHS", "start_date": "~2021", "prescriber": "Reyes PCP", "indication": "Hyperlipidemia", "page_index": 0, "confidence": 0.76, "quote_or_value": None},
+        {"drug_name": "Sertraline", "dose": "50 mg", "route": "PO", "frequency": "Daily", "start_date": "~2018", "prescriber": "Reyes PCP", "indication": "Depression", "page_index": 0, "confidence": 0.74, "quote_or_value": None},
+        {"drug_name": "Albuterol HFA", "dose": "90 mcg", "route": "INH", "frequency": "PRN", "start_date": "unknown", "prescriber": "Reyes PCP", "indication": "Asthma rescue", "page_index": 0, "confidence": 0.72, "quote_or_value": None},
+    ],
+    "kowalski-medication-list": [
+        # Dirty-scan stress tier — confidence dropped slightly; quotes mirror
+        # the fragmented text-layer pattern (some words split, e.g. "Pant oprazole").
+        {"drug_name": "Pantoprazole", "dose": "40 mg", "route": "PO", "frequency": "BID", "start_date": "2026-04-15", "prescriber": "Chang, D.", "indication": "RUQ pain / GI prophylaxis (NEW)", "page_index": 0, "confidence": 0.81, "quote_or_value": "Pantoprazole 40 mg PO BID 2026-04-15"},
+        {"drug_name": "Acetaminophen", "dose": "650 mg", "route": "PO", "frequency": "Q6H PRN", "start_date": "2026-04-15", "prescriber": "Chang, D.", "indication": "Pain (post-d/c, NEW)", "page_index": 0, "confidence": 0.80, "quote_or_value": "Acetaminophen 650 mg PO Q6H PRN"},
+        {"drug_name": "Hydrochlorothiazide", "dose": "12.5 mg", "route": "PO", "frequency": "Daily", "start_date": "2024-08-12", "prescriber": "Home PCP", "indication": "HTN", "page_index": 0, "confidence": 0.78, "quote_or_value": "Hydrochlorothiazide 12.5 mg PO Daily"},
+        {"drug_name": "Lisinopril", "dose": "20 mg", "route": "PO", "frequency": "Daily", "start_date": "2024-08-12", "prescriber": "Home PCP", "indication": "HTN", "page_index": 0, "confidence": 0.82, "quote_or_value": "Lisinopril 20 mg PO Daily"},
+        {"drug_name": "Atorvastatin", "dose": "40 mg", "route": "PO", "frequency": "QHS", "start_date": "2023-11-04", "prescriber": "Home PCP", "indication": "Hyperlipidemia", "page_index": 0, "confidence": 0.82, "quote_or_value": "Atorvastatin 40 mg PO QHS"},
+        {"drug_name": "Metformin", "dose": "500 mg", "route": "PO", "frequency": "BID", "start_date": "2025-02-20", "prescriber": "Home PCP", "indication": "T2DM (newly diagnosed)", "page_index": 0, "confidence": 0.80, "quote_or_value": "Metformin 500 mg PO BID"},
+        {"drug_name": "Furosemide", "dose": "20 mg", "route": "PO", "frequency": "Daily", "start_date": "2026-04-15", "prescriber": "Chang, D.", "indication": "NEW post-discharge - edema f/u", "page_index": 0, "confidence": 0.79, "quote_or_value": "Furosemide 20 mg PO Daily 2026-04-15"},
+    ],
+}
+
+_MEDICATION_LIST_FILENAME_MAP: list[tuple[str, str]] = [
+    ("whitaker-medication-list", "whitaker-medication-list"),
+    ("p02-whitaker-medication", "whitaker-medication-list"),
+    ("reyes-medication-list", "reyes-medication-list"),
+    ("p03-reyes-medication", "reyes-medication-list"),
+    ("kowalski-medication-list", "kowalski-medication-list"),
+    ("p04-kowalski-medication", "kowalski-medication-list"),
+]
+
+
+def resolve_medication_list_fixture_key(document_sha256: str, filename: str) -> str | None:
+    fn = filename.lower()
+    best: tuple[int, str] | None = None
+    for substr, key in _MEDICATION_LIST_FILENAME_MAP:
+        if substr.lower() in fn:
+            length = len(substr)
+            if best is None or length > best[0]:
+                best = (length, key)
+    return best[1] if best else None
+
+
+def get_medication_list_mock_entries(fixture_key: str | None) -> list[dict[str, Any]]:
+    if fixture_key is None:
+        return []
+    return [dict(entry) for entry in _MEDICATION_LIST_FIXTURES.get(fixture_key, [])]
 
 
 def resolve_intake_fixture_key(document_sha256: str, filename: str) -> str | None:

@@ -1,9 +1,10 @@
 """Wk2 sidecar routes — Workstream A implementation (Plan §5 step 7, §6).
 
 Endpoints implemented here:
-  - ``POST /v1/extract/lab-pdf``      — Workstream A (lab PDF extractor)
-  - ``POST /v1/extract/intake-form``  — Workstream A (intake-form extractor)
-  - ``POST /v1/copilot/answer``       — Workstream C (LangGraph supervisor)
+  - ``POST /v1/extract/lab-pdf``         — Workstream A (lab PDF extractor)
+  - ``POST /v1/extract/intake-form``     — Workstream A (intake-form extractor)
+  - ``POST /v1/extract/medication-list`` — Phase 6.3 (medication-list extractor; AgDR-0077)
+  - ``POST /v1/copilot/answer``          — Workstream C (LangGraph supervisor)
 
 File-size limits (AgDR plan §6 / hard rules):
   - Maximum 10 pages; maximum 8 MB.
@@ -207,6 +208,71 @@ async def extract_intake_form(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Intake form extraction failed for %r: %s", filename, exc)
+        raise HTTPException(status_code=500, detail="extraction_failed") from exc
+
+    return validated.model_dump(mode="json")
+
+
+@router.post(
+    "/v1/extract/medication-list",
+    dependencies=[Depends(require_gateway_secret)],
+    summary="Extract structured medication-list entries from a document.",
+    response_model=ExtractedDocument,
+)
+async def extract_medication_list(
+    file: UploadFile = File(..., description="Medication list (PDF, PNG, or JPEG; max 10 pages, 8 MB)"),
+    patient_uuid_hash: str = Form(..., description="SHA-256 of patient UUID"),
+) -> Any:
+    """Extract a structured medication list (Plan §6.3, AgDR-0077).
+
+    Returns an ``ExtractedDocument`` whose ``result`` payload is an
+    ``ExtractedMedicationList`` carrying both a flat ``fields`` surface
+    (one row per medication.<slug>.<attr>) and a structured ``entries``
+    list of :class:`app.schemas.MedicationListEntry`. The PHP gateway
+    feeds ``entries`` to ``MedicationReconciliation`` to compare against
+    the OpenEMR ``prescriptions`` table.
+    """
+    from .extractors.medication_list import extract_medication_list as _extract
+    from .extractors.normalize import normalize_extracted_document
+
+    content = await file.read()
+    filename = file.filename or "upload.pdf"
+
+    _validate_upload_size(content, filename)
+
+    if content[:4] == b"%PDF":
+        _validate_pdf_page_count(content, filename)
+
+    document_sha256 = _sha256_bytes(content)
+
+    # AgDR-0084 / Plan §3.7 — same filename-redaction posture as
+    # extract_lab_pdf / extract_intake_form. The PHP gateway scrubs PHI
+    # from the upload filename BEFORE the multipart request reaches this
+    # endpoint. The ``redact_filename`` helper above is exposed for
+    # defense-in-depth; we don't apply it at the route boundary so the
+    # eval-mode fixture resolver in ``_eval_mocks_a.py`` can still match
+    # synthetic personas ("p02-whitaker-medication-list") by filename
+    # substring.
+
+    try:
+        result = _extract(
+            content=content,
+            patient_uuid_hash=patient_uuid_hash,
+            document_sha256=document_sha256,
+            filename=filename,
+        )
+        result = normalize_extracted_document(
+            result,
+            doc_type="medication_list",
+            document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash,
+            filename=filename,
+        )
+        validated = ExtractedDocument.model_validate(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Medication-list extraction failed for %r: %s", filename, exc)
         raise HTTPException(status_code=500, detail="extraction_failed") from exc
 
     return validated.model_dump(mode="json")

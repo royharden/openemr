@@ -7,6 +7,14 @@ from typing import Any
 
 EXTRACT_FIELDS_TOOL_NAME = "emit_extracted_fields"
 
+# AgDR-0077 / Plan §6.3 — medication-list extractor tool schema. The
+# medication list needs a row-shaped tool input (drug_name + dose + route +
+# frequency + start_date + prescriber + indication + quote) rather than the
+# generic name+value pair used by lab and intake. Sharing the existing
+# `emit_extracted_fields` tool would force the model to encode rows as
+# heterogeneous `name=...` fields, which made the repair pass thrash.
+MEDICATION_LIST_TOOL_NAME = "emit_medication_list_entries"
+
 
 def extraction_fields_tool() -> dict[str, Any]:
     """Return the forced tool schema used by lab and intake extractors."""
@@ -53,6 +61,102 @@ def extraction_fields_tool() -> dict[str, Any]:
             "required": ["fields"],
         },
     }
+
+
+def medication_list_tool() -> dict[str, Any]:
+    """Return the forced tool schema for medication-list extraction (AgDR-0077).
+
+    Each entry is one row of the source medication list. Only ``drug_name`` is
+    required — every other column may be empty/illegible (handwritten and
+    dirty-scan fixtures routinely drop frequency or start_date). The
+    ``quote_or_value`` field is still encouraged so the downstream verifier
+    can pin each entry to verbatim source text where one exists.
+    """
+
+    entry_schema: dict[str, Any] = {
+        "type": "object",
+        "additionalProperties": True,
+        "properties": {
+            "drug_name": {
+                "type": "string",
+                "description": "Verbatim drug name as printed (generic or brand, whichever is on the form).",
+            },
+            "dose": {"type": "string", "description": "Dose with units, e.g. '500 mg'."},
+            "route": {"type": "string", "description": "Route of administration, e.g. 'PO', 'INH', 'IM'."},
+            "frequency": {"type": "string", "description": "Dosing frequency, e.g. 'BID', 'Daily', 'PRN'."},
+            "start_date": {"type": "string", "description": "Start date — ISO 'YYYY-MM-DD' when known, fuzzy ('~2019') or 'unknown' when not."},
+            "prescriber": {"type": "string", "description": "Prescriber name as printed, e.g. 'Patel, N.' or 'Home PCP'."},
+            "indication": {"type": "string", "description": "Indication / diagnosis as printed."},
+            "quote_or_value": {
+                "type": "string",
+                "description": "Verbatim source-row text from the document, when available.",
+            },
+            "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        },
+        "required": ["drug_name"],
+    }
+    return {
+        "name": MEDICATION_LIST_TOOL_NAME,
+        "description": "Emit one entry per drug row in the medication list. Use empty/null fields for columns that are illegible or missing.",
+        "input_schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": entry_schema,
+                    "maxItems": 40,
+                    "description": "List of medication-list rows. Use [] if no rows are visible.",
+                },
+            },
+            "required": ["entries"],
+        },
+    }
+
+
+def parse_medication_list_tool(response: Any) -> tuple[list[dict[str, Any]] | None, list[str], str]:
+    """Return ``(entries, errors, raw_text)`` from an Anthropic tool response.
+
+    ``entries is None`` means the model did not emit a valid
+    ``emit_medication_list_entries`` tool call. ``entries == []`` is a valid
+    extraction — the model asserts no rows were visible.
+    """
+
+    raw_text = ""
+    tool_input: dict[str, Any] | None = None
+    for block in getattr(response, "content", []):
+        block_type = getattr(block, "type", None)
+        if block_type == "text":
+            raw_text += str(getattr(block, "text", ""))
+        elif block_type == "tool_use" and getattr(block, "name", None) == MEDICATION_LIST_TOOL_NAME:
+            candidate = getattr(block, "input", None)
+            if isinstance(candidate, dict):
+                tool_input = candidate
+
+    if tool_input is None:
+        return None, ["missing emit_medication_list_entries tool call"], raw_text
+
+    entries_raw = tool_input.get("entries")
+    if not isinstance(entries_raw, list):
+        return None, ["tool input.entries must be an array"], raw_text
+
+    normalized: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for index, entry in enumerate(entries_raw):
+        if not isinstance(entry, dict):
+            errors.append(f"entries[{index}] must be an object")
+            continue
+        drug_name = str(entry.get("drug_name") or entry.get("name") or "").strip()
+        if not drug_name:
+            errors.append(f"entries[{index}].drug_name is required")
+            continue
+        next_entry = dict(entry)
+        next_entry["drug_name"] = drug_name
+        normalized.append(next_entry)
+
+    if errors:
+        return None, errors, raw_text
+    return normalized, [], raw_text
 
 
 def _find_field_list(value: Any) -> list[Any] | None:

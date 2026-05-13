@@ -25,8 +25,15 @@ def normalize_extracted_document(
 
     normalized_fields: list[dict[str, Any]] = []
     source_packets: list[dict[str, Any]] = []
-    prefix = "lab" if doc_type == "lab_pdf" else "intake"
-    resource_type = "Observation" if doc_type == "lab_pdf" else "QuestionnaireResponse"
+    if doc_type == "lab_pdf":
+        prefix = "lab"
+        resource_type = "Observation"
+    elif doc_type == "medication_list":
+        prefix = "medication"
+        resource_type = "MedicationStatement"
+    else:
+        prefix = "intake"
+        resource_type = "QuestionnaireResponse"
 
     for index, field in enumerate(fields):
         name = str(field.get("name") or "").strip()
@@ -84,18 +91,29 @@ def normalize_extracted_document(
             "confidence": field.get("confidence"),
         })
 
+    result_payload: dict[str, Any] = {
+        "document_sha256": document_sha256,
+        "page_count": max(1, page_count),
+        "extracted_at": extracted_at,
+        "extracted_by_model": extracted_by,
+        "fields": normalized_fields,
+    }
+
+    # AgDR-0077 — medication-list extractor carries a structured `entries`
+    # list (one per drug row) alongside the flat `fields` surface. The
+    # entries are passed through unchanged so the reconciliation panel can
+    # read drug_name/dose/route/etc. without re-deriving them from the
+    # field-path strings. Other doc types do not populate `entries`.
+    raw_entries = result.get("entries") if isinstance(result, dict) else None
+    if isinstance(raw_entries, list) and raw_entries:
+        result_payload["entries"] = list(raw_entries)
+
     return {
         "doc_type": doc_type,
         "document_sha256": document_sha256,
         "patient_uuid_hash": patient_uuid_hash,
         "filename": filename,
-        "result": {
-            "document_sha256": document_sha256,
-            "page_count": max(1, page_count),
-            "extracted_at": extracted_at,
-            "extracted_by_model": extracted_by,
-            "fields": normalized_fields,
-        },
+        "result": result_payload,
         "source_packets": source_packets,
         "extracted_field_count": len(normalized_fields),
         "dropped_field_count": int(payload.get("dropped_field_count") or 0),
