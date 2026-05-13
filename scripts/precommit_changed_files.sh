@@ -44,6 +44,17 @@
 #                80914efcc and required a follow-up `# shellcheck disable=`
 #                directive commit (9550d9101). The local mirror lives in
 #                run_shellcheck_on_changed_files() below.
+#   - rector dry-run (via the dev-easy openemr container) on changed
+#                .php files. The pre-commit `rector` hook requires
+#                composer on PATH, which Git-Bash-on-Windows hosts
+#                don't have — so the SKIP set normally lists `rector`
+#                and the hook is silently skipped pre-push. The
+#                container-based mirror in run_rector_on_changed_files()
+#                runs file-scoped (full-repo dry-run times out at 300s)
+#                and catches the common modernizations Rector wants on
+#                new PHP: ClosureToArrowFunctionRector + StrContainsRector.
+#                Those bit the Wk2 Next05 lab_trends Phase 7.1 commit at
+#                8a5298e3c and required a follow-up `99a4f0ea6` fix.
 #
 # Skips (auto-detected):
 #   - The "phpstan" hook is the slowest by ~10x; the script invokes it only
@@ -85,6 +96,7 @@ fi
 mode="changed"
 include_phpstan="auto"
 include_shellcheck="auto"
+include_rector="auto"
 for arg in "$@"; do
     case "${arg}" in
         --staged-only)    mode="staged"  ;;
@@ -92,8 +104,9 @@ for arg in "$@"; do
         --include-phpstan) include_phpstan="yes" ;;
         --skip-phpstan)   include_phpstan="no"  ;;
         --skip-shellcheck) include_shellcheck="no" ;;
+        --skip-rector)    include_rector="no" ;;
         -h|--help)
-            sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# //'
+            sed -n '2,70p' "${BASH_SOURCE[0]}" | sed 's/^# //'
             exit 0
             ;;
         *)
@@ -214,6 +227,79 @@ if [[ "${include_shellcheck}" != "no" ]]; then
         echo ">>> shellcheck reported issues. Fix the warnings or add a '# shellcheck disable=SCNNNN' directive."
         echo ">>> See scripts/run_eval_gate.sh + scripts/wk2_next05_final_verification.sh for the disable-directive pattern."
         exit "${sc_rc}"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Rector dry-run on changed .php files — mirrors .github/workflows for
+# Rector PHP Analysis. The local pre-commit `rector` hook requires
+# composer on PATH (Git-Bash-on-Windows hosts don't have it); the
+# container-based mirror runs file-scoped via the dev-easy openemr
+# container, which has composer pre-installed.
+# ---------------------------------------------------------------------------
+run_rector_on_changed_files() {
+    local php_files
+    php_files=$(echo "${FILES}" | grep -E '\.php$' || true)
+    if [[ -z "${php_files}" ]]; then
+        return 0
+    fi
+
+    # Drop deleted files.
+    local existing_php_files=""
+    while IFS= read -r f; do
+        [[ -z "${f}" ]] && continue
+        [[ -f "${f}" ]] || continue
+        existing_php_files+="${f} "
+    done <<< "${php_files}"
+    existing_php_files="${existing_php_files% }"
+
+    if [[ -z "${existing_php_files}" ]]; then
+        return 0
+    fi
+
+    if ! command -v docker >/dev/null 2>&1; then
+        echo ">>> Docker not on PATH; skipping rector dry-run (pass --skip-rector to silence)" >&2
+        return 0
+    fi
+
+    local compose_file
+    compose_file="${REPO_ROOT}/docker/development-easy/docker-compose.yml"
+    if [[ ! -f "${compose_file}" ]]; then
+        echo ">>> dev-easy compose file not found at ${compose_file}; skipping rector dry-run" >&2
+        return 0
+    fi
+
+    # Check the openemr container is up before exec-ing into it.
+    if ! MSYS_NO_PATHCONV=1 docker compose -f "${compose_file}" ps openemr 2>/dev/null | grep -q 'Up\|running'; then
+        echo ">>> dev-easy openemr container not running; skipping rector dry-run" >&2
+        echo ">>>   (start with: cd docker/development-easy && docker compose up --detach --wait)" >&2
+        return 0
+    fi
+
+    echo ">>> running rector --dry-run (via dev-easy container) on changed .php files:"
+    echo "    ${existing_php_files}"
+
+    # The container's user UID typically does not match the host bind-mount
+    # owner — git refuses to operate on the repo without the safe.directory
+    # opt-in. Re-add the safe.directory each time (idempotent).
+    # shellcheck disable=SC2086
+    MSYS_NO_PATHCONV=1 docker compose -f "${compose_file}" exec -T openemr bash -c "
+        cd /var/www/localhost/htdocs/openemr &&
+        git config --global --add safe.directory /var/www/localhost/htdocs/openemr &&
+        php -d memory_limit=4g ./vendor/bin/rector process --dry-run ${existing_php_files}
+    "
+}
+
+if [[ "${include_rector}" != "no" ]]; then
+    # Same `if !` pattern as the shellcheck step.
+    # shellcheck disable=SC2310
+    if ! run_rector_on_changed_files; then
+        rector_rc=$?
+        echo ">>> rector reported changes it would make. Either apply them"
+        echo ">>>   ('composer rector-fix' in the container, or run the same command without --dry-run)"
+        echo ">>>   or rewrite the affected lines manually to match modern PHP 8.x idioms."
+        echo ">>> Common auto-modernizations on new code: ClosureToArrowFunctionRector + StrContainsRector."
+        exit "${rector_rc}"
     fi
 fi
 
