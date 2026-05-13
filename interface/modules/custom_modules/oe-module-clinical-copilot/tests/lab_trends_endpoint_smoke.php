@@ -48,49 +48,66 @@ $controller = $moduleRoot . '/src/Controller/PanelController.php';
 $widgetJs = $moduleRoot . '/public/assets/js/lab_trends.js';
 $widgetCss = $moduleRoot . '/public/assets/css/lab_trends.css';
 
+/** @var list<string> $failures */
 $failures = [];
 
-/**
- * @param array<int, string> $required
- */
-function assert_file_contains(string $path, array $required, array &$failures): void
-{
-    if (!is_file($path)) {
-        $failures[] = "missing file: $path";
-        return;
-    }
-    $content = file_get_contents($path);
-    if ($content === false) {
-        $failures[] = "cannot read: $path";
-        return;
-    }
-    foreach ($required as $needle) {
-        if (!str_contains($content, $needle)) {
-            $failures[] = "$path: missing required substring: $needle";
-        }
-    }
-}
+// phpstan custom rule openemr.noGlobalNsFunctions forbids global-namespace
+// function declarations in module files. The smoke is a one-shot CLI
+// script so a class would be overkill — closures hold the helpers
+// instead. ``$failures`` rides along by reference.
 
-function assert_file_does_not_contain(string $path, string $needle, array &$failures, string $why): void
-{
-    if (!is_file($path)) {
-        $failures[] = "missing file: $path";
-        return;
-    }
-    $content = file_get_contents($path);
-    if ($content === false) {
-        $failures[] = "cannot read: $path";
-        return;
-    }
-    if (str_contains($content, $needle)) {
-        $failures[] = "$path: forbidden substring present ($why): $needle";
-    }
-}
+$assert_file_contains =
+    /**
+     * @param list<string> $required
+     * @param list<string> $failures
+     */
+    function (string $path, array $required, array &$failures): void {
+        if (!is_file($path)) {
+            $failures[] = "missing file: $path";
+            return;
+        }
+        $content = file_get_contents($path);
+        if ($content === false) {
+            $failures[] = "cannot read: $path";
+            return;
+        }
+        foreach ($required as $needle) {
+            // Defensive narrowing: the closure's native param type is `array`,
+            // which phpstan-level-10 cannot always reconcile with the
+            // `@param list<string>` docblock at the assignment site. The
+            // is_string guard below is the un-ambiguous narrowing.
+            if (!is_string($needle)) {
+                continue;
+            }
+            if (!str_contains($content, $needle)) {
+                $failures[] = "$path: missing required substring: $needle";
+            }
+        }
+    };
+
+$assert_file_does_not_contain =
+    /**
+     * @param list<string> $failures
+     */
+    function (string $path, string $needle, array &$failures, string $why): void {
+        if (!is_file($path)) {
+            $failures[] = "missing file: $path";
+            return;
+        }
+        $content = file_get_contents($path);
+        if ($content === false) {
+            $failures[] = "cannot read: $path";
+            return;
+        }
+        if (str_contains($content, $needle)) {
+            $failures[] = "$path: forbidden substring present ($why): $needle";
+        }
+    };
 
 // -----------------------------------------------------------------
 // Test 1 — endpoint file: auth + scope + provenance filter present
 // -----------------------------------------------------------------
-assert_file_contains($endpoint, [
+$assert_file_contains($endpoint, [
     "declare(strict_types=1);",
     "require_once(__DIR__ . \"/../../../../../globals.php\");",
     "AclMain::aclCheckCore('patients', 'med')",
@@ -109,7 +126,7 @@ assert_file_contains($endpoint, [
 // FHIR Observation preview proxy (read-only GET, same-origin session +
 // ACL + scope bind is stricter than CSRF would give). If a refactor
 // adds CsrfUtils here, that's a flag worth catching in review.
-assert_file_does_not_contain(
+$assert_file_does_not_contain(
     $endpoint,
     'CsrfUtils::verifyCsrfToken',
     $failures,
@@ -122,20 +139,20 @@ assert_file_does_not_contain(
 // The pid is bound via `?` and the optional LOINC filter is also bound.
 // A regression that interpolates either into the SQL string is an
 // injection vector. Pin the parameterized markers.
-assert_file_contains($endpoint, [
+$assert_file_contains($endpoint, [
     'WHERE po.patient_id = ?',
     "\$params = [\$pid];",
     "\$params[] = \$loincFilter;",
     'AND poc.procedure_code = ?',
 ], $failures);
 
-assert_file_does_not_contain(
+$assert_file_does_not_contain(
     $endpoint,
     "WHERE po.patient_id = \" . \$pid",
     $failures,
     'pid must be parameterized, not concatenated'
 );
-assert_file_does_not_contain(
+$assert_file_does_not_contain(
     $endpoint,
     'WHERE po.patient_id = $pid',
     $failures,
@@ -145,7 +162,7 @@ assert_file_does_not_contain(
 // -----------------------------------------------------------------
 // Test 3 — endpoint: LOINC format validation
 // -----------------------------------------------------------------
-assert_file_contains($endpoint, [
+$assert_file_contains($endpoint, [
     "preg_match('/^[0-9]{1,7}-[0-9]\$/', \$loincFilter)",
     "'error' => 'invalid_loinc'",
 ], $failures);
@@ -153,7 +170,7 @@ assert_file_contains($endpoint, [
 // -----------------------------------------------------------------
 // Test 4 — PanelController: widget wiring
 // -----------------------------------------------------------------
-assert_file_contains($controller, [
+$assert_file_contains($controller, [
     '$apiLabTrendsUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . \'/public/api/lab_trends.php\';',
     '$assetBase); ?>/css/lab_trends.css',
     '$assetBase); ?>/js/lab_trends.js',
@@ -188,7 +205,12 @@ if (!is_file($widgetCss)) {
 if ($failures !== []) {
     fwrite(STDERR, "lab_trends_endpoint_smoke: " . count($failures) . " failure(s):\n");
     foreach ($failures as $f) {
-        fwrite(STDERR, "  - $f\n");
+        // $f comes from $failures which the closures grow via `[] = ...`
+        // with `array &$failures` (untyped native iterable). phpstan-level-10
+        // sees $f as mixed despite the @var hint on $failures, so narrow
+        // explicitly here rather than cast.
+        $msg = is_string($f) ? $f : '<non-string failure entry>';
+        fwrite(STDERR, "  - " . $msg . "\n");
     }
     exit(1);
 }

@@ -100,7 +100,13 @@ function copilot_lab_trends_send_json(int $status, array $payload): never
 /**
  * Parse a procedure_result row into a public observation dict.
  *
- * @param array<string, mixed> $row
+ * Accepts the loose `array<mixed>` shape that QueryUtils::fetchRecords
+ * returns rather than a typed array shape — the SQL columns may legally
+ * carry NULL or string values per the OpenEMR schema, and narrowing each
+ * field at the call site is more defensive than requiring a typed shape
+ * here.
+ *
+ * @param array<mixed> $row
  * @return array{date: string, value: float|null, value_text: string, abnormal: string|null, result_status: string|null, procedure_result_uuid: string|null}
  */
 function copilot_lab_trends_parse_row(array $row): array
@@ -161,7 +167,9 @@ try {
     //    to avoid SQL-injection vectors via the parameterized query later.
     $loincFilter = $request->query->get('loinc');
     if ($loincFilter !== null) {
-        if (!is_string($loincFilter) || preg_match('/^[0-9]{1,7}-[0-9]$/', $loincFilter) !== 1) {
+        // Symfony's InputBag::get returns string|null; the !== null guard above
+        // narrows to string for phpstan-level-10, so we don't re-test is_string().
+        if (preg_match('/^[0-9]{1,7}-[0-9]$/', $loincFilter) !== 1) {
             copilot_lab_trends_send_json(400, ['error' => 'invalid_loinc']);
         }
     }
@@ -232,10 +240,9 @@ try {
     }
     $sql .= ' ORDER BY poc.procedure_code ASC, prep.date_collected ASC, pres.procedure_result_id ASC';
 
+    // QueryUtils::fetchRecords is PHPDoc-typed `list<array<mixed>>`, so an
+    // is_array guard here would always be true (level-10 phpstan flags it).
     $rows = QueryUtils::fetchRecords($sql, $params);
-    if (!is_array($rows)) {
-        $rows = [];
-    }
 
     // 7. Group by LOINC. Use the FIRST row's label / units / range as the
     //    series-level metadata (they are stable across timepoints for a
@@ -243,9 +250,8 @@ try {
     //    name + unit + reference band).
     $seriesByLoinc = [];
     foreach ($rows as $row) {
-        if (!is_array($row)) {
-            continue;
-        }
+        // $row is `array<mixed>` from fetchRecords; values can be any
+        // SQL-driver-returned scalar/null. Narrow individual fields below.
         $loinc = $row['loinc'] ?? null;
         if (!is_string($loinc) || $loinc === '') {
             continue;
