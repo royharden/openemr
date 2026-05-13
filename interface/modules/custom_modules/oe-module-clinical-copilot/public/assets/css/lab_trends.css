@@ -1,0 +1,75 @@
+/* Clinical Co-Pilot — Lab Trends widget styles (Plan §7.1, AgDR-0088). */
+
+.copilot-lab-trends {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+}
+
+.copilot-lab-trend-heading {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.copilot-lab-trend-grid {
+    display: grid;
+    /* Two columns at default sidebar width; collapses to one on narrow. */
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.75rem;
+}
+
+.copilot-lab-trend-tile {
+    padding: 0.5rem 0.5rem 0.25rem;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+}
+
+.copilot-lab-trend-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.25rem;
+}
+
+.copilot-lab-trend-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.copilot-lab-trend-loinc {
+    font-size: 0.7rem;
+    color: #9ca3af;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.copilot-lab-trend-chart {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.copilot-lab-trend-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    color: #6b7280;
+}
+
+.copilot-lab-trend-meta > span:not(:last-child)::after {
+    content: " ·";
+    margin-left: 0.4rem;
+    color: #d1d5db;
+}
+
+.copilot-lab-trend-unit,
+.copilot-lab-trend-range {
+    /* Inherits color/size from .copilot-lab-trend-meta; no overrides needed. */
+}

@@ -33,10 +33,14 @@ class PanelController
         $apiUploadLabUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_lab.php';
         $apiUploadIntakeUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/upload_intake.php';
         $apiCreatePatientUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/create_patient_from_intake.php';
+        // AgDR-0088 / Plan §7.1 — Co-Pilot lab-trends mini-widget. Renders below the
+        // Co-Pilot card; auto-hides on charts with zero Co-Pilot-extracted lab rows.
+        $apiLabTrendsUrl = $webRoot . Bootstrap::MODULE_INSTALLATION_PATH . '/public/api/lab_trends.php';
 
         ob_start();
         ?>
         <link rel="stylesheet" href="<?php echo attr($assetBase); ?>/css/copilot.css">
+        <link rel="stylesheet" href="<?php echo attr($assetBase); ?>/css/lab_trends.css">
         <div class="card mb-3 copilot-card" id="copilot-card" data-pid="<?php echo attr((string)$pid); ?>">
             <div class="card-header copilot-header">
                 <i class="fa fa-robot mr-2"></i>
@@ -139,7 +143,20 @@ class PanelController
                 <?php echo xlt('AI assistant. Verifier-gated. Always confirm in chart.'); ?>
             </div>
         </div>
+        <!-- AgDR-0088 / Plan §7.1 — Co-Pilot Lab Trends widget container.
+             lab_trends.js fetches the LOINC-grouped time-series from
+             public/api/lab_trends.php and renders one mini-chart per
+             analyte. The container starts display:none and is only
+             revealed when the endpoint returns at least one series with
+             >=min_observations data points. Hidden by default so charts
+             with no Co-Pilot-extracted labs show no empty shell. -->
+        <div class="copilot-lab-trends" id="copilot-lab-trends" style="display:none"></div>
         <script>
+            window.OE_COPILOT_LAB_TRENDS_CONFIG = {
+                endpoint: <?php echo js_escape($apiLabTrendsUrl); ?>,
+                minObservations: 3,
+                containerId: 'copilot-lab-trends'
+            };
             window.OE_COPILOT_CONFIG = {
                 briefUrl: <?php echo js_escape($apiBriefUrl); ?>,
                 feedbackUrl: <?php echo js_escape($apiFeedbackUrl); ?>,
@@ -168,6 +185,7 @@ class PanelController
                 crossorigin="anonymous"
                 referrerpolicy="no-referrer"></script>
         <script src="<?php echo attr($assetBase); ?>/js/copilot.js"></script>
+        <script src="<?php echo attr($assetBase); ?>/js/lab_trends.js"></script>
         <?php
         return (string)ob_get_clean();
     }
