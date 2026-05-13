@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2250,SC2248,SC2312
+#
+# SC2250 (style): brace-wrapping every variable reference is unnecessarily
+#   verbose for a script this small; consistent with scripts/run_eval_gate.sh
+#   and scripts/precommit_changed_files.sh which also opt out under the
+#   repo's `enable=all` .shellcheckrc.
+# SC2248 (style): same reasoning for the lone `exit "$rc"` after a
+#   captured `$?`.
+# SC2312 (info): the `$(date -u …)` calls inside echo are intentional
+#   header decoration; their return value masking is not a correctness
+#   concern.
+#
 # Wk2 Next05 Phase 8.2 — final verification harness.
 #
 # Runs the deterministic verification matrix and captures all output to
