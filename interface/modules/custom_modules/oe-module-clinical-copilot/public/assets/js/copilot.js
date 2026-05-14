@@ -1,8 +1,55 @@
 (function () {
     'use strict';
 
+    // Plan_wk2_Claude_Next06 (refinement 2026-05-13) — relocate the
+    // combined Co-Pilot + Upload-Docs row above the Allergies / Medical
+    // Problems / Medications three-card row. The event hook in
+    // src/Events/PatientDemographics/RenderEvent.php fires
+    // EVENT_SECTION_LIST_RENDER_BEFORE inside the section-list iterator,
+    // so the row's initial DOM position is below the three-card row;
+    // this hoists it to the user's preferred position without editing
+    // core OpenEMR demographics.php.
+    function relocateTopRow() {
+        var ourRow = document.getElementById('copilot-top-row');
+        if (!ourRow) { return; }
+        // Find the row that contains the Allergies / Medical Problems /
+        // Medications cards. The canonical demographics.php structure is
+        // <div class="main mb-1"><div class="row"> ... 3 cards ... </div>
+        // — the FIRST .row inside .main is reliably the three-card row.
+        var mainContainer = document.querySelector('.main.mb-1, div.main');
+        if (!mainContainer) { return; }
+        var threeCardRow = mainContainer.querySelector(':scope > .row');
+        if (!threeCardRow || threeCardRow === ourRow) { return; }
+        // Idempotent: already-relocated rows stay put.
+        if (ourRow.previousElementSibling === null && ourRow.parentNode === mainContainer) {
+            return;
+        }
+        mainContainer.insertBefore(ourRow, threeCardRow);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', relocateTopRow);
+    } else {
+        relocateTopRow();
+    }
+
     var cfg = window.OE_COPILOT_CONFIG || {};
     var card = document.getElementById('copilot-card');
+
+    // Plan_wk2_Claude_Next07_v2 §B.1 fix (2026-05-13T23:55Z): the upload-form
+    // handler must run on surfaces that do NOT have a #copilot-card — i.e.
+    // the new pre-patient intake_upload.php page. Before this fix the IIFE
+    // early-returned when card was missing, silently disabling the upload
+    // handler on the pre-patient page so submits did nothing.
+    //
+    // Function declarations (fetchBrief, makeShowUploadStatus, escapeHtml,
+    // fetchMedicationReconciliation) are hoisted to the top of this IIFE
+    // scope, so they are callable here even though they are defined below
+    // the early-return. The card-conditional calls (fetchBrief +
+    // fetchMedicationReconciliation) are guarded inside the handler so the
+    // pre-patient surface does not try to refresh a brief that does not
+    // exist.
+    initUploadHandlers();
+
     if (!card || !cfg.briefUrl) {
         return;
     }
@@ -661,16 +708,22 @@
 
     // -----------------------------------------------------------------------
     // Wk2 Workstream A: document upload form handling
+    //
+    // Plan_wk2_Claude_Next06 — the same upload form now appears in TWO cards
+    // on the patient chart: the standalone "Upload documents" card at the
+    // top, and the embedded form inside the Clinical Co-Pilot card. Wiring
+    // is by class (`form.copilot-upload-form`) so every form on the page
+    // gets the same handler; descendant lookups are form-scoped so the two
+    // cards don't fight over IDs.
     // -----------------------------------------------------------------------
 
-    var uploadForm = document.getElementById('copilot-upload-form');
-    var uploadStatus = document.getElementById('copilot-upload-status');
-
-    function showUploadStatus(msg, isError) {
-        if (!uploadStatus) { return; }
-        uploadStatus.textContent = msg;
-        uploadStatus.className = 'copilot-upload-status' + (isError ? ' copilot-upload-error' : '');
-        uploadStatus.style.display = 'block';
+    function makeShowUploadStatus(uploadStatus) {
+        return function showUploadStatus(msg, isError) {
+            if (!uploadStatus) { return; }
+            uploadStatus.textContent = msg;
+            uploadStatus.className = 'copilot-upload-status' + (isError ? ' copilot-upload-error' : '');
+            uploadStatus.style.display = 'block';
+        };
     }
 
     // AgDR-0077 / Plan §6.3 — fetch and render the medication-reconciliation
@@ -739,87 +792,147 @@
             + '</div>';
     }
 
-    if (uploadForm && cfg.uploadLabUrl && cfg.uploadIntakeUrl) {
-        uploadForm.addEventListener('submit', function (ev) {
-            ev.preventDefault();
-            var fileInput = uploadForm.querySelector('input[type="file"]');
-            var docTypeSelect = uploadForm.querySelector('select[name="doc_type"]');
-            if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-                showUploadStatus('Please select a file.', true);
-                return;
-            }
-            var file = fileInput.files[0];
-            var docType = docTypeSelect ? docTypeSelect.value : 'lab_pdf';
-            // AgDR-0066 + AgDR-0077 — four upload modes:
-            //   lab_pdf                       → upload_lab.php          (existing patient)
-            //   intake_form                   → upload_intake.php       (existing patient)
-            //   medication_list               → upload_medication_list.php (Plan §6.3)
-            //   intake_form_create_patient    → create_patient_from_intake.php (demo mode)
-            var isCreatePatient = (docType === 'intake_form_create_patient');
-            var isMedicationList = (docType === 'medication_list');
-            var url;
-            if (isCreatePatient) {
-                url = cfg.createPatientUrl;
-            } else if (docType === 'intake_form') {
-                url = cfg.uploadIntakeUrl;
-            } else if (isMedicationList && cfg.uploadMedicationListUrl) {
-                url = cfg.uploadMedicationListUrl;
-            } else {
-                url = cfg.uploadLabUrl;
-            }
+    // Plan_wk2_Claude_Next07_v2 §B.1 fix: extracted into a function so it
+    // can be called BEFORE the no-card early-return above. Function
+    // declarations hoist to the top of the IIFE, so this is callable from
+    // the top-of-IIFE invocation point regardless of textual position.
+    //
+    // The handler runs whenever ANY of the upload routes are seeded into
+    // OE_COPILOT_CONFIG — the in-chart cards seed lab+intake+medlist+create;
+    // the pre-patient surface seeds only createPatientUrl. Previously the
+    // gate required `cfg.uploadLabUrl && cfg.uploadIntakeUrl`, which the
+    // pre-patient surface fails — fix is to OR-in `cfg.createPatientUrl`.
+    function initUploadHandlers() {
+        var hasInChartUrls = !!(cfg.uploadLabUrl && cfg.uploadIntakeUrl);
+        var hasCreateOnly = !!cfg.createPatientUrl;
+        if (!hasInChartUrls && !hasCreateOnly) {
+            return;
+        }
+        var uploadForms = document.querySelectorAll('form.copilot-upload-form');
+        uploadForms.forEach(function (uploadForm) {
+            var uploadStatus = uploadForm.querySelector('.copilot-upload-status');
+            var showUploadStatus = makeShowUploadStatus(uploadStatus);
 
-            var formData = new FormData();
-            formData.append('file', file, file.name);
-            formData.append('csrf_token_form', cfg.csrfToken || '');
-
-            var startMsg = isCreatePatient
-                ? 'Extracting intake → creating demo patient…'
-                : 'Uploading…';
-            showUploadStatus(startMsg, false);
-            uploadForm.querySelector('button[type="submit"]').disabled = true;
-
-            fetch(url, {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: formData,
-            }).then(function (res) {
-                return res.json().then(function (json) { return { status: res.status, body: json }; });
-            }).then(function (resp) {
-                uploadForm.querySelector('button[type="submit"]').disabled = false;
-                if (resp.status >= 400) {
-                    showUploadStatus('Upload failed: ' + escapeHtml(JSON.stringify(resp.body.detail || resp.body)), true);
+            uploadForm.addEventListener('submit', function (ev) {
+                ev.preventDefault();
+                var fileInput = uploadForm.querySelector('input[type="file"]');
+                var docTypeSelect = uploadForm.querySelector('select[name="doc_type"]');
+                if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                    showUploadStatus('Please select a file.', true);
                     return;
                 }
-                if (isCreatePatient && resp.body && resp.body.redirect_url) {
-                    var demo = resp.body.demographics || {};
-                    var label = [demo.fname, demo.lname].filter(Boolean).join(' ') || 'new patient';
-                    showUploadStatus(
-                        'Created demo patient ' + escapeHtml(label) + ' (pid ' + resp.body.pid + '). Redirecting…',
-                        false
-                    );
-                    // Give the user a beat to read the status before navigating.
-                    setTimeout(function () { window.location.href = resp.body.redirect_url; }, 1500);
+                var file = fileInput.files[0];
+                var docType = docTypeSelect ? docTypeSelect.value : 'lab_pdf';
+                // AgDR-0066 + AgDR-0077 — four upload modes:
+                //   lab_pdf                       → upload_lab.php          (existing patient)
+                //   intake_form                   → upload_intake.php       (existing patient)
+                //   medication_list               → upload_medication_list.php (Plan §6.3)
+                //   intake_form_create_patient    → create_patient_from_intake.php (demo mode)
+                var isCreatePatient = (docType === 'intake_form_create_patient');
+                var isMedicationList = (docType === 'medication_list');
+                var url;
+                if (isCreatePatient) {
+                    url = cfg.createPatientUrl;
+                } else if (docType === 'intake_form') {
+                    url = cfg.uploadIntakeUrl;
+                } else if (isMedicationList && cfg.uploadMedicationListUrl) {
+                    url = cfg.uploadMedicationListUrl;
+                } else {
+                    url = cfg.uploadLabUrl;
+                }
+                if (!url) {
+                    showUploadStatus('Upload not available on this page for the selected document type.', true);
                     return;
                 }
-                var count = (resp.body && resp.body.extracted_field_count) || 0;
-                // AgDR-0063 — raw-doc SHA dedup: surface the duplicate signal so
-                // the user understands the upload was idempotent. Extraction
-                // still runs against the existing document body.
-                var isDuplicate = !!(resp.body && resp.body.duplicate);
-                var prefix = isDuplicate
-                    ? 'Document already on file — using existing copy. '
-                    : '';
-                showUploadStatus(prefix + 'Extracted ' + count + ' field(s). Refreshing brief…', false);
-                setTimeout(function () { fetchBrief('pre_room_brief'); }, 1200);
-                // AgDR-0077 / Plan §6.3 — after a medication_list upload,
-                // fetch and render the reconciliation panel against the
-                // OpenEMR `prescriptions` table.
-                if (isMedicationList && cfg.medicationReconciliationUrl) {
-                    setTimeout(function () { fetchMedicationReconciliation(); }, 1300);
-                }
-            }).catch(function () {
-                uploadForm.querySelector('button[type="submit"]').disabled = false;
-                showUploadStatus('Upload failed (network error).', true);
+
+                var formData = new FormData();
+                formData.append('file', file, file.name);
+                formData.append('csrf_token_form', cfg.csrfToken || '');
+
+                var startMsg = isCreatePatient
+                    ? 'Extracting intake → creating demo patient…'
+                    : 'Uploading…';
+                showUploadStatus(startMsg, false);
+                var submitBtn = uploadForm.querySelector('button[type="submit"]');
+                if (submitBtn) { submitBtn.disabled = true; }
+
+                fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData,
+                }).then(function (res) {
+                    // The endpoint can return text/html (e.g. when not
+                    // authenticated and OpenEMR's session bootstrap emits
+                    // its login-redirect <script>). Guard the JSON parse so
+                    // we surface a readable error instead of a silent
+                    // throw-into-catch.
+                    return res.text().then(function (body) {
+                        var ct = res.headers.get('content-type') || '';
+                        if (ct.indexOf('application/json') === -1) {
+                            return { status: res.status, body: null, raw: body, isJson: false };
+                        }
+                        try {
+                            return { status: res.status, body: JSON.parse(body), isJson: true };
+                        } catch (e) {
+                            return { status: res.status, body: null, raw: body, isJson: false };
+                        }
+                    });
+                }).then(function (resp) {
+                    if (submitBtn) { submitBtn.disabled = false; }
+                    if (!resp.isJson) {
+                        showUploadStatus(
+                            'Upload failed (server returned non-JSON, HTTP ' + resp.status + '). Check that you are still logged in.',
+                            true
+                        );
+                        return;
+                    }
+                    if (resp.status >= 400) {
+                        showUploadStatus('Upload failed: ' + escapeHtml(JSON.stringify(resp.body.detail || resp.body)), true);
+                        return;
+                    }
+                    // Plan_wk2_Claude_Next08 §W1 — surface the sidecar's
+                    // Langfuse trace ID on every successful upload. Format
+                    // matches the existing Co-Pilot card's brief chip
+                    // ("trace: <id>") so the visual signal is consistent
+                    // across the brief surface and the four upload modes.
+                    // Defensive: tolerate missing or non-string trace_id.
+                    var traceId = (resp.body && typeof resp.body.trace_id === 'string') ? resp.body.trace_id : '';
+                    var traceSuffix = traceId ? ' [trace: ' + traceId.slice(0, 8) + '…]' : '';
+                    if (isCreatePatient && resp.body && resp.body.redirect_url) {
+                        var demo = resp.body.demographics || {};
+                        var label = [demo.fname, demo.lname].filter(Boolean).join(' ') || 'new patient';
+                        showUploadStatus(
+                            'Created demo patient ' + escapeHtml(label) + ' (pid ' + resp.body.pid + ').' + traceSuffix + ' Redirecting…',
+                            false
+                        );
+                        // Give the user a beat to read the status before navigating.
+                        setTimeout(function () { window.location.href = resp.body.redirect_url; }, 1500);
+                        return;
+                    }
+                    var count = (resp.body && resp.body.extracted_field_count) || 0;
+                    // AgDR-0063 — raw-doc SHA dedup: surface the duplicate signal so
+                    // the user understands the upload was idempotent. Extraction
+                    // still runs against the existing document body.
+                    var isDuplicate = !!(resp.body && resp.body.duplicate);
+                    var prefix = isDuplicate
+                        ? 'Document already on file — using existing copy. '
+                        : '';
+                    showUploadStatus(prefix + 'Extracted ' + count + ' field(s).' + traceSuffix, false);
+                    // The fetchBrief + fetchMedicationReconciliation refresh
+                    // calls only make sense inside a chart with a Co-Pilot
+                    // card. Guard them so the pre-patient surface does not
+                    // crash trying to refresh a brief that is not on the page.
+                    if (card && cfg.briefUrl && typeof fetchBrief === 'function') {
+                        showUploadStatus(prefix + 'Extracted ' + count + ' field(s).' + traceSuffix + ' Refreshing brief…', false);
+                        setTimeout(function () { fetchBrief('pre_room_brief'); }, 1200);
+                        if (isMedicationList && cfg.medicationReconciliationUrl && typeof fetchMedicationReconciliation === 'function') {
+                            setTimeout(function () { fetchMedicationReconciliation(); }, 1300);
+                        }
+                    }
+                }).catch(function () {
+                    if (submitBtn) { submitBtn.disabled = false; }
+                    showUploadStatus('Upload failed (network error).', true);
+                });
             });
         });
     }

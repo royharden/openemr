@@ -35,7 +35,17 @@
 #   COPILOT_DEMO_DB_NAME=<db>        (default: openemr)
 #
 # Optional env vars:
+#   COPILOT_DEMO_DB_HOST=<host>      (for Docker compose, use: mysql)
 #   COPILOT_DEMO_ALLOW_ROOT_ROOT=1   (acknowledge use of root/root creds)
+#   COPILOT_DEMO_DRY_RUN=1           (preview-only — print every DELETE / rm
+#                                     that would execute, but do not run it.
+#                                     SELECT/COUNT queries still run so the
+#                                     summary numbers reflect actual state.
+#                                     Plan_wk2_Claude_Next07 §A.0.)
+#   COPILOT_DEMO_UPLOADS_ONLY=1      (preserve seeded WK2-DEMO-P0[1-4]
+#                                     patients; only delete intake-created
+#                                     patients + everyone's attachments.
+#                                     Plan_wk2_Claude_Next07 §A.1.)
 #
 # ---------------------------------------------------------------------------
 # Invocation (Phase 2.2 — Windows/WSL2 dev hosts with no local mysql client)
@@ -55,6 +65,7 @@
 #     -e COPILOT_DEMO_DB_USER=openemr \
 #     -e COPILOT_DEMO_DB_PASS=openemr \
 #     -e COPILOT_DEMO_DB_NAME=openemr \
+#     -e COPILOT_DEMO_DB_HOST=mysql \
 #     openemr bash \
 #     /var/www/localhost/htdocs/openemr/agent/copilot-api/scripts/reset_demo_state.sh
 #
@@ -87,6 +98,11 @@ fi
 DB_USER="${COPILOT_DEMO_DB_USER:-}"
 DB_PASS="${COPILOT_DEMO_DB_PASS:-}"
 DB_NAME="${COPILOT_DEMO_DB_NAME:-openemr}"
+DB_HOST="${COPILOT_DEMO_DB_HOST:-}"
+
+# Plan_wk2_Claude_Next07_v2 §A.0/§A.1 — mode flags.
+DRY_RUN="${COPILOT_DEMO_DRY_RUN:-}"
+UPLOADS_ONLY="${COPILOT_DEMO_UPLOADS_ONLY:-}"
 
 if [[ -z "${DB_USER}" || -z "${DB_PASS}" ]]; then
     echo "ERROR: COPILOT_DEMO_DB_USER and COPILOT_DEMO_DB_PASS must be set." >&2
@@ -115,14 +131,55 @@ LOG_FILE="${SCRIPT_DIR}/../.demo-reset.log"
 # migrations).
 # ---------------------------------------------------------------------------
 mysql_run() {
-    MYSQL_PWD="${DB_PASS}" mysql -u"${DB_USER}" -N -B "${DB_NAME}" -e "$1"
+    mysql_args=(-u"${DB_USER}" -N -B)
+    if [[ -n "${DB_HOST}" ]]; then
+        mysql_args+=(-h"${DB_HOST}")
+    fi
+    MYSQL_PWD="${DB_PASS}" mysql "${mysql_args[@]}" "${DB_NAME}" -e "$1"
 }
 
 mysql_run_optional() {
     # Same as mysql_run but never fails the script. Used for DELETEs against
     # tables that may not yet exist (e.g. copilot_document_sha_index is being
     # created in a parallel migration; copilot_fact_to_result_map likewise).
-    MYSQL_PWD="${DB_PASS}" mysql -u"${DB_USER}" -N -B "${DB_NAME}" -e "$1" 2>/dev/null || true
+    mysql_args=(-u"${DB_USER}" -N -B)
+    if [[ -n "${DB_HOST}" ]]; then
+        mysql_args+=(-h"${DB_HOST}")
+    fi
+    MYSQL_PWD="${DB_PASS}" mysql "${mysql_args[@]}" "${DB_NAME}" -e "$1" 2>/dev/null || true
+}
+
+# Plan_wk2_Claude_Next07_v2 §A.0 — every DESTRUCTIVE SQL call (DELETE) goes
+# through this wrapper. In dry-run mode the SQL is logged with a DRY-RUN
+# prefix and not executed; otherwise it delegates to mysql_run_optional so
+# missing-table behavior is unchanged from today.
+mysql_run_destructive() {
+    if [[ "${DRY_RUN}" == "1" ]]; then
+        log "DRY-RUN: would execute: $1"
+        return 0
+    fi
+    mysql_run_optional "$1"
+}
+
+# Mandatory variant of mysql_run_destructive: failure is fatal. Used for
+# patient_data DELETE which today uses bare mysql_run (line 392, pre-§A.0).
+# In dry-run mode this is identical to mysql_run_destructive.
+mysql_run_destructive_strict() {
+    if [[ "${DRY_RUN}" == "1" ]]; then
+        log "DRY-RUN: would execute: $1"
+        return 0
+    fi
+    mysql_run "$1"
+}
+
+# Filesystem destructive wrapper for documents.url unlinks. Same dry-run
+# semantics as mysql_run_destructive.
+fs_remove_destructive() {
+    if [[ "${DRY_RUN}" == "1" ]]; then
+        log "DRY-RUN: would unlink: $1"
+        return 0
+    fi
+    rm -f "$1" || log "WARN: could not unlink $1"
 }
 
 log() {
@@ -134,7 +191,16 @@ log() {
 # Ensure log dir exists.
 mkdir -p "$(dirname "${LOG_FILE}")"
 log "=== reset_demo_state.sh start ==="
-log "DB: user=${DB_USER} db=${DB_NAME}"
+log "DB: user=${DB_USER} db=${DB_NAME} host=${DB_HOST:-default}"
+# Plan_wk2_Claude_Next07_v2 §A.0/§A.1 — surface mode flags in the log so
+# operators reading the log file (or the wrapper's tee'd stdout) can see
+# exactly which mode ran without re-parsing the invocation.
+if [[ "${DRY_RUN}" == "1" ]]; then
+    log "MODE: DRY-RUN (no DELETEs or rm -f will execute; SELECT/COUNT still run)"
+fi
+if [[ "${UPLOADS_ONLY}" == "1" ]]; then
+    log "MODE: UPLOADS-ONLY (preserve WK2-DEMO-P0[1-4] patient rows + uuid_registry)"
+fi
 
 # ---------------------------------------------------------------------------
 # Discover demo patient IDs.
@@ -178,8 +244,31 @@ TOTAL_DOCS=0
 TOTAL_RESULTS=0
 
 # Build a comma-separated PID list usable in IN(...) clauses.
+# PID_CSV is the *attachment-cleanup* set — every matched patient regardless
+# of mode. Documents / facts / sha-index / native-lab rows are cleaned for
+# everyone in this list. (Plan_wk2_Claude_Next07_v2 §A.1 — two-set
+# decomposition.)
 PID_CSV="$(IFS=,; echo "${DEMO_PIDS[*]}")"
-log "PID list: ${PID_CSV}"
+log "PID list (attachment cleanup): ${PID_CSV}"
+
+# PATIENT_DELETE_CSV is the *patient-row-delete* set. In uploads-only mode
+# the four seeded WK2-DEMO-P0[1-4] patients are excluded so their pid +
+# uuid + uuid_registry rows survive the reset. In every other mode it is
+# identical to PID_CSV.
+if [[ "${UPLOADS_ONLY}" == "1" ]]; then
+    PATIENT_DELETE_PIDS_RAW="$(mysql_run "SELECT pid FROM patient_data WHERE pid IN (${PID_CSV}) AND (pubpid LIKE 'WK2-DEMO-INTAKE-%' OR usertext1 LIKE 'wk2-demo-intake-%');" || true)"
+    PATIENT_DELETE_PIDS=()
+    if [[ -n "${PATIENT_DELETE_PIDS_RAW}" ]]; then
+        while IFS= read -r line; do
+            [[ -z "${line}" ]] && continue
+            PATIENT_DELETE_PIDS+=("${line}")
+        done <<< "${PATIENT_DELETE_PIDS_RAW}"
+    fi
+    PATIENT_DELETE_CSV="$(IFS=,; echo "${PATIENT_DELETE_PIDS[*]}")"
+    log "PID list (patient-row delete, uploads-only): ${PATIENT_DELETE_CSV:-<empty — seeds preserved, no intake-created patients found>}"
+else
+    PATIENT_DELETE_CSV="${PID_CSV}"
+fi
 
 # Collect patient_uuid_hash values for fact-row filtering.
 # IMPORTANT (verified live 2026-05-10): copilot_document_facts is keyed on
@@ -274,8 +363,8 @@ if [[ -n "${UUID_HASH_IN_CLAUSE}" ]]; then
     # Delete map rows first (FK-style relationship to fact rows). Note: we
     # also catch any orphaned map rows whose corresponding fact row was
     # already deleted in a prior partial-reset attempt.
-    mysql_run_optional "DELETE FROM copilot_fact_to_result_map WHERE copilot_document_fact_id IN (SELECT id FROM copilot_document_facts WHERE patient_uuid_hash IN (${UUID_HASH_IN_CLAUSE}));"
-    mysql_run_optional "DELETE FROM copilot_document_facts WHERE patient_uuid_hash IN (${UUID_HASH_IN_CLAUSE});"
+    mysql_run_destructive "DELETE FROM copilot_fact_to_result_map WHERE copilot_document_fact_id IN (SELECT id FROM copilot_document_facts WHERE patient_uuid_hash IN (${UUID_HASH_IN_CLAUSE}));"
+    mysql_run_destructive "DELETE FROM copilot_document_facts WHERE patient_uuid_hash IN (${UUID_HASH_IN_CLAUSE});"
     log "Deleted ${FACT_COUNT} copilot_document_facts row(s)."
 fi
 
@@ -287,10 +376,10 @@ if [[ -n "${PROC_ORDER_CSV}" ]]; then
     TOTAL_RESULTS=$((TOTAL_RESULTS + RESULT_COUNT))
 
     # Delete in FK-safe order: result -> order_code -> report -> order.
-    mysql_run_optional "DELETE pr FROM procedure_result pr JOIN procedure_report rep ON rep.procedure_report_id = pr.procedure_report_id WHERE rep.procedure_order_id IN (${PROC_ORDER_CSV});"
-    mysql_run_optional "DELETE FROM procedure_order_code WHERE procedure_order_id IN (${PROC_ORDER_CSV});"
-    mysql_run_optional "DELETE FROM procedure_report WHERE procedure_order_id IN (${PROC_ORDER_CSV});"
-    mysql_run_optional "DELETE FROM procedure_order WHERE procedure_order_id IN (${PROC_ORDER_CSV});"
+    mysql_run_destructive "DELETE pr FROM procedure_result pr JOIN procedure_report rep ON rep.procedure_report_id = pr.procedure_report_id WHERE rep.procedure_order_id IN (${PROC_ORDER_CSV});"
+    mysql_run_destructive "DELETE FROM procedure_order_code WHERE procedure_order_id IN (${PROC_ORDER_CSV});"
+    mysql_run_destructive "DELETE FROM procedure_report WHERE procedure_order_id IN (${PROC_ORDER_CSV});"
+    mysql_run_destructive "DELETE FROM procedure_order WHERE procedure_order_id IN (${PROC_ORDER_CSV});"
     log "Deleted ${RESULT_COUNT} procedure_result row(s) and their parents via map (orders ${PROC_ORDER_CSV})."
 fi
 
@@ -325,10 +414,10 @@ if [[ -n "${FALLBACK_ORDER_IDS_RAW}" ]]; then
         FB_RESULT_COUNT="${FB_RESULT_COUNT:-0}"
         TOTAL_RESULTS=$((TOTAL_RESULTS + FB_RESULT_COUNT))
 
-        mysql_run_optional "DELETE pr FROM procedure_result pr JOIN procedure_report rep ON rep.procedure_report_id = pr.procedure_report_id WHERE rep.procedure_order_id IN (${FB_CSV});"
-        mysql_run_optional "DELETE FROM procedure_order_code WHERE procedure_order_id IN (${FB_CSV});"
-        mysql_run_optional "DELETE FROM procedure_report WHERE procedure_order_id IN (${FB_CSV});"
-        mysql_run_optional "DELETE FROM procedure_order WHERE procedure_order_id IN (${FB_CSV});"
+        mysql_run_destructive "DELETE pr FROM procedure_result pr JOIN procedure_report rep ON rep.procedure_report_id = pr.procedure_report_id WHERE rep.procedure_order_id IN (${FB_CSV});"
+        mysql_run_destructive "DELETE FROM procedure_order_code WHERE procedure_order_id IN (${FB_CSV});"
+        mysql_run_destructive "DELETE FROM procedure_report WHERE procedure_order_id IN (${FB_CSV});"
+        mysql_run_destructive "DELETE FROM procedure_order WHERE procedure_order_id IN (${FB_CSV});"
         log "WARN: fallback deleted ${FB_RESULT_COUNT} procedure_result row(s) and parents (orders ${FB_CSV})."
     fi
 fi
@@ -337,7 +426,7 @@ fi
 # Use the optional runner so a missing table does not fail the reset.
 SHA_DEL_COUNT="$(mysql_run "SELECT COUNT(*) FROM copilot_document_sha_index WHERE patient_id IN (${PID_CSV});" 2>/dev/null || echo 0)"
 SHA_DEL_COUNT="${SHA_DEL_COUNT:-0}"
-mysql_run_optional "DELETE FROM copilot_document_sha_index WHERE patient_id IN (${PID_CSV});"
+mysql_run_destructive "DELETE FROM copilot_document_sha_index WHERE patient_id IN (${PID_CSV});"
 log "Deleted ${SHA_DEL_COUNT} copilot_document_sha_index row(s) (table optional)."
 
 # Step g/h. documents — list filesystem paths first, unlink, then delete rows.
@@ -349,8 +438,10 @@ if [[ -n "${DOC_PATHS}" ]]; then
         # strip it for filesystem operations.
         fs_path="${path#file://}"
         if [[ -f "${fs_path}" ]]; then
-            rm -f "${fs_path}" || log "WARN: could not unlink ${fs_path}"
-            log "Unlinked ${fs_path}"
+            fs_remove_destructive "${fs_path}"
+            if [[ "${DRY_RUN}" != "1" ]]; then
+                log "Unlinked ${fs_path}"
+            fi
         fi
     done <<< "${DOC_PATHS}"
 fi
@@ -358,7 +449,7 @@ fi
 DOC_COUNT="$(mysql_run "SELECT COUNT(*) FROM documents WHERE foreign_id IN (${PID_CSV});" 2>/dev/null || echo 0)"
 DOC_COUNT="${DOC_COUNT:-0}"
 TOTAL_DOCS=$((TOTAL_DOCS + DOC_COUNT))
-mysql_run_optional "DELETE FROM documents WHERE foreign_id IN (${PID_CSV});"
+mysql_run_destructive "DELETE FROM documents WHERE foreign_id IN (${PID_CSV});"
 log "Deleted ${DOC_COUNT} documents row(s)."
 
 # Step i. uuid_registry + patient_data. uuid_registry first so we don't orphan
@@ -366,25 +457,41 @@ log "Deleted ${DOC_COUNT} documents row(s)."
 # Reconstruct the binary uuid IN-clause from patient_data right now (we
 # couldn't reuse the earlier UUID_HASH_IN_CLAUSE because that's the SHA-256
 # of the uuid string, not the binary uuid).
-UUIDS_HEX_FOR_REGISTRY="$(mysql_run "SELECT HEX(uuid) FROM patient_data WHERE pid IN (${PID_CSV}) AND uuid IS NOT NULL;" || true)"
-if [[ -n "${UUIDS_HEX_FOR_REGISTRY}" ]]; then
-    parts=()
-    while IFS= read -r u; do
-        [[ -z "${u}" ]] && continue
-        parts+=("UNHEX('${u}')")
-    done <<< "${UUIDS_HEX_FOR_REGISTRY}"
-    if (( ${#parts[@]} > 0 )); then
-        REGISTRY_IN_CLAUSE="$(IFS=,; echo "${parts[*]}")"
-        mysql_run_optional "DELETE FROM uuid_registry WHERE table_name = 'patient_data' AND uuid IN (${REGISTRY_IN_CLAUSE});"
+#
+# Plan_wk2_Claude_Next07_v2 §A.1: both DELETEs key off PATIENT_DELETE_CSV,
+# which is identical to PID_CSV in full-reseed / reset-only modes and is
+# restricted to intake-created patients in --uploads-only mode.
+if [[ -n "${PATIENT_DELETE_CSV}" ]]; then
+    UUIDS_HEX_FOR_REGISTRY="$(mysql_run "SELECT HEX(uuid) FROM patient_data WHERE pid IN (${PATIENT_DELETE_CSV}) AND uuid IS NOT NULL;" || true)"
+    if [[ -n "${UUIDS_HEX_FOR_REGISTRY}" ]]; then
+        parts=()
+        while IFS= read -r u; do
+            [[ -z "${u}" ]] && continue
+            parts+=("UNHEX('${u}')")
+        done <<< "${UUIDS_HEX_FOR_REGISTRY}"
+        if (( ${#parts[@]} > 0 )); then
+            REGISTRY_IN_CLAUSE="$(IFS=,; echo "${parts[*]}")"
+            mysql_run_destructive "DELETE FROM uuid_registry WHERE table_name = 'patient_data' AND uuid IN (${REGISTRY_IN_CLAUSE});"
+        fi
     fi
+    PATIENT_DELETE_COUNT="$(mysql_run "SELECT COUNT(*) FROM patient_data WHERE pid IN (${PATIENT_DELETE_CSV});" 2>/dev/null || echo 0)"
+    PATIENT_DELETE_COUNT="${PATIENT_DELETE_COUNT:-0}"
+    mysql_run_destructive_strict "DELETE FROM patient_data WHERE pid IN (${PATIENT_DELETE_CSV});"
+    log "Deleted ${PATIENT_DELETE_COUNT} patient_data row(s)."
+else
+    log "Skipped patient_data DELETE (uploads-only mode, no intake-created patients found)."
 fi
-mysql_run "DELETE FROM patient_data WHERE pid IN (${PID_CSV});"
-log "Deleted ${N_PATIENTS} patient_data row(s)."
 
 # ---------------------------------------------------------------------------
-# Summary
+# Summary — surfaces dry-run + uploads-only mode in the operator-facing
+# message so misreads of the post-state are harder.
 # ---------------------------------------------------------------------------
-SUMMARY="Reset ${N_PATIENTS} demo patients, ${TOTAL_FACTS} facts, ${TOTAL_RESULTS} lab results, ${TOTAL_DOCS} documents"
+PATIENT_DELETE_COUNT_FOR_SUMMARY="${PATIENT_DELETE_COUNT:-${N_PATIENTS}}"
+if [[ "${DRY_RUN}" == "1" ]]; then
+    SUMMARY="DRY-RUN: would reset ${PATIENT_DELETE_COUNT_FOR_SUMMARY}/${N_PATIENTS} demo patient row(s), ${TOTAL_FACTS} facts, ${TOTAL_RESULTS} lab results, ${TOTAL_DOCS} documents (uploads-only=${UPLOADS_ONLY:-0})"
+else
+    SUMMARY="Reset ${PATIENT_DELETE_COUNT_FOR_SUMMARY}/${N_PATIENTS} demo patient row(s), ${TOTAL_FACTS} facts, ${TOTAL_RESULTS} lab results, ${TOTAL_DOCS} documents (uploads-only=${UPLOADS_ONLY:-0})"
+fi
 log "${SUMMARY}"
 log "=== reset_demo_state.sh end (success) ==="
 echo "${SUMMARY}"

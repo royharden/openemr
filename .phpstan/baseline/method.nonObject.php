@@ -1247,11 +1247,6 @@ $ignoreErrors[] = [
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-claimrev-connect/openemr.bootstrap.php',
 ];
 $ignoreErrors[] = [
-    'message' => '#^Cannot call method error\\(\\) on mixed\\.$#',
-    'count' => 1,
-    'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Bootstrap.php',
-];
-$ignoreErrors[] = [
     'message' => '#^Cannot call method registerNamespaceIfNotExists\\(\\) on mixed\\.$#',
     'count' => 1,
     'path' => __DIR__ . '/../../interface/modules/custom_modules/oe-module-comlink-telehealth/openemr.bootstrap.php',
