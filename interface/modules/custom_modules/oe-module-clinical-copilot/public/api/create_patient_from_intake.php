@@ -301,6 +301,11 @@ try {
         // 11. Response shape — small and explicit so the UI can navigate.
         $webRoot = \OpenEMR\Core\OEGlobalsBag::getInstance()->getWebRoot();
         $extractedCount = $payload['extracted_field_count'] ?? null;
+        // Plan_wk2_Claude_Next08 §W1 — pass the sidecar trace_id through so
+        // the UI can render a clickable Langfuse chip on the create-patient
+        // success status. Defensive: defaults to empty string if the
+        // sidecar response is malformed (the UI guards against empty).
+        $traceId = is_string($payload['trace_id'] ?? null) ? $payload['trace_id'] : '';
         copilot_create_send_json(200, [
             'pid' => $newPid,
             'patient_uuid' => $newPatientUuid,
@@ -311,6 +316,7 @@ try {
             'document_sha256' => $docSha,
             'extracted_field_count' => is_int($extractedCount) ? $extractedCount : 0,
             'persisted_facts' => $inserted,
+            'trace_id' => $traceId,
             'demographics' => [
                 'fname' => $fname,
                 'lname' => $lname,

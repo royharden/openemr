@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .auth import require_gateway_secret
+from .observability import record_extract
 from .schemas import ExtractedDocument
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,12 @@ async def extract_lab_pdf(
 
     document_sha256 = _sha256_bytes(content)
 
+    # Plan_wk2_Claude_Next08 §W1 — extraction trace skeleton. Generated at
+    # the top of the handler so the same UUID is in the Langfuse marker
+    # AND the ExtractedDocument response envelope returned to the gateway.
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
+
     # AgDR-0084 / Plan §3.7 — the PHP gateway redacts the raw upload
     # filename to "upload-{sha8}.{ext}" BEFORE the multipart request
     # reaches this route. The ``redact_filename`` helper above is the
@@ -148,11 +155,31 @@ async def extract_lab_pdf(
         )
         validated = ExtractedDocument.model_validate(result)
     except ValueError as exc:
+        record_extract(
+            trace_id=run_id, doc_type="lab_pdf", document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash, extracted_field_count=0,
+            dropped_field_count=0, duration_ms=(time.monotonic() - started_at) * 1000,
+            extractor_status="invalid_input",
+        )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Lab PDF extraction failed for %r: %s", filename, exc)
+        record_extract(
+            trace_id=run_id, doc_type="lab_pdf", document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash, extracted_field_count=0,
+            dropped_field_count=0, duration_ms=(time.monotonic() - started_at) * 1000,
+            extractor_status="failed",
+        )
         raise HTTPException(status_code=500, detail="extraction_failed") from exc
 
+    validated.trace_id = run_id
+    record_extract(
+        trace_id=run_id, doc_type="lab_pdf", document_sha256=document_sha256,
+        patient_uuid_hash=patient_uuid_hash,
+        extracted_field_count=validated.extracted_field_count,
+        dropped_field_count=validated.dropped_field_count,
+        duration_ms=(time.monotonic() - started_at) * 1000,
+    )
     return validated.model_dump(mode="json")
 
 
@@ -183,6 +210,8 @@ async def extract_intake_form(
         _validate_pdf_page_count(content, filename)
 
     document_sha256 = _sha256_bytes(content)
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
 
     # AgDR-0084 / Plan §3.7 — see the matching block in extract_lab_pdf
     # for why the route-level redaction is deferred. PHP gateway is the
@@ -205,11 +234,31 @@ async def extract_intake_form(
         )
         validated = ExtractedDocument.model_validate(result)
     except ValueError as exc:
+        record_extract(
+            trace_id=run_id, doc_type="intake_form", document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash, extracted_field_count=0,
+            dropped_field_count=0, duration_ms=(time.monotonic() - started_at) * 1000,
+            extractor_status="invalid_input",
+        )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Intake form extraction failed for %r: %s", filename, exc)
+        record_extract(
+            trace_id=run_id, doc_type="intake_form", document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash, extracted_field_count=0,
+            dropped_field_count=0, duration_ms=(time.monotonic() - started_at) * 1000,
+            extractor_status="failed",
+        )
         raise HTTPException(status_code=500, detail="extraction_failed") from exc
 
+    validated.trace_id = run_id
+    record_extract(
+        trace_id=run_id, doc_type="intake_form", document_sha256=document_sha256,
+        patient_uuid_hash=patient_uuid_hash,
+        extracted_field_count=validated.extracted_field_count,
+        dropped_field_count=validated.dropped_field_count,
+        duration_ms=(time.monotonic() - started_at) * 1000,
+    )
     return validated.model_dump(mode="json")
 
 
@@ -244,6 +293,8 @@ async def extract_medication_list(
         _validate_pdf_page_count(content, filename)
 
     document_sha256 = _sha256_bytes(content)
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
 
     # AgDR-0084 / Plan §3.7 — same filename-redaction posture as
     # extract_lab_pdf / extract_intake_form. The PHP gateway scrubs PHI
@@ -270,11 +321,31 @@ async def extract_medication_list(
         )
         validated = ExtractedDocument.model_validate(result)
     except ValueError as exc:
+        record_extract(
+            trace_id=run_id, doc_type="medication_list", document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash, extracted_field_count=0,
+            dropped_field_count=0, duration_ms=(time.monotonic() - started_at) * 1000,
+            extractor_status="invalid_input",
+        )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Medication-list extraction failed for %r: %s", filename, exc)
+        record_extract(
+            trace_id=run_id, doc_type="medication_list", document_sha256=document_sha256,
+            patient_uuid_hash=patient_uuid_hash, extracted_field_count=0,
+            dropped_field_count=0, duration_ms=(time.monotonic() - started_at) * 1000,
+            extractor_status="failed",
+        )
         raise HTTPException(status_code=500, detail="extraction_failed") from exc
 
+    validated.trace_id = run_id
+    record_extract(
+        trace_id=run_id, doc_type="medication_list", document_sha256=document_sha256,
+        patient_uuid_hash=patient_uuid_hash,
+        extracted_field_count=validated.extracted_field_count,
+        dropped_field_count=validated.dropped_field_count,
+        duration_ms=(time.monotonic() - started_at) * 1000,
+    )
     return validated.model_dump(mode="json")
 
 

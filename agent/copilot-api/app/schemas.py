@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -432,3 +433,8 @@ class ExtractedDocument(BaseModel):
     source_packets: list[SourcePacket] = Field(default_factory=list)
     extracted_field_count: int = 0
     dropped_field_count: int = 0  # claims dropped by quote_verbatim_in_pdf etc.
+    # Plan_wk2_Claude_Next08 §W1 — Langfuse trace ID for the extraction run.
+    # Default-generated UUID v4 so existing callers don't break; the route
+    # handlers populate this with the same id they use for Langfuse trace
+    # creation. PHP gateway propagates to the UI for the trace chip.
+    trace_id: str = Field(default_factory=lambda: str(uuid.uuid4()))

@@ -26,6 +26,11 @@ GRAPH_TRACE_NAME = "clinical_copilot.graph"
 GRAPH_SPAN_PREFIX = "graph."
 BRIEF_TRACE_NAME = "clinical_copilot.brief"
 LOCAL_REFUSAL_TRACE_NAME = "clinical_copilot.local_refusal"
+# Plan_wk2_Claude_Next08 §W1 — extraction trace name; one trace per
+# /v1/extract/{lab-pdf,intake-form,medication-list} call. The trace ID is
+# returned in the ExtractedDocument response and the PHP gateway echoes
+# it to the UI for the upload-status trace chip.
+EXTRACT_TRACE_NAME = "clinical_copilot.extract"
 
 # ---------------------------------------------------------------------------
 # PHI scrubbing (AgDR-0055)
@@ -441,6 +446,58 @@ def record_graph_span(
                 span_name=f"{GRAPH_SPAN_PREFIX}{node_name}",
                 trace_metadata={"graph_trace": True},
                 span_metadata=metadata,
+            )
+    except Exception:
+        pass
+
+
+def record_extract(
+    trace_id: str,
+    doc_type: str,
+    document_sha256: str,
+    patient_uuid_hash: str,
+    extracted_field_count: int,
+    dropped_field_count: int,
+    duration_ms: float,
+    extractor_status: str = "ok",
+) -> None:
+    """Emit a Langfuse trace marker for an extraction call.
+
+    Plan_wk2_Claude_Next08 §W1. Best-effort — a Langfuse outage never breaks
+    the extraction response. Used by the three /v1/extract/* route handlers
+    so the UI's upload-status trace chip links to a real Langfuse trace.
+    Cost / token usage attribution lives one level deeper (inside the
+    extractor implementation — see Plan §W3); this marker is the trace
+    skeleton that holds those generations together.
+    """
+
+    client = _get_client()
+    if client is None:
+        return
+    try:
+        metadata = {
+            "doc_type": doc_type,
+            "document_sha256_prefix": document_sha256[:8],
+            "patient_uuid_hash": patient_uuid_hash,
+            "extracted_field_count": extracted_field_count,
+            "dropped_field_count": dropped_field_count,
+            "duration_ms": duration_ms,
+            "extractor_status": extractor_status,
+        }
+        if hasattr(client, "trace"):
+            client.trace(
+                id=trace_id,
+                name=EXTRACT_TRACE_NAME,
+                metadata=metadata,
+            )
+        else:
+            _record_span_v4(
+                client,
+                trace_id=trace_id,
+                trace_name=EXTRACT_TRACE_NAME,
+                span_name=f"extract.{doc_type}",
+                trace_metadata=metadata,
+                span_metadata={"duration_ms": duration_ms},
             )
     except Exception:
         pass

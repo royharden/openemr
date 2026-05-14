@@ -284,16 +284,73 @@ def _classify_question_for_filter(question: str) -> tuple[str, list[str] | None]
     return ("broad", None)
 
 
+def _derive_pre_room_query_from_packets(packets: list[dict[str, Any]]) -> str:
+    """Plan_wk2_Claude_Next08 §W2 — derive a retrieval query from chart
+    packets for pre_room_brief turns (where ``question`` is empty).
+
+    The pre_room_brief use case has no user-supplied question, so the
+    retriever was previously running with an empty query and returning
+    zero chunks — leaving every synthesized claim without a citation and
+    causing the verifier to drop them all. This helper concatenates the
+    chart's most clinically meaningful labels (active problems +
+    active medication drug names + active allergy substances) into a
+    single retrieval query so the corpus surfaces guidelines that match
+    the patient's clinical context.
+
+    Limits the query to ~200 chars (typical RAG embedder token cap is
+    generous, but we don't need novella-length queries). De-dupes labels.
+    """
+    if not packets:
+        return ""
+    labels: list[str] = []
+    seen: set[str] = set()
+    for p in packets:
+        for key in ("label", "value"):
+            raw = p.get(key)
+            if not isinstance(raw, str):
+                continue
+            candidate = raw.strip()
+            if not candidate or len(candidate) > 80:
+                continue
+            normalized = candidate.lower()
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            labels.append(candidate)
+            if len(labels) >= 12:
+                break
+        if len(labels) >= 12:
+            break
+    return " ".join(labels)[:200]
+
+
 def evidence_retriever_node(state: CopilotState) -> dict[str, Any]:
     """Retrieve guideline evidence via hybrid RAG (Team B).
 
     In eval mode returns deterministic empty guideline packets.
     In live mode delegates to app.rag (Team B), with AgDR-0080 source
     filtering applied based on the question's classified category.
+
+    Plan_wk2_Claude_Next08 §W2: when the explicit user question is empty
+    (the pre_room_brief use case), fall back to a query derived from the
+    chart's source packets. Without this fallback the retriever ran with
+    "" and returned zero chunks, leaving every synthesized claim without
+    a citation. The verifier then dropped all claims as
+    "no_grade_citation" and the brief surfaced as
+    "Guideline evidence packets were not provided".
     """
     started = time.monotonic()
     question = state.get("question", "")
     patient_uuid_hash = state.get("patient_uuid_hash", "")
+
+    if not question:
+        question = _derive_pre_room_query_from_packets(state.get("extracted_packets", []))
+        if question:
+            logger.info(
+                "evidence_retriever_node: derived pre-room query from %d chart packets: %r",
+                len(state.get("extracted_packets", [])),
+                question[:80] + ("…" if len(question) > 80 else ""),
+            )
 
     try:
         from app.rag import retrieve_guidelines
