@@ -157,7 +157,12 @@ if (!is_file($bootstrapPath) || !is_readable($bootstrapPath)) {
 } else {
     $bootstrapSource = (string) file_get_contents($bootstrapPath);
     $importsMenuEvent = str_contains($bootstrapSource, 'use OpenEMR\\Menu\\MenuEvent');
-    $importsController = str_contains($bootstrapSource, 'use OpenEMR\\Modules\\ClinicalCopilot\\Controller\\IntakeUploadController');
+    // 2026-05-14: Bootstrap.php intentionally does NOT import
+    // IntakeUploadController — that class is instantiated by the
+    // public/intake_upload.php route entry, not by Bootstrap. The menu
+    // listener registers a URL string, not a class reference. phpcs would
+    // flag an unused import. The route-file test below covers the
+    // controller instantiation contract.
     $registersListener = (bool) preg_match(
         '/MenuEvent::MENU_UPDATE\s*,\s*\$this->addIntakeUploadMenuItem\(\.\.\.\)/s',
         $bootstrapSource
@@ -166,12 +171,11 @@ if (!is_file($bootstrapPath) || !is_readable($bootstrapPath)) {
         '/public function addIntakeUploadMenuItem\(MenuEvent \$event\)\s*:\s*MenuEvent/',
         $bootstrapSource
     );
-    $passed = $importsMenuEvent && $importsController && $registersListener && $hasMethod;
+    $passed = $importsMenuEvent && $registersListener && $hasMethod;
     $detail = $passed
-        ? 'Bootstrap.php imports MenuEvent + IntakeUploadController, registers addIntakeUploadMenuItem on MENU_UPDATE'
+        ? 'Bootstrap.php imports MenuEvent and registers addIntakeUploadMenuItem on MENU_UPDATE (controller class is instantiated by public/intake_upload.php, not Bootstrap)'
         : 'missing: '
             . ($importsMenuEvent ? '' : 'MenuEvent import; ')
-            . ($importsController ? '' : 'IntakeUploadController import; ')
             . ($registersListener ? '' : 'listener registration; ')
             . ($hasMethod ? '' : 'addIntakeUploadMenuItem method');
     $results['bootstrap_menu_listener'] = ['passed' => $passed, 'detail' => $detail];

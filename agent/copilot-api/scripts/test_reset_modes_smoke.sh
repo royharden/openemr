@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2310
+# shellcheck disable=SC2310,SC2016
+# SC2016: this file uses single-quoted regex patterns ('\[switch\]\$DryRun'
+# and similar) where the literal $ inside the regex is intentional — not a
+# variable expansion. Disabled file-wide to keep the assertions readable.
 #
 # Smoke test for the Wk2 demo-reset modes added in
 # Plan_wk2_Claude_Next07_v2 (Workstream A). Runs in a few hundred

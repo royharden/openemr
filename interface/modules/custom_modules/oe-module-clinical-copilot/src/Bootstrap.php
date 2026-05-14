@@ -18,18 +18,25 @@ use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Events\PatientDemographics\RenderEvent;
 use OpenEMR\Events\UserInterface\PageHeadingRenderEvent;
 use OpenEMR\Menu\MenuEvent;
-use OpenEMR\Modules\ClinicalCopilot\Controller\IntakeUploadController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PanelController;
-use OpenEMR\Modules\ClinicalCopilot\Controller\UploadDocsController;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+
+// Plan_wk2_Claude_Next07_v2 follow-up notes:
+//  - IntakeUploadController is instantiated by the public/intake_upload.php
+//    route directly (not by Bootstrap), so the symbol is intentionally NOT
+//    imported here. The menu listener below registers a route URL, not a
+//    class reference.
+//  - UploadDocsController was deactivated 2026-05-14. The class file is
+//    preserved for a future Patient Documents reintegration but Bootstrap
+//    no longer references it.
 
 class Bootstrap
 {
     public const MODULE_INSTALLATION_PATH = "/interface/modules/custom_modules/oe-module-clinical-copilot";
     public const MODULE_NAME = "oe-module-clinical-copilot";
 
-    private LoggerInterface $logger;
+    private readonly LoggerInterface $logger;
 
     public function __construct(
         private readonly EventDispatcherInterface $eventDispatcher
