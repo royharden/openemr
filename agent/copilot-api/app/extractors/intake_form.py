@@ -256,9 +256,27 @@ def _extract_intake_fields_from_text(page_text: str) -> list[dict[str, Any]]:
         add("demographics.last_name", last, f"LEGAL NAME {last},", 0.95)
         add("demographics.date_of_birth", dob, f"DATE OF BIRTH {dob}", 0.95)
 
+    full_name = re.search(
+        r"Full Name\s+(?P<name>[A-Za-z][A-Za-z .'-]+?)\s+DOB\s+"
+        r"(?P<dob>\d{4}-\d{2}-\d{2})",
+        page_text,
+        re.IGNORECASE,
+    )
+    if full_name:
+        name = _squash_ws(full_name.group("name"))
+        parts = name.split()
+        if parts:
+            add("demographics.first_name", parts[0], f"Full Name {name}", 0.95)
+            add("demographics.last_name", parts[-1], f"Full Name {name}", 0.95)
+        add("demographics.date_of_birth", full_name.group("dob"), f"DOB {full_name.group('dob')}", 0.95)
+
     sex = re.search(r"SEX ASSIGNED AT BIRTH\s+(Female|Male|Intersex|Unknown)", page_text, re.IGNORECASE)
     if sex:
         add("demographics.sex", sex.group(1).title(), sex.group(0), 0.94)
+    else:
+        compact_sex = re.search(r"\bSex\s+(Female|Male|Intersex|Unknown)\b", page_text, re.IGNORECASE)
+        if compact_sex:
+            add("demographics.sex", compact_sex.group(1).title(), compact_sex.group(0), 0.94)
 
     email = re.search(r"EMAIL\s+([^\s]+@[^\s]+)", page_text, re.IGNORECASE)
     if email:

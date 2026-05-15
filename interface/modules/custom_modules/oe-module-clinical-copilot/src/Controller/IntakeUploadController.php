@@ -77,7 +77,7 @@ class IntakeUploadController
                             value.
                         -->
                         <select class="form-control form-control-sm d-none" id="copilot-upload-doc-type-intake" name="doc_type" aria-label="<?php echo attr(xl('Document type')); ?>">
-                            <option value="intake_form_create_patient" selected><?php echo xlt('Intake form — create new demo patient'); ?></option>
+                            <option value="intake_form_create_patient" selected><?php echo xlt('Intake form — CREATE NEW DEMO PATIENT'); ?></option>
                         </select>
                         <div class="form-group">
                             <label for="copilot-upload-file-intake"><?php echo xlt('Intake form (PDF, PNG, or JPG)'); ?></label>

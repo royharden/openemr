@@ -125,6 +125,10 @@ $smokeAssert->fileContains($service, [
     // Query joins prescriptions for the current patient with active=1.
     "FROM prescriptions",
     "AND active = 1",
+    "INNER JOIN documents AS d ON d.uuid = f.document_uuid",
+    "d.foreign_id = ?",
+    "f.field_value_json",
+    "decodeStoredFieldValue",
     // SQL is parameterized — no string interpolation of pid.
     "WHERE patient_id = ?",
 ]);

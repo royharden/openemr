@@ -132,6 +132,9 @@ final class DocumentFactsRepository
                 'reference_range' => $field['reference_range'] ?? null,
                 'flag'            => $field['flag'] ?? null,
                 'loinc_code'      => $field['loinc_code'] ?? null,
+                'collection_date' => is_string($field['collection_date'] ?? null)
+                    ? $field['collection_date']
+                    : null,
             ], JSON_THROW_ON_ERROR);
 
             $params = [
@@ -165,7 +168,7 @@ final class DocumentFactsRepository
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     $params,
                 );
-                $inserted += max(0, (int) $affected);
+                $inserted += max(0, $affected);
             } catch (\Exception $e) {
                 $this->logger->error('DocumentFactsRepository: insert failed', [
                     'field_path' => $fieldPath,

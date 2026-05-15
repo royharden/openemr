@@ -51,6 +51,30 @@ _LAB_TEXT_ROW_PATTERNS: tuple[tuple[str, str], ...] = (
     ("glucose", r"Glucose"),
 )
 _LAB_UNIT_RE = re.compile(r"\b(mg/dL|g/dL|K/uL|M/uL|mEq/L|mmol/L|%|IU/L|U/L)\b")
+_COLLECTION_DATE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bCollected\s+(?P<date>\d{4}-\d{2}-\d{2})\b", re.IGNORECASE),
+    re.compile(r"\bCollection\s+Date\s*:?\s*(?P<date>\d{4}-\d{2}-\d{2})\b", re.IGNORECASE),
+    re.compile(r"\bSpecimen\s+Collected\s*:?\s*(?P<date>\d{4}-\d{2}-\d{2})\b", re.IGNORECASE),
+    re.compile(r"\bCollected\s+(?P<date>\d{1,2}/\d{1,2}/\d{4})\b", re.IGNORECASE),
+)
+_MEDIA_MAGIC_BYTES: tuple[tuple[bytes, str], ...] = (
+    (b"%PDF", "application/pdf"),
+    (b"\x89PNG", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+)
+
+
+def _detect_media_type(content: bytes, filename: str) -> str:
+    for magic, media_type in _MEDIA_MAGIC_BYTES:
+        if content.startswith(magic):
+            return media_type
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return {
+        "pdf": "application/pdf",
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+    }.get(ext, "application/pdf")
 
 
 def _normalize_bbox_value(value: float, axis_max: float) -> float:
@@ -128,6 +152,18 @@ def _page_to_base64_png(pdf_bytes: bytes, page_index: int) -> str:
         doc.close()
 
 
+def _image_to_base64_png(content: bytes, media_type: str) -> str:
+    if media_type == "image/png":
+        return base64.b64encode(content).decode()
+
+    from PIL import Image
+
+    with Image.open(io.BytesIO(content)) as image:
+        buf = io.BytesIO()
+        image.convert("RGB").save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode()
+
+
 def _extract_text_blocks_pdfplumber(
     pdf_bytes: bytes, page_index: int, page_width: float, page_height: float
 ) -> list[dict[str, Any]]:
@@ -190,11 +226,32 @@ def _has_meaningful_text_layer(page_text: str) -> bool:
     return len(words) >= 8
 
 
+def _normalize_collection_date(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    value = raw.strip()
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(value, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _extract_collection_date_from_text(page_text: str) -> str | None:
+    for pattern in _COLLECTION_DATE_PATTERNS:
+        match = pattern.search(page_text)
+        if match is not None:
+            return _normalize_collection_date(match.group("date"))
+    return None
+
+
 def _extract_lab_fields_from_text(page_text: str) -> list[dict[str, Any]]:
     """Recover common table-shaped lab rows from a PDF text layer."""
 
     fields: list[dict[str, Any]] = []
     seen: set[str] = set()
+    collection_date = _extract_collection_date_from_text(page_text)
     lines = [re.sub(r"\s+", " ", line).strip() for line in page_text.splitlines()]
     for line in lines:
         if not line:
@@ -219,6 +276,7 @@ def _extract_lab_fields_from_text(page_text: str) -> list[dict[str, Any]]:
                 "flag": match.group("flag") or None,
                 "quote_or_value": line,
                 "confidence": 0.92,
+                "collection_date": collection_date,
             })
             seen.add(name)
             break
@@ -260,6 +318,7 @@ def _call_vision_api_once(
         f"Use the {EXTRACT_FIELDS_TOOL_NAME} tool. Extract an object with a fields array. "
         "Each field has: name (snake_case field name), "
         "value (numeric or string), unit (string or null), abnormal (bool), "
+        "collection_date (YYYY-MM-DD string if visible, otherwise null), "
         "quote_or_value (verbatim text from document, max 60 chars). "
         "Only include fields visible in the image. No hallucination."
     )
@@ -343,6 +402,7 @@ def extract_lab_pdf(
     )
 
     doc_sha = document_sha256 or _sha256_bytes(pdf_bytes)
+    media_type = _detect_media_type(pdf_bytes, filename)
 
     if is_eval_mode():
         from app.extractors._eval_mocks_a import MOCK_VERSION as _MV
@@ -359,6 +419,7 @@ def extract_lab_pdf(
                 "abnormal": f.get("abnormal", False),
                 "source_id": source_id,
                 "quote_or_value": f.get("quote_or_value"),
+                "collection_date": f.get("collection_date"),
                 "page_index": f.get("page_index", 0),
                 "bbox": None,
                 "bbox_unit": None,
@@ -386,6 +447,50 @@ def extract_lab_pdf(
         )
 
     # Live mode
+    if media_type != "application/pdf":
+        raw_fields = _call_vision_api(_image_to_base64_png(pdf_bytes, media_type), patient_uuid_hash)
+        image_fields: list[dict[str, Any]] = []
+        for f in raw_fields:
+            name = str(f.get("name") or "").strip()
+            if not name:
+                continue
+            field_path = f"lab.{name}"
+            source_id = f"doc:{doc_sha[:12]}:page0:{name}"
+            image_fields.append({
+                "name": name,
+                "value": f.get("value"),
+                "unit": f.get("unit"),
+                "abnormal": bool(f.get("abnormal", False)),
+                "source_id": source_id,
+                "quote_or_value": f.get("quote_or_value") or f.get("quote"),
+                "collection_date": f.get("collection_date"),
+                "page_index": 0,
+                "bbox": None,
+                "bbox_unit": None,
+                "confidence": float(f.get("confidence", 0.80)),
+                "idempotency_key": hashlib.sha256(
+                    f"{patient_uuid_hash}{doc_sha}{field_path}".encode()
+                ).hexdigest(),
+            })
+
+        payload = {
+            "doc_type": "lab_pdf",
+            "document_sha256": doc_sha,
+            "patient_uuid_hash": patient_uuid_hash,
+            "filename": filename,
+            "extracted_at": datetime.now(timezone.utc).isoformat(),
+            "extracted_by": _MODEL,
+            "extracted_field_count": len(image_fields),
+            "result": {"fields": image_fields},
+        }
+        return normalize_extracted_document(
+            payload,
+            doc_type="lab_pdf",
+            document_sha256=doc_sha,
+            patient_uuid_hash=patient_uuid_hash,
+            filename=filename,
+        )
+
     page_count = _get_page_count(pdf_bytes)
     if page_count > _MAX_PAGES:
         raise ValueError(f"too_many_pages: {filename!r} has {page_count} pages; maximum is {_MAX_PAGES}")
@@ -422,6 +527,7 @@ def extract_lab_pdf(
                     "abnormal": bool(f.get("abnormal", False)),
                     "source_id": source_id,
                     "quote_or_value": quote,
+                    "collection_date": f.get("collection_date"),
                     "page_index": page_idx,
                     "bbox": list(bbox_tuple),
                     "bbox_unit": _BBOX_UNIT,

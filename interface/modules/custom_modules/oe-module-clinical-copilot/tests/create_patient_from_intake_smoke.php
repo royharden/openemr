@@ -56,9 +56,12 @@ if ($openemrRoot === false) {
 require_once $openemrRoot . '/interface/globals.php';
 require_once __DIR__ . '/../public/api/create_patient_from_intake_helpers.php';
 
+$createEndpointSource = (string) file_get_contents(__DIR__ . '/../public/api/create_patient_from_intake.php');
+
 use OpenEMR\Modules\ClinicalCopilot\Api\Internal\AmbiguousDobException;
 use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_demographics_from_extract;
 use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_lookup_existing_patient_by_usertext1;
+use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_normalize_demo_intake_dob;
 use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_normalize_dob;
 use function OpenEMR\Modules\ClinicalCopilot\Api\Internal\copilot_create_normalize_sex;
 
@@ -122,7 +125,34 @@ if (!$test1Pass) {
 }
 
 // ----------------------------------------------------------------------
-// Test 2 — sex normalizer.
+// Test 2 — demo-create DOB policy resolves ambiguous slash dates as US.
+// ----------------------------------------------------------------------
+$demoDobCases = [
+    ['06/08/1971', '1971-06-08'],
+    ['05/03/1962', '1962-05-03'],
+    ['25/12/1985', '1985-12-25'],
+    ['2026-05-11', '2026-05-11'],
+    ['not-a-date', null],
+];
+$demoDobFailures = [];
+foreach ($demoDobCases as $idx => [$raw, $expectedIso]) {
+    $got = copilot_create_normalize_demo_intake_dob($raw);
+    if ($got !== $expectedIso) {
+        $demoDobFailures[] = sprintf('case %d (%s): expected "%s", got "%s"', $idx, var_export($raw, true), $expectedIso ?? 'null', $got ?? 'null');
+    }
+}
+$test2Pass = $demoDobFailures === [];
+$report['test_2_demo_dob_policy'] = [
+    'pass' => $test2Pass,
+    'cases_tested' => count($demoDobCases),
+    'failures' => $demoDobFailures,
+];
+if (!$test2Pass) {
+    $failures++;
+}
+
+// ----------------------------------------------------------------------
+// Test 3 — sex normalizer.
 // ----------------------------------------------------------------------
 $sexCases = [
     [null,        'Unknown'],
@@ -149,7 +179,7 @@ foreach ($sexCases as $idx => [$raw, $expected]) {
     }
 }
 $test2Pass = $sexFailures === [];
-$report['test_2_sex_normalizer'] = [
+$report['test_3_sex_normalizer'] = [
     'pass' => $test2Pass,
     'cases_tested' => count($sexCases),
     'failures' => $sexFailures,
@@ -159,7 +189,7 @@ if (!$test2Pass) {
 }
 
 // ----------------------------------------------------------------------
-// Test 3 — demographics multi-convention plucking.
+// Test 4 — demographics multi-convention plucking.
 // ----------------------------------------------------------------------
 $demographicsCases = [
     // Bare-name convention.
@@ -241,7 +271,7 @@ foreach ($demographicsCases as $case) {
     }
 }
 $test3Pass = $demographicsFailures === [];
-$report['test_3_demographics_multi_convention'] = [
+$report['test_4_demographics_multi_convention'] = [
     'pass' => $test3Pass,
     'cases_tested' => count($demographicsCases),
     'failures' => $demographicsFailures,
@@ -251,7 +281,22 @@ if (!$test3Pass) {
 }
 
 // ----------------------------------------------------------------------
-// Test 4 — lookup miss returns null (AgDR-0068 invariant on no-match).
+// Test 5 — create endpoint reuses raw-document SHA dedup on duplicate
+// create-patient uploads (AgDR-0063 invariant).
+// ----------------------------------------------------------------------
+$hasCreateDedupLookup = str_contains($createEndpointSource, 'copilot_upload_lookup_existing_document($newPid, $docSha)')
+    && str_contains($createEndpointSource, '$existingDocument !== null')
+    && str_contains($createEndpointSource, 'copilot_upload_record_sha($newPid, $docSha, $documentId)');
+$report['test_5_create_endpoint_document_dedup'] = [
+    'pass' => $hasCreateDedupLookup,
+    'result' => $hasCreateDedupLookup ? 'dedup lookup present' : 'dedup lookup missing',
+];
+if (!$hasCreateDedupLookup) {
+    $failures++;
+}
+
+// ----------------------------------------------------------------------
+// Test 6 — lookup miss returns null (AgDR-0068 invariant on no-match).
 //          Hit case requires a synthetic patient_data row which is hard
 //          to insert from a smoke without FK gymnastics; Phase 5.1
 //          exercises the hit path via the full upload flow.
@@ -261,7 +306,7 @@ try {
         'wk2-smoke-no-such-usertext1-' . bin2hex(random_bytes(4)),
     );
     $test4Pass = $missResult === null;
-    $report['test_4_lookup_miss'] = [
+    $report['test_6_lookup_miss'] = [
         'pass' => $test4Pass,
         'result' => $missResult === null ? 'null' : 'non-null (BUG)',
     ];
@@ -272,7 +317,7 @@ try {
     // patient_data table unreachable — SKIP gracefully (the function's
     // own catch handles DB errors and returns null, so this branch
     // shouldn't even be hit, but defensive).
-    $report['test_4_lookup_miss'] = ['skip' => 'patient_data unreachable: ' . $exc->getMessage()];
+    $report['test_6_lookup_miss'] = ['skip' => 'patient_data unreachable: ' . $exc->getMessage()];
 }
 
 // ----------------------------------------------------------------------

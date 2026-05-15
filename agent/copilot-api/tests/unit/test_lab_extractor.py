@@ -19,11 +19,15 @@ import pytest
 os.environ["COPILOT_EVAL_MODE"] = "1"
 
 from app.extractors.lab_pdf import (
+    _extract_collection_date_from_text,
+    _extract_lab_fields_from_text,
+    _detect_media_type,
     _find_verbatim_bbox,
     _sha256_bytes,
     _words_match,
     extract_lab_pdf,
 )
+from app.extractors.normalize import normalize_extracted_document
 from app.schemas import ExtractedDocument, LabResult
 
 
@@ -33,6 +37,11 @@ from app.schemas import ExtractedDocument, LabResult
 
 FAKE_SHA256 = "a" * 64
 PATIENT_HASH = hashlib.sha256(b"patient-uuid-123").hexdigest()
+TINY_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00"
+    b"\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82"
+)
 
 
 def _make_minimal_pdf() -> bytes:
@@ -140,6 +149,37 @@ class TestExtractLabPdfPositive:
         assert "hba1c" in fields
         assert fields["hba1c"]["flag"] == "H"
 
+    def test_text_layer_collection_date_propagates_to_fields_and_packets(self) -> None:
+        page_text = "\n".join([
+            "Collected 2025-07-18 07:48 PT",
+            "Cholesterol, Total 232 H mg/dL",
+            "HDL Cholesterol 48 H mg/dL",
+            "LDL Cholesterol, Calculated 158 H mg/dL",
+        ])
+        fields = _extract_lab_fields_from_text(page_text)
+
+        assert _extract_collection_date_from_text(page_text) == "2025-07-18"
+        assert fields
+        assert {f["collection_date"] for f in fields} == {"2025-07-18"}
+
+        normalized = normalize_extracted_document(
+            {
+                "doc_type": "lab_pdf",
+                "document_sha256": FAKE_SHA256,
+                "patient_uuid_hash": PATIENT_HASH,
+                "filename": "p01-chen-lipid-panel-2025-07.pdf",
+                "extracted_at": "2026-05-15T05:27:31Z",
+                "extracted_by": "unit-test",
+                "result": {"fields": fields},
+            },
+            doc_type="lab_pdf",
+            document_sha256=FAKE_SHA256,
+            patient_uuid_hash=PATIENT_HASH,
+            filename="p01-chen-lipid-panel-2025-07.pdf",
+        )
+        assert normalized["result"]["fields"][0]["collection_date"] == "2025-07-18"
+        assert normalized["source_packets"][0]["observed_at"] == "2025-07-18"
+
 
 # ---------------------------------------------------------------------------
 # Negative tests
@@ -226,3 +266,39 @@ class TestExtractLabPdfEdge:
             filename="p01-chen-lipid-panel.pdf",
         )
         assert result["result"]["extracted_by_model"] == "eval-mock"
+
+    def test_live_image_upload_routes_without_pdfium(self) -> None:
+        import app.extractors._eval_mocks_a as _mocks_mod
+
+        original = _mocks_mod._EVAL_MODE
+        _mocks_mod._EVAL_MODE = False
+        try:
+            with (
+                patch("app.extractors.lab_pdf._get_page_count") as page_count,
+                patch("app.extractors.lab_pdf._call_vision_api", return_value=[
+                    {
+                        "name": "hba1c",
+                        "value": 8.2,
+                        "unit": "%",
+                        "abnormal": True,
+                        "quote_or_value": "HbA1c: 8.2% H",
+                        "confidence": 0.88,
+                    }
+                ]) as vision,
+            ):
+                result = extract_lab_pdf(
+                    pdf_bytes=TINY_PNG,
+                    patient_uuid_hash=PATIENT_HASH,
+                    document_sha256=FAKE_SHA256,
+                    filename="p03-reyes-hba1c.png",
+                )
+        finally:
+            _mocks_mod._EVAL_MODE = original
+
+        page_count.assert_not_called()
+        vision.assert_called_once()
+        assert _detect_media_type(TINY_PNG, "p03-reyes-hba1c.png") == "image/png"
+        fields = {f["name"]: f for f in result["result"]["fields"]}
+        assert fields["hba1c"]["flag"] == "H"
+        assert fields["hba1c"]["bbox"] is None
+        assert result["source_packets"][0]["page_index"] == 0

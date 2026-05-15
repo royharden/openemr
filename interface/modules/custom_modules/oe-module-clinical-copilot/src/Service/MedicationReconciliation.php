@@ -5,8 +5,8 @@
  * `prescriptions` table for a given patient (Plan §6.3, AgDR-0077).
  *
  * Inputs:
- *   * The latest extracted medication-list facts for (patient_id, doc_type='medication_list')
- *     in `copilot_document_facts`. The repository emits one row per
+ *   * The latest extracted medication-list facts for the patient's document
+ *     rows in `copilot_document_facts`. The repository emits one row per
  *     medication.<slug>.<attr> field path; we group them by `<slug>` to
  *     rebuild MedicationListEntry-shaped rows.
  *   * The active prescriptions for the same patient_id.
@@ -174,10 +174,10 @@ final class MedicationReconciliation
     }
 
     /**
-     * Load the most recent (patient_id, doc_type='medication_list') document
-     * facts and reconstruct one entry per drug slug. We pick the latest
-     * document_sha256 by max(created_at) so an older medication list doesn't
-     * surface stale entries if the patient uploaded a fresher one.
+     * Load the most recent medication-list document facts for this patient's
+     * document rows and reconstruct one entry per drug slug. We pick the
+     * latest document_sha256 by max(created_at) so an older medication list
+     * doesn't surface stale entries if the patient uploaded a fresher one.
      *
      * @return list<array{drug_name: string, dose: ?string, route: ?string, frequency: ?string}>
      */
@@ -185,10 +185,11 @@ final class MedicationReconciliation
     {
         try {
             $latestSha = QueryUtils::fetchSingleValue(
-                "SELECT document_sha256
-                 FROM copilot_document_facts
-                 WHERE patient_id = ? AND doc_type = 'medication_list'
-                 ORDER BY created_at DESC
+                "SELECT f.document_sha256
+                 FROM copilot_document_facts AS f
+                 INNER JOIN documents AS d ON d.uuid = f.document_uuid
+                 WHERE d.foreign_id = ? AND f.doc_type = 'medication_list'
+                 ORDER BY f.created_at DESC
                  LIMIT 1",
                 'document_sha256',
                 [$pid],
@@ -197,9 +198,10 @@ final class MedicationReconciliation
                 return [];
             }
             $rows = QueryUtils::fetchRecords(
-                "SELECT field_path, field_value
-                 FROM copilot_document_facts
-                 WHERE patient_id = ? AND doc_type = 'medication_list' AND document_sha256 = ?",
+                "SELECT f.field_path, f.field_value_json
+                 FROM copilot_document_facts AS f
+                 INNER JOIN documents AS d ON d.uuid = f.document_uuid
+                 WHERE d.foreign_id = ? AND f.doc_type = 'medication_list' AND f.document_sha256 = ?",
                 [$pid, $latestSha],
             );
         } catch (\RuntimeException | \PDOException $exc) {
@@ -215,14 +217,18 @@ final class MedicationReconciliation
         $bySlug = [];
         foreach ($rows as $row) {
             $path = is_string($row['field_path'] ?? null) ? $row['field_path'] : '';
-            $value = is_string($row['field_value'] ?? null) ? $row['field_value'] : null;
+            $value = self::decodeStoredFieldValue($row['field_value_json'] ?? null);
             $parts = explode('.', $path);
-            // Expect ["medication", "<slug>", "<attr>"].
-            if (count($parts) !== 3 || $parts[0] !== 'medication') {
+            // Expect ["<slug>", "<attr>"]. Older eval rows may include the
+            // normalized ["medication", "<slug>", "<attr>"] prefix.
+            if (count($parts) === 3 && $parts[0] === 'medication') {
+                array_shift($parts);
+            }
+            if (count($parts) !== 2) {
                 continue;
             }
-            $slug = $parts[1];
-            $attr = $parts[2];
+            $slug = $parts[0];
+            $attr = $parts[1];
             if (!isset($bySlug[$slug])) {
                 $bySlug[$slug] = ['drug_name' => '', 'dose' => null, 'route' => null, 'frequency' => null];
             }
@@ -250,6 +256,25 @@ final class MedicationReconciliation
             ];
         }
         return $entries;
+    }
+
+    private static function decodeStoredFieldValue(mixed $raw): ?string
+    {
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return $raw;
+        }
+
+        if (!is_array($decoded)) {
+            return is_scalar($decoded) ? (string) $decoded : null;
+        }
+        $value = $decoded['value'] ?? null;
+        return is_scalar($value) ? (string) $value : null;
     }
 
     /**

@@ -726,6 +726,30 @@
         };
     }
 
+    function formatUploadError(body, status) {
+        if (!body || typeof body !== 'object') {
+            return 'Upload failed (HTTP ' + status + ').';
+        }
+        if (body.error === 'csrf_failure') {
+            return 'Upload failed: this page had an expired security token. Refresh the upload page and try again.';
+        }
+        if (body.error === 'ambiguous_dob') {
+            var rawDob = body.raw ? ' "' + body.raw + '"' : '';
+            var candidates = Array.isArray(body.candidates) && body.candidates.length
+                ? ' It could mean ' + body.candidates.join(' or ') + '.'
+                : '';
+            return 'Upload needs review: the intake DOB' + rawDob + ' is ambiguous.' + candidates
+                + ' Use an intake with a month name or ISO date, or create the patient manually.';
+        }
+        if (typeof body.detail === 'string' && body.detail !== '') {
+            return 'Upload failed: ' + body.detail;
+        }
+        if (typeof body.error === 'string' && body.error !== '') {
+            return 'Upload failed: ' + body.error;
+        }
+        return 'Upload failed: ' + JSON.stringify(body);
+    }
+
     // AgDR-0077 / Plan §6.3 — fetch and render the medication-reconciliation
     // panel. Called automatically after a medication_list upload; idempotent
     // (re-fetches on each upload). The endpoint compares the latest extracted
@@ -856,11 +880,22 @@
                 var submitBtn = uploadForm.querySelector('button[type="submit"]');
                 if (submitBtn) { submitBtn.disabled = true; }
 
-                fetch(url, {
+                var timeoutMs = isCreatePatient ? 120000 : 90000;
+                var controller = window.AbortController ? new AbortController() : null;
+                var timeoutId = window.setTimeout(function () {
+                    if (controller) { controller.abort(); }
+                }, timeoutMs);
+                var fetchOptions = {
                     method: 'POST',
                     credentials: 'same-origin',
-                    body: formData,
-                }).then(function (res) {
+                    body: formData
+                };
+                if (controller) {
+                    fetchOptions.signal = controller.signal;
+                }
+
+                fetch(url, fetchOptions).then(function (res) {
+                    window.clearTimeout(timeoutId);
                     // The endpoint can return text/html (e.g. when not
                     // authenticated and OpenEMR's session bootstrap emits
                     // its login-redirect <script>). Guard the JSON parse so
@@ -887,7 +922,7 @@
                         return;
                     }
                     if (resp.status >= 400) {
-                        showUploadStatus('Upload failed: ' + escapeHtml(JSON.stringify(resp.body.detail || resp.body)), true);
+                        showUploadStatus(formatUploadError(resp.body, resp.status), true);
                         return;
                     }
                     // Plan_wk2_Claude_Next08 §W1 — surface the sidecar's
@@ -929,9 +964,14 @@
                             setTimeout(function () { fetchMedicationReconciliation(); }, 1300);
                         }
                     }
-                }).catch(function () {
+                }).catch(function (err) {
+                    window.clearTimeout(timeoutId);
                     if (submitBtn) { submitBtn.disabled = false; }
-                    showUploadStatus('Upload failed (network error).', true);
+                    if (err && err.name === 'AbortError') {
+                        showUploadStatus('Upload timed out before the server responded. No patient was created; refresh and try again.', true);
+                    } else {
+                        showUploadStatus('Upload failed (network error).', true);
+                    }
                 });
             });
         });

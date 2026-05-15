@@ -64,9 +64,9 @@ class PanelController
                     <div class="form-row align-items-center">
                         <div class="col-auto">
                             <select class="form-control form-control-sm" id="copilot-upload-doc-type" name="doc_type" aria-label="<?php echo attr(xl('Document type')); ?>">
-                                <option value="lab_pdf"><?php echo xlt('Lab PDF'); ?></option>
+                                <option value="lab_pdf" selected><?php echo xlt('Upload Labs'); ?></option>
                                 <option value="intake_form"><?php echo xlt('Intake form'); ?></option>
-                                <option value="medication_list"><?php echo xlt('Medication list'); ?></option>
+                                <option value="medication_list"><?php echo xlt('Upload Medications'); ?></option>
                                 <?php if ($demoModeEnabled) : ?>
                                 <option value="intake_form_create_patient"><?php echo xlt('Intake form — CREATE NEW DEMO PATIENT'); ?></option>
                                 <?php endif; ?>

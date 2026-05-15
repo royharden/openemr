@@ -12,3 +12,4 @@ __pycache__/
 .coverage
 htmlcov/
 eval_results.json
+.demo-reset.log

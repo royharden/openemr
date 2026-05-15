@@ -71,22 +71,40 @@
         return Math.floor(t / 86400000);
     }
 
+    function formatDateLabel(s) {
+        if (typeof s !== 'string' || s.length < 10) {
+            return '';
+        }
+        var parts = s.slice(0, 10).split('-');
+        if (parts.length !== 3) {
+            return s.slice(0, 10);
+        }
+        return String(Number(parts[1])) + '/' + String(Number(parts[2])) + '/' + parts[0].slice(2);
+    }
+
     /**
      * Build a single SVG line chart for one analyte series.
      * Returns the SVGSVGElement.
      */
     function renderSvgChart(series) {
         var pts = (series.observations || [])
-            .map(function (o) {
+            .map(function (o, index) {
                 return {
                     day: parseDay(o.date),
                     value: typeof o.value === 'number' ? o.value : null,
                     date: o.date,
                     abnormal: o.abnormal,
+                    index: index,
                 };
             })
             .filter(function (p) {
                 return p.day !== null && p.value !== null;
+            })
+            .sort(function (a, b) {
+                if (a.day !== b.day) {
+                    return a.day - b.day;
+                }
+                return a.index - b.index;
             });
 
         var svg = document.createElementNS(SVG_NS, 'svg');
@@ -155,15 +173,21 @@
             }, Math.round(v * 10) / 10));
         });
 
-        // X-axis ticks: first + last collection date.
-        [pts[0], pts[pts.length - 1]].forEach(function (p, i) {
+        // X-axis ticks: first + last collection date. Compact labels keep
+        // the mini-card readable at dashboard tile widths; identical dates
+        // render once so start/end text cannot collide.
+        var xTickPoints = [pts[0]];
+        if (pts[pts.length - 1].date !== pts[0].date) {
+            xTickPoints.push(pts[pts.length - 1]);
+        }
+        xTickPoints.forEach(function (p, i) {
             svg.appendChild(svgElem('text', {
                 x: xPx(p.day),
                 y: CHART_HEIGHT - 8,
-                'text-anchor': i === 0 ? 'start' : 'end',
+                'text-anchor': xTickPoints.length === 1 ? 'start' : (i === 0 ? 'start' : 'end'),
                 fill: '#6b7280',
                 'font-size': '10',
-            }, p.date));
+            }, formatDateLabel(p.date)));
         });
 
         // Polyline connecting all points.

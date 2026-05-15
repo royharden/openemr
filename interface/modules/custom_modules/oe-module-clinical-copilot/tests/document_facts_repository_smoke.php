@@ -20,6 +20,9 @@
  *      a DIFFERENT field_path inserts 1 new row (the idempotency key
  *      is per-fact, not per-document). Return value is >0 (a different
  *      auto-increment id from the first insert).
+ *   4. `field_value_json.collection_date` survives persistence so
+ *      LabResultWriter and lab_trends.php can use the clinical collection
+ *      date instead of the upload/extraction timestamp.
  *
  * Skip-gracefully: if the `copilot_document_facts` table is missing
  * (migration not applied) or QueryUtils cannot reach the DB at all,
@@ -98,10 +101,11 @@ if (!$tableExists) {
     $report['test_1_first_insert'] = ['skip' => 'copilot_document_facts table missing'];
     $report['test_2_idempotent_reinsert'] = ['skip' => 'copilot_document_facts table missing'];
     $report['test_3_new_fieldpath_inserts'] = ['skip' => 'copilot_document_facts table missing'];
+    $report['test_4_collection_date_persisted'] = ['skip' => 'copilot_document_facts table missing'];
     if ($json) {
         echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
     } else {
-        echo "DocumentFactsRepository smoke: SKIPPED (3/3 tests) — copilot_document_facts table missing.\n";
+        echo "DocumentFactsRepository smoke: SKIPPED (4/4 tests) — copilot_document_facts table missing.\n";
     }
     exit(0);
 }
@@ -149,6 +153,7 @@ $buildPayload = static fn(string $fieldPath): array => [
             [
                 'name' => $fieldPath,
                 'value' => 'smoke-value',
+                'collection_date' => '2025-07-18',
                 'citation' => [
                     'page_index' => 0,
                     'quote_or_value' => 'smoke-quote',
@@ -245,6 +250,30 @@ try {
     }
 } catch (\RuntimeException | \PDOException $exc) {
     $report['test_3_new_fieldpath_inserts'] = ['fail' => 'exception', 'message' => $exc->getMessage()];
+    $failures++;
+}
+
+// ----------------------------------------------------------------------
+// Test 4 - collection_date survives into field_value_json.
+// ----------------------------------------------------------------------
+try {
+    $collectionDate = QueryUtils::fetchSingleValue(
+        "SELECT JSON_UNQUOTE(JSON_EXTRACT(`field_value_json`, '$.collection_date')) AS collection_date
+           FROM `copilot_document_facts`
+          WHERE `idempotency_key` = ?",
+        'collection_date',
+        [$idempotencyKey1],
+    );
+    $test4Pass = $collectionDate === '2025-07-18';
+    $report['test_4_collection_date_persisted'] = [
+        'pass' => $test4Pass,
+        'collection_date' => is_scalar($collectionDate) ? (string) $collectionDate : null,
+    ];
+    if (!$test4Pass) {
+        $failures++;
+    }
+} catch (\RuntimeException | \PDOException $exc) {
+    $report['test_4_collection_date_persisted'] = ['fail' => 'exception', 'message' => $exc->getMessage()];
     $failures++;
 }
 

@@ -18,6 +18,7 @@
  *   4. `public/intake_upload.php` checks `getenv('COPILOT_DEMO_MODE') === '1'`
  *      before rendering and returns HTTP 404 with a generic body
  *      otherwise (AgDR-0066 "invisible to attackers" rationale mirrored).
+ *      It also marks the page no-store because it embeds a CSRF token.
  *   5. Bootstrap.php registers a listener on `MenuEvent::MENU_UPDATE`.
  *   6. The menu-edit method is gated on `COPILOT_DEMO_MODE` so production
  *      deployments do NOT show the "Clinical Intake Upload" entry.
@@ -135,13 +136,15 @@ if (!is_file($routePath) || !is_readable($routePath)) {
     $hasEnvCheck = (bool) preg_match("/getenv\\(\\s*'COPILOT_DEMO_MODE'\\s*\\)\\s*!==\\s*'1'/", $routeSource);
     $emits404 = (bool) preg_match('/http_response_code\(\s*404\s*\)/', $routeSource);
     $hasAclCheck = str_contains($routeSource, "AclMain::aclCheckCore('admin', 'super')");
-    $passed = $hasEnvCheck && $emits404 && $hasAclCheck;
+    $hasNoStore = str_contains($routeSource, "'Cache-Control: no-store, no-cache, must-revalidate, max-age=0'");
+    $passed = $hasEnvCheck && $emits404 && $hasAclCheck && $hasNoStore;
     $detail = $passed
-        ? 'intake_upload.php gates on COPILOT_DEMO_MODE (404 when unset) and re-checks admin/super ACL'
+        ? 'intake_upload.php gates on COPILOT_DEMO_MODE (404 when unset), re-checks admin/super ACL, and disables caching for the embedded CSRF token'
         : 'missing: '
             . ($hasEnvCheck ? '' : 'COPILOT_DEMO_MODE env check; ')
             . ($emits404 ? '' : '404 response; ')
-            . ($hasAclCheck ? '' : 'admin/super ACL check');
+            . ($hasAclCheck ? '' : 'admin/super ACL check; ')
+            . ($hasNoStore ? '' : 'Cache-Control no-store header');
     $results['route_demo_gate'] = ['passed' => $passed, 'detail' => $detail];
     $printRecord('route_demo_gate', $passed, $detail);
 }
@@ -201,7 +204,7 @@ if (!is_file($bootstrapPath) || !is_readable($bootstrapPath)) {
         '/function addIntakeUploadMenuItem\([^)]*\)\s*:\s*MenuEvent\s*\{(.*?)\n    \}/s',
         $bootstrapSource,
         $bodyMatch
-    )) {
+    ) === 1) {
         $methodBody = $bodyMatch[1];
         $hasGate = (bool) preg_match(
             "/getenv\\(\\s*'COPILOT_DEMO_MODE'\\s*\\)\\s*!==\\s*'1'/",
@@ -246,15 +249,22 @@ if (!is_file($copilotJsPath) || !is_readable($copilotJsPath)) {
     // guarded by `card && cfg.briefUrl` so the pre-patient surface
     // doesn't try to refresh a non-existent brief.
     $hasGuardedRefresh = str_contains($jsSource, "if (card && cfg.briefUrl && typeof fetchBrief === 'function')");
+    $hasFriendlyErrors = str_contains($jsSource, 'function formatUploadError(body, status)')
+        && str_contains($jsSource, "body.error === 'csrf_failure'")
+        && str_contains($jsSource, "body.error === 'ambiguous_dob'");
+    $hasTimeout = str_contains($jsSource, 'new AbortController()')
+        && str_contains($jsSource, 'Upload timed out before the server responded');
     $orderOk = ($callPos !== false) && ($returnPos !== false) && ($callPos < $returnPos);
-    $passed = $orderOk && $hasFuncDecl && $hasLoosenedGate && $hasGuardedRefresh;
+    $passed = $orderOk && $hasFuncDecl && $hasLoosenedGate && $hasGuardedRefresh && $hasFriendlyErrors && $hasTimeout;
     $detail = $passed
-        ? 'copilot.js calls initUploadHandlers() before the no-card early-return, gate accepts createPatientUrl-only, brief-refresh is card-guarded'
+        ? 'copilot.js calls initUploadHandlers() before the no-card early-return, gate accepts createPatientUrl-only, brief-refresh is card-guarded, upload errors are friendly, and long uploads time out visibly'
         : 'missing/incorrect: '
             . ($orderOk ? '' : 'init call must precede early-return; ')
             . ($hasFuncDecl ? '' : 'initUploadHandlers() function declaration; ')
             . ($hasLoosenedGate ? '' : 'gate must accept createPatientUrl-only; ')
-            . ($hasGuardedRefresh ? '' : 'brief-refresh must be guarded by card+briefUrl');
+            . ($hasGuardedRefresh ? '' : 'brief-refresh must be guarded by card+briefUrl; ')
+            . ($hasFriendlyErrors ? '' : 'friendly csrf/ambiguous_dob errors; ')
+            . ($hasTimeout ? '' : 'AbortController timeout handling');
     $results['js_upload_handler_before_early_return'] = ['passed' => $passed, 'detail' => $detail];
     $printRecord('js_upload_handler_before_early_return', $passed, $detail);
 }

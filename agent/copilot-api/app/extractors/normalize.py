@@ -46,6 +46,8 @@ def normalize_extracted_document(
         quote = field.get("quote_or_value")
         if quote is None and value is not None:
             quote = str(value)
+        collection_date = field.get("collection_date")
+        observed_at = collection_date if isinstance(collection_date, str) and collection_date else extracted_at
 
         citation = {
             "source_id": source_id,
@@ -57,8 +59,8 @@ def normalize_extracted_document(
             "label": name.replace("_", " ").title(),
             "value": value,
             "unit": field.get("unit"),
-            "observed_at": extracted_at,
-            "last_updated": extracted_at,
+            "observed_at": observed_at,
+            "last_updated": observed_at,
             "freshness": "recent",
             "status": field.get("flag") or ("H" if field.get("abnormal") else None),
             "sensitive": False,
@@ -83,6 +85,7 @@ def normalize_extracted_document(
             "reference_range": field.get("reference_range"),
             "flag": field.get("flag") or ("H" if field.get("abnormal") else None),
             "loinc_code": field.get("loinc_code"),
+            "collection_date": collection_date,
             "citation": citation,
             "quote_or_value": quote,
             "page_index": field.get("page_index", 0),

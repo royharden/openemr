@@ -19,6 +19,18 @@ require_once __DIR__ . '/../src/Gateway/SidecarClient.php';
 
 use OpenEMR\Modules\ClinicalCopilot\Gateway\SidecarClient;
 
+$sidecarClientSource = file_get_contents(__DIR__ . '/../src/Gateway/SidecarClient.php');
+if ($sidecarClientSource === false) {
+    fwrite(STDERR, "FAIL  could not read SidecarClient.php\n");
+    exit(1);
+}
+foreach (['/tmp/copilot_debug_dump', 'brief_debug_', 'TEMP DEBUG'] as $forbiddenDebugNeedle) {
+    if (str_contains($sidecarClientSource, $forbiddenDebugNeedle)) {
+        fwrite(STDERR, "FAIL  SidecarClient.php still contains temporary debug dump code: {$forbiddenDebugNeedle}\n");
+        exit(1);
+    }
+}
+
 /** @var array<int, array{label: string, status: int, body: string, expect_error: ?string, expect_status: ?int, expect_detail: ?string, expect_passthrough_key: ?string}> */
 $cases = [
     [
@@ -99,8 +111,7 @@ $cases = [
 
 $failures = 0;
 foreach ($cases as $case) {
-    $body = is_string($case['body']) ? $case['body'] : '';
-    $result = SidecarClient::classifyResponse($case['status'], $body);
+    $result = SidecarClient::classifyResponse($case['status'], $case['body']);
 
     $errors = [];
     $gotError = $result['__sidecar_error'] ?? null;

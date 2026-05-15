@@ -41,6 +41,13 @@ use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Controller\IntakeUploadController;
 
+// The page embeds a session-derived CSRF token. Do not let a browser
+// restore an old copy after logout/login or the upload POST can fail with
+// csrf_failure even though the visible page looks current.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 // Gate 1: demo-mode env var. Off → 404 + generic body. See AgDR-0066 §3.5.
 if (getenv('COPILOT_DEMO_MODE') !== '1') {
     http_response_code(404);

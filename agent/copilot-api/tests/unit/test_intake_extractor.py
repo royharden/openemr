@@ -12,6 +12,7 @@ os.environ["COPILOT_EVAL_MODE"] = "1"
 
 from app.extractors.intake_form import (
     _detect_media_type,
+    _extract_intake_fields_from_text,
     _sha256_bytes,
     _words_match,
     extract_intake_form,
@@ -91,6 +92,22 @@ class TestExtractIntakeFormPositive:
         )
         names = [f["name"] for f in result["result"]["fields"]]
         assert "smoking_status" in names
+
+    def test_whitaker_text_layer_demographics_are_extracted(self) -> None:
+        text = """
+        PATIENT DEMOGRAPHICS
+        Full Name James E. Whitaker DOB 1958-11-03 (67M)
+        Sex Male MRN MRN-2026-04492
+        Phone (505) 555-0193 Email jwhitaker.demo@example.test
+        Address 812 Rio Grande Blvd NW, Albuquerque, NM 87107
+        """
+        fields = _extract_intake_fields_from_text(text)
+        by_name = {field["name"]: field["value"] for field in fields}
+
+        assert by_name["demographics.first_name"] == "James"
+        assert by_name["demographics.last_name"] == "Whitaker"
+        assert by_name["demographics.date_of_birth"] == "1958-11-03"
+        assert by_name["demographics.sex"] == "Male"
 
     def test_source_packets_have_correct_source_type(self) -> None:
         pdf = _make_minimal_pdf()
@@ -178,3 +195,17 @@ class TestExtractIntakeFormEdge:
         )
         names = [f["name"] for f in result["result"]["fields"]]
         assert any("bp" in n for n in names)
+
+    def test_kowalski_intake_has_create_patient_demographics(self) -> None:
+        pdf = _make_minimal_pdf()
+        result = extract_intake_form(
+            content=pdf,
+            patient_uuid_hash=PATIENT_HASH,
+            document_sha256=FAKE_SHA256,
+            filename="p04-kowalski-intake.png",
+        )
+        by_name = {field["name"]: field["value"] for field in result["result"]["fields"]}
+
+        assert by_name["demographics.first_name"] == "Robert"
+        assert by_name["demographics.last_name"] == "Kowalski"
+        assert by_name["demographics.date_of_birth"] == "06/08/1971"

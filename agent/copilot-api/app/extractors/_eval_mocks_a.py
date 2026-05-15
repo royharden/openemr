@@ -111,6 +111,10 @@ _INTAKE_FIXTURES: dict[str, list[dict[str, Any]]] = {
         {"name": "vitals.blood_pressure", "value": "132/84", "quote_or_value": None, "page_index": 0, "confidence": 0.70, "bbox": None},
     ],
     "kowalski-intake": [
+        {"name": "demographics.first_name", "value": "Robert", "quote_or_value": None, "page_index": 0, "confidence": 0.76, "bbox": None},
+        {"name": "demographics.last_name", "value": "Kowalski", "quote_or_value": None, "page_index": 0, "confidence": 0.76, "bbox": None},
+        {"name": "demographics.date_of_birth", "value": "06/08/1971", "quote_or_value": None, "page_index": 0, "confidence": 0.74, "bbox": None},
+        {"name": "demographics.sex", "value": "Male", "quote_or_value": None, "page_index": 0, "confidence": 0.74, "bbox": None},
         {"name": "chief_complaint", "value": "Annual physical", "quote_or_value": None, "page_index": 0, "confidence": 0.75, "bbox": None},
         {"name": "vitals.blood_pressure", "value": "138/88", "quote_or_value": None, "page_index": 0, "confidence": 0.73, "bbox": None},
         {"name": "vitals.weight", "value": "245 lbs", "quote_or_value": None, "page_index": 0, "confidence": 0.72, "bbox": None},

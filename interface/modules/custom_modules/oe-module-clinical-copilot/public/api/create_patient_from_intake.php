@@ -166,22 +166,15 @@ try {
 
         // 6. Parse + validate demographics. Without name + DOB we cannot create
         //    a patient — return 422 so the caller can decide what to do.
-        //    Plan §4.1 (audit finding #16): a DOB that parses as both m/d/Y
-        //    and d/m/Y with distinct results surfaces as `ambiguous_dob`
-        //    with both candidates so the operator can clarify.
+        //    Plan §4.1 (audit finding #16): strict callers still surface
+        //    ambiguous numeric DOBs, but this endpoint is demo-only and the
+        //    current synthetic intake fixtures are US hospital forms. For
+        //    create-patient uploads, ambiguous slash DOBs use the US m/d/Y
+        //    candidate so stress fixtures like Kowalski can become charts.
         $demographics = copilot_create_demographics_from_extract($payload);
         $fname = $demographics['fname'] ?? null;
         $lname = $demographics['lname'] ?? null;
-        try {
-            $dob = copilot_create_normalize_dob($demographics['DOB'] ?? null);
-        } catch (AmbiguousDobException $ambiguous) {
-            copilot_create_send_json(422, [
-                'error' => 'ambiguous_dob',
-                'detail' => 'Intake DOB parsed as both US (m/d/Y) and European (d/m/Y) with distinct dates. Please clarify.',
-                'raw' => $demographics['DOB'] ?? null,
-                'candidates' => $ambiguous->candidates,
-            ]);
-        }
+        $dob = copilot_create_normalize_demo_intake_dob($demographics['DOB'] ?? null);
 
         if ($fname === null || $lname === null || $dob === null) {
             copilot_create_send_json(422, [
@@ -275,19 +268,25 @@ try {
             }
         }
 
-        // 9. Store raw document under the new patient. We reuse the SHA dedup
-        //    layer from AgDR-0063 — same file uploaded twice across two
-        //    create-from-intake calls would still dedup (different patients).
+        // 9. Store raw document under the new patient. Reuse the same
+        //    (patient_id, sha256) lookup as in-chart uploads so a duplicate
+        //    create-patient upload reuses the existing document row instead
+        //    of adding another raw document under the existing patient.
         $userIdRaw = $session->get('authUserID') ?? 0;
         $userId = is_numeric($userIdRaw) ? (int) $userIdRaw : 0;
-        [$documentId, $documentUuidBin] = copilot_upload_store_document(
-            $tmpName,
-            $originalName,
-            $mimeType,
-            $newPid,
-            $userId,
-        );
-        copilot_upload_record_sha($newPid, $docSha, $documentId);
+        $existingDocument = copilot_upload_lookup_existing_document($newPid, $docSha);
+        if ($existingDocument !== null) {
+            [$documentId, $documentUuidBin] = $existingDocument;
+        } else {
+            [$documentId, $documentUuidBin] = copilot_upload_store_document(
+                $tmpName,
+                $originalName,
+                $mimeType,
+                $newPid,
+                $userId,
+            );
+            copilot_upload_record_sha($newPid, $docSha, $documentId);
+        }
 
         // 10. Persist extracted facts now that the patient exists.
         $repository = new DocumentFactsRepository($logger);

@@ -21,15 +21,14 @@
  *   matching the existing chart-context view authorization model.
  *
  * Why filter to copilot-extracted rows:
- *   The Co-Pilot's LabResultWriter (AgDR-0067 / AgDR-0081) writes
- *   procedure_order rows whose `notes` column carries the
- *   `[copilot-extracted: doc_uuid=…; fact_id=…; extraction=…]`
- *   provenance marker. Non-Co-Pilot lab rows on the same chart should
- *   NOT appear in this trend (they're already visible in the native
- *   Lab Review screen). Limiting the widget to Co-Pilot rows keeps
- *   the trend story scoped to documents the agent has actually
- *   extracted, and avoids surfacing data the demo audience didn't
- *   see uploaded.
+ *   The Co-Pilot's LabResultWriter (AgDR-0067 / AgDR-0081) writes a
+ *   canonical row to `copilot_fact_to_result_map` for every extracted
+ *   lab fact promoted into OpenEMR's native procedure_* chain. Non-Co-Pilot
+ *   lab rows on the same chart should NOT appear in this trend (they're
+ *   already visible in the native Lab Review screen). Limiting the widget
+ *   through that map keeps the trend story scoped to documents the agent
+ *   has actually extracted, and avoids surfacing data the demo audience
+ *   didn't see uploaded.
  *
  * Request:
  *   GET …/lab_trends.php
@@ -198,14 +197,17 @@ try {
 
     // 6. Pull all Co-Pilot-extracted procedure_result rows for this pid.
     //    JOIN chain mirrors the FHIR Observation read path:
-    //      procedure_order (patient + provider + extraction provenance)
+    //      procedure_order (patient + provider)
     //      └─ procedure_order_code (LOINC at seq=1)
     //      └─ procedure_report (date_collected)
     //         └─ procedure_result (value, abnormal, status, units)
+    //      └─ copilot_fact_to_result_map + copilot_document_facts
+    //         (Co-Pilot provenance + extracted clinical collection date)
     //
-    //    Filter `procedure_order.notes` for the
-    //    `[copilot-extracted: …]` provenance marker LabResultWriter
-    //    writes (AgDR-0067). uuid_registry left-joined to surface the
+    //    Filter through `copilot_fact_to_result_map` rather than a text
+    //    provenance column. The OpenEMR `procedure_order` schema has no
+    //    `notes` column, and the map is the exactly-once source of truth
+    //    for rows created by LabResultWriter. The map also mirrors the
     //    procedure_result UUID for downstream FHIR-preview chip-click.
     $sql = '
         SELECT
@@ -216,8 +218,11 @@ try {
             pres.`range`       AS reference_range,
             pres.abnormal      AS abnormal,
             pres.result_status AS result_status,
-            prep.date_collected AS date,
-            ur.uuid            AS result_uuid
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(cdf.field_value_json, "$.collection_date")), "null"),
+                prep.date_collected
+            ) AS date,
+            cfrm.procedure_result_uuid AS result_uuid
         FROM `procedure_order` po
         INNER JOIN `procedure_order_code` poc
                 ON poc.procedure_order_id = po.procedure_order_id
@@ -227,18 +232,20 @@ try {
                AND prep.procedure_order_seq = 1
         INNER JOIN `procedure_result` pres
                 ON pres.procedure_report_id = prep.procedure_report_id
-        LEFT JOIN  `uuid_registry` ur
-                ON ur.table_name = "procedure_result"
-               AND ur.target_id  = pres.procedure_result_id
+        INNER JOIN `copilot_fact_to_result_map` cfrm
+                ON cfrm.procedure_order_id = po.procedure_order_id
+               AND cfrm.procedure_report_id = prep.procedure_report_id
+               AND cfrm.procedure_result_id = pres.procedure_result_id
+        INNER JOIN `copilot_document_facts` cdf
+                ON cdf.id = cfrm.copilot_document_fact_id
         WHERE po.patient_id = ?
-          AND po.notes LIKE "%[copilot-extracted%"
     ';
     $params = [$pid];
     if ($loincFilter !== null) {
         $sql .= ' AND poc.procedure_code = ? ';
         $params[] = $loincFilter;
     }
-    $sql .= ' ORDER BY poc.procedure_code ASC, prep.date_collected ASC, pres.procedure_result_id ASC';
+    $sql .= ' ORDER BY poc.procedure_code ASC, date ASC, pres.procedure_result_id ASC';
 
     // QueryUtils::fetchRecords is PHPDoc-typed `list<array<mixed>>`, so an
     // is_array guard here would always be true (level-10 phpstan flags it).
@@ -280,7 +287,7 @@ try {
 
     // Stable sort: by LOINC code so the response is deterministic for
     // tests + so the widget renders tiles in the same order each load.
-    usort($series, fn($a, $b): int => strcmp((string) $a['loinc'], (string) $b['loinc']));
+    usort($series, fn($a, $b): int => strcmp($a['loinc'], $b['loinc']));
 
     copilot_lab_trends_send_json(200, [
         'patient_uuid' => $patientUuidString,

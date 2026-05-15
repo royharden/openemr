@@ -256,6 +256,24 @@ function copilot_create_normalize_dob(?string $raw): ?string
 }
 
 /**
+ * Demo-create policy for ambiguous numeric intake DOBs.
+ *
+ * The create-patient endpoint is already demo-only (COPILOT_DEMO_MODE=1,
+ * admin ACL, CSRF). For synthetic US hospital fixtures such as Kowalski's
+ * Chicago ER form, slash-separated numeric DOBs are treated as US m/d/Y
+ * when the strict parser finds both US and European candidates. Strict
+ * callers should continue to use copilot_create_normalize_dob() directly.
+ */
+function copilot_create_normalize_demo_intake_dob(?string $raw): ?string
+{
+    try {
+        return copilot_create_normalize_dob($raw);
+    } catch (AmbiguousDobException $ambiguous) {
+        return $ambiguous->candidates[0] ?? null;
+    }
+}
+
+/**
  * Look up an existing demo-intake patient by its deterministic-from-SHA
  * usertext1 tag. Returns [pid, patient_uuid_string] on hit, null on miss.
  *

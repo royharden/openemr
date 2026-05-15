@@ -11,10 +11,12 @@
  *      regression that removes the ACL check or the pid filter would
  *      surface another patient's labs on the current chart sidebar.
  *
- *   2. The endpoint filters procedure_order rows to `notes LIKE '%[copilot-extracted%'`.
+ *   2. The endpoint filters rows through `copilot_fact_to_result_map`.
  *      Without this, the trend widget would show every lab on the chart,
  *      including ones not extracted by the Co-Pilot — which Plan §7.1
- *      explicitly scopes against.
+ *      explicitly scopes against. It also prefers the structured
+ *      `field_value_json.collection_date` so historical uploads do not
+ *      collapse onto the upload timestamp.
  *
  *   3. PanelController.php includes the new lab_trends.css + lab_trends.js
  *      assets and renders the `#copilot-lab-trends` container.
@@ -103,14 +105,26 @@ $smokeAssert->fileContains($endpoint, [
     "AclMain::aclCheckCore('patients', 'med')",
     "\$session->get('pid')",
     "BaseService::getUuidById((string) \$pid, 'patient_data', 'pid')",
-    'po.notes LIKE "%[copilot-extracted%"',
     'INNER JOIN `procedure_order_code` poc',
     'INNER JOIN `procedure_report` prep',
     'INNER JOIN `procedure_result` pres',
-    "LEFT JOIN  `uuid_registry` ur",
+    'INNER JOIN `copilot_fact_to_result_map` cfrm',
+    'INNER JOIN `copilot_document_facts` cdf',
+    'JSON_EXTRACT(cdf.field_value_json, "$.collection_date")',
+    'cfrm.procedure_order_id = po.procedure_order_id',
+    'cfrm.procedure_report_id = prep.procedure_report_id',
+    'cfrm.procedure_result_id = pres.procedure_result_id',
+    'cdf.id = cfrm.copilot_document_fact_id',
+    "cfrm.procedure_result_uuid AS result_uuid",
     "header('Content-Type: application/json; charset=utf-8');",
     "header('X-Content-Type-Options: nosniff');",
 ]);
+
+$smokeAssert->fileDoesNotContain(
+    $endpoint,
+    'po.notes',
+    'procedure_order has no notes column; Co-Pilot lab provenance is keyed by copilot_fact_to_result_map'
+);
 
 // The endpoint must NOT introduce a CSRF check — same rationale as the
 // FHIR Observation preview proxy (read-only GET, same-origin session +
@@ -179,6 +193,12 @@ if (!is_file($widgetJs)) {
     }
     if ($jsContent !== false && !str_contains($jsContent, "credentials: 'same-origin'")) {
         $smokeAssert->failures[] = "lab_trends.js must use credentials: 'same-origin' so the session cookie reaches the endpoint";
+    }
+    if ($jsContent !== false && !str_contains($jsContent, 'function formatDateLabel')) {
+        $smokeAssert->failures[] = "lab_trends.js must compact x-axis date labels to avoid mini-chart label overlap";
+    }
+    if ($jsContent !== false && !str_contains($jsContent, 'xTickPoints.length === 1')) {
+        $smokeAssert->failures[] = "lab_trends.js must render one x-axis label when all observation dates are identical";
     }
 }
 

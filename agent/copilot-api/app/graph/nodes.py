@@ -457,17 +457,34 @@ def synthesizer_node(state: CopilotState) -> dict[str, Any]:
     else:
         try:
             llm_output = _call_synthesizer(state)
+            if not llm_output.get("claims") and not (state.get("question") or "").strip():
+                fallback_output = _fallback_pre_room_llm_output(state)
+                if fallback_output.get("claims"):
+                    logger.warning(
+                        "synthesizer_node: live synthesis returned 0 claims for pre-room brief; "
+                        "using deterministic source-packet fallback"
+                    )
+                    llm_output = fallback_output
             synthesis_status = "done"
         except Exception as e:
             logger.error("synthesizer_node LLM call failed: %s", e)
-            llm_output = {
-                "answer_type": "pre_room_brief",
-                "claims": [],
-                "missing_data": ["Synthesis failed; please review chart directly."],
-                "refusals": [],
-                "suggested_followups": [],
-            }
-            synthesis_status = "error"
+            fallback_output = _fallback_pre_room_llm_output(state)
+            if not (state.get("question") or "").strip() and fallback_output.get("claims"):
+                logger.warning(
+                    "synthesizer_node: live synthesis failed for pre-room brief; "
+                    "using deterministic source-packet fallback"
+                )
+                llm_output = fallback_output
+                synthesis_status = "done"
+            else:
+                llm_output = {
+                    "answer_type": "pre_room_brief",
+                    "claims": [],
+                    "missing_data": ["Synthesis failed; please review chart directly."],
+                    "refusals": [],
+                    "suggested_followups": [],
+                }
+                synthesis_status = "error"
 
     elapsed_ms = (time.monotonic() - started) * 1000
     logger.info("synthesizer_node: done in %.1fms, claims=%d", elapsed_ms, len(llm_output.get("claims", [])))
@@ -498,7 +515,13 @@ def _call_synthesizer(state: CopilotState) -> dict[str, Any]:
 
     extracted_packets = state.get("extracted_packets", [])
     guideline_packets = state.get("guideline_packets", [])
-    question = state.get("question", "What changed and what should I pay attention to?")
+    question = (state.get("question") or "").strip() or (
+        "Prepare a concise pre-room brief from the provided source packets. "
+        "Summarize active problems, active prescriptions, allergies, recent labs, "
+        "immunizations, and any retrieved guideline evidence. Cite only provided "
+        "source_ids, include a caveat when citing stale packets, and do not make "
+        "treatment recommendations."
+    )
 
     all_packets_summary = json.dumps(
         {
@@ -585,6 +608,146 @@ def _call_synthesizer(state: CopilotState) -> dict[str, Any]:
         "synthesizer_structured_output_failed: "
         + "; ".join(repair_errors or errors)
     )
+
+
+def _fallback_pre_room_llm_output(state: CopilotState) -> dict[str, Any]:
+    """Build a conservative source-only pre-room brief when live synthesis
+    returns no usable claims.
+
+    This fallback is intentionally narrow: it only summarizes facts already in
+    SourcePackets, cites those packets directly, and leaves clinical judgment to
+    the chart/user. It exists because the browser pre-room path has no user
+    question; if the live model emits no tool payload for that richer packet set,
+    an empty card is less useful than verified chart facts.
+    """
+    packets = list(state.get("extracted_packets", []))
+    guideline_packets = list(state.get("guideline_packets", []))
+    claims: list[dict[str, Any]] = []
+    missing_data: list[str] = []
+
+    def packet_text(packet: dict[str, Any]) -> str:
+        value = packet.get("value")
+        unit = packet.get("unit")
+        text = str(value) if value is not None else ""
+        if unit:
+            text = f"{text} {unit}".strip()
+        return text.strip()
+
+    def stale_caveat(selected: list[dict[str, Any]], noun: str) -> str | None:
+        stale = [p for p in selected if p.get("freshness") == "stale"]
+        if not stale:
+            return None
+        dates = [
+            str(p.get("observed_at") or p.get("last_updated") or "").split(" ")[0]
+            for p in stale
+        ]
+        dates = [d for d in dates if d]
+        if dates:
+            return f"One or more cited {noun} records are stale as of {', '.join(dates[:3])}."
+        return f"One or more cited {noun} records are stale."
+
+    problems = [
+        p for p in packets
+        if p.get("resource_type") == "Condition" and p.get("status") == "active"
+    ]
+    if problems:
+        names = [packet_text(p) for p in problems if packet_text(p)]
+        if names:
+            claims.append({
+                "text": "Problem list includes " + ", ".join(names) + ".",
+                "claim_type": "fact",
+                "source_ids": [str(p["source_id"]) for p in problems],
+                "caveat": stale_caveat(problems, "problem"),
+            })
+
+    prescriptions = [
+        p for p in packets
+        if p.get("resource_type") == "MedicationRequest" and p.get("status") == "active"
+    ]
+    if prescriptions:
+        names = [packet_text(p) for p in prescriptions if packet_text(p)]
+        if names:
+            claims.append({
+                "text": "Active prescriptions include " + ", ".join(names) + ".",
+                "claim_type": "fact",
+                "source_ids": [str(p["source_id"]) for p in prescriptions],
+                "caveat": stale_caveat(prescriptions, "prescription"),
+            })
+
+    allergies = [
+        p for p in packets
+        if p.get("resource_type") == "AllergyIntolerance" and p.get("status") == "active"
+    ]
+    if allergies:
+        names = [packet_text(p) for p in allergies if packet_text(p)]
+        if names:
+            claims.append({
+                "text": "Allergy list includes " + ", ".join(names) + ".",
+                "claim_type": "fact",
+                "source_ids": [str(p["source_id"]) for p in allergies],
+                "caveat": stale_caveat(allergies, "allergy"),
+            })
+
+    labs = [
+        p for p in packets
+        if p.get("resource_type") == "Observation" and p.get("source_table") == "procedure_result"
+    ]
+    for lab in labs[:3]:
+        label = str(lab.get("label") or "Lab result").strip()
+        value = packet_text(lab)
+        date = str(lab.get("observed_at") or "").split(" ")[0]
+        if not value:
+            continue
+        text = f"{label} was {value}"
+        if date:
+            text += f" on {date}"
+        text += "."
+        claims.append({
+            "text": text,
+            "claim_type": "fact",
+            "source_ids": [str(lab["source_id"])],
+            "caveat": stale_caveat([lab], "lab"),
+        })
+
+    immunizations = [
+        p for p in packets
+        if p.get("resource_type") == "Immunization"
+    ]
+    for imm in immunizations[:1]:
+        value = packet_text(imm)
+        date = str(imm.get("observed_at") or "").split(" ")[0]
+        if not value:
+            continue
+        text = f"Immunization record includes {value}"
+        if date:
+            text += f" on {date}"
+        if imm.get("status"):
+            text += f" with status {imm['status']}"
+        text += "."
+        claims.append({
+            "text": text,
+            "claim_type": "fact",
+            "source_ids": [str(imm["source_id"])],
+            "caveat": stale_caveat([imm], "immunization"),
+        })
+
+    if guideline_packets:
+        guideline = guideline_packets[0]
+        label = str(guideline.get("label") or "Retrieved guideline evidence").strip()
+        claims.append({
+            "text": f"Retrieved guideline evidence is available from {label}.",
+            "claim_type": "fact",
+            "source_ids": [str(guideline["source_id"])],
+            "caveat": stale_caveat([guideline], "guideline"),
+        })
+
+    return {
+        "answer_type": "pre_room_brief",
+        "claims": claims,
+        "missing_data": missing_data,
+        "refusals": [],
+        "suggested_followups": [],
+    }
 
 
 def critic_node(state: CopilotState) -> dict[str, Any]:

@@ -24,7 +24,9 @@
  *   7. PanelController.php still contains id="copilot-upload-form" — the
  *      embedded form in the Co-Pilot card is intentionally preserved
  *      (regression guard for the user's "keep it in there" direction).
- *   8. copilot.js carries the DOMContentLoaded relocation that hoists
+ *   8. PanelController.php defaults the doc-type dropdown back to lab upload
+ *      and uses the broadened Upload Labs / Upload Medications labels.
+ *   9. copilot.js carries the DOMContentLoaded relocation that hoists
  *      #copilot-top-row above the Allergies / Medical Problems /
  *      Medications three-card row (the user's preferred placement).
  *
@@ -206,7 +208,28 @@ if (!is_file($panelControllerPath) || !is_readable($panelControllerPath)) {
 }
 
 // ---------------------------------------------------------------------------
-// Test 8: copilot.js carries the relocateTopRow() hoister and binds it to
+// Test 8: PanelController.php defaults the document-type selector back to
+// lab upload, and the labels match the PDF+image upload behavior.
+// ---------------------------------------------------------------------------
+if (!is_file($panelControllerPath) || !is_readable($panelControllerPath)) {
+    $detail = "expected PanelController.php at $panelControllerPath";
+    $results['panel_lab_default_labels'] = ['passed' => false, 'detail' => $detail];
+    $printRecord('panel_lab_default_labels', false, $detail);
+} else {
+    $panelSource = (string) file_get_contents($panelControllerPath);
+    $hasSelectedLab = str_contains($panelSource, '<option value="lab_pdf" selected><?php echo xlt(\'Upload Labs\'); ?></option>');
+    $hasUploadMedicationLabel = str_contains($panelSource, '<option value="medication_list"><?php echo xlt(\'Upload Medications\'); ?></option>');
+    $demoIntakeSelected = str_contains($panelSource, '<option value="intake_form_create_patient" selected>');
+    $passed = $hasSelectedLab && $hasUploadMedicationLabel && !$demoIntakeSelected;
+    $detail = $passed
+        ? 'PanelController doc-type dropdown defaults to Upload Labs and leaves create-patient intake unselected'
+        : 'expected selected Upload Labs label, Upload Medications label, and unselected create-patient intake option';
+    $results['panel_lab_default_labels'] = ['passed' => $passed, 'detail' => $detail];
+    $printRecord('panel_lab_default_labels', $passed, $detail);
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: copilot.js carries the relocateTopRow() hoister and binds it to
 // DOMContentLoaded (or runs it immediately if the document is already
 // parsed). The hoister is what places #copilot-top-row above the
 // Allergies / Medical Problems / Medications three-card row.
